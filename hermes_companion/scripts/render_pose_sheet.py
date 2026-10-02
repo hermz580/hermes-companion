@@ -78,9 +78,9 @@ class RecordingCanvas:
                          width=kw.get("width", 1))
         return self._shapes
 
-    def create_line(self, x1, y1, x2, y2, **kw):
+    def create_line(self, *coords, **kw):
         self._shapes += 1
-        self.d.line([x1, y1, x2, y2], fill=_pil_color(kw.get("fill")),
+        self.d.line(list(coords), fill=_pil_color(kw.get("fill")),
                     width=kw.get("width", 1))
         return self._shapes
 

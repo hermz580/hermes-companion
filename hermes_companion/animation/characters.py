@@ -13,7 +13,7 @@ Adding a companion = one entry here + a draw function that honors
 """
 from __future__ import annotations
 
-from hermes_companion.animation import animator, samurai, astro_boy
+from hermes_companion.animation import animator, astro_boy, herald, samurai
 
 # name -> (draw_fn, default_palette, palette_names, description)
 COMPANIONS: dict[str, dict] = {
@@ -38,6 +38,14 @@ COMPANIONS: dict[str, dict] = {
         "desc": "black astro boy · LED eyes · chrome limbs · "
                 "HUD visor · changeable accent colors · "
                 "crimson | arctic | neon | plasma | mono | void",
+    },
+    "herald": {
+        "draw": herald.draw_herald,
+        "palettes": list(herald.HERALD_PALETTES.keys()),
+        "default": herald.HERALD_DEFAULT_PALETTE,
+        "desc": "winged messenger · mood aura + glowing staff orb · "
+                "flapping helmet/sandal wings · streaming scarf · "
+                "curiosity marks · olympus | midnight | ember | verdant | nebula",
     },
 }
 

@@ -455,9 +455,14 @@ class EventTail:
         Glances (Hermes busy) only play when nothing else is on screen; quiet
         mode investigations may walk toward what was noticed.
         """
-        if self.sensors is None or self.curiosity is None \
-                or not hasattr(self.overlay, "_beats_for_step"):
-            return  # procedural overlays don't take beat-level curiosity yet
+        if self.sensors is None or self.curiosity is None:
+            return
+        director = getattr(self.overlay, "_director", None)
+        if director is not None:
+            self._poll_curiosity_director(director)
+            return
+        if not hasattr(self.overlay, "_beats_for_step"):
+            return
         try:
             observations = self.sensors.sample()
         except Exception:
@@ -489,6 +494,20 @@ class EventTail:
             print(f"CURIOUS {obs.kind.value} {[s['pose'] for s in reaction.steps]}", flush=True)
             self.overlay.enqueue(beats, replace=not self._overlay_busy())
             break
+
+    def _poll_curiosity_director(self, director) -> None:
+        from hermes_companion.renderer.playground import reaction_chain
+        try:
+            observations = self.sensors.sample()
+        except Exception:
+            return
+        for obs in observations:
+            reaction = self.curiosity.observe(obs, self.attention.signal.state)
+            if reaction is None or director.chain is not None:
+                continue
+            director.start_chain(reaction_chain(reaction, int(self.overlay.x),
+                                                int(self.overlay.w)))
+            return
 
     def poll(self) -> None:
         self._poll_file()

@@ -63,6 +63,15 @@ hermes-companion live
   pauses, clicks, clipboard changes, displays plugged in, you stepping away
   and coming back, late nights and long sessions. It habituates to repeats
   and gets bored when nothing happens.
+- **Lives on your windows.** It perches on the title bar of the window
+  you're using, rides along when you drag it, hops over when you switch
+  windows, and drops to the floor when you minimize or maximize. Whenever
+  Hermes starts working, it jumps down so the real work plays on solid ground.
+  Turn it off with `--no-perch`.
+- **Smooth rendering.** Characters are drawn at 3x and anti-aliased, with a
+  soft glow in their mood colour and squash-and-stretch. They're shown in a
+  true per-pixel-alpha window, so there are no jagged edges or green fringes.
+  `--render classic` switches back.
 - **Hermes always wins.** While Hermes works, curiosity can only glance in
   place. While Hermes needs you or something failed, curiosity is silent.
 

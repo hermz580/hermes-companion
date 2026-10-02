@@ -1,0 +1,27 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e ".[test]"
+      - name: Headless self-check
+        run: hermes-companion --seed 42 selfcheck
+      # Tests that inspect a locally installed Hermes agent are skipped in CI.
+      - name: Tests
+        run: >
+          pytest -q
+          --deselect hermes_companion/tests/test_plugin_loader.py
+          --deselect hermes_companion/tests/test_plugin_bundle_shadowing.py::BundleFreshnessTest::test_the_actually_installed_bundle_is_current

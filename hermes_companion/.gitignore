@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*.sqlite3
+bindings.json
+injection_audit.jsonl
+*.log

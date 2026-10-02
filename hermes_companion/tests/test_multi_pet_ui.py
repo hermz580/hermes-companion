@@ -15,8 +15,14 @@ class MultiPetHiddenUITests(unittest.TestCase):
         from hermes_companion.renderer.multi_pet import MultiPetDock, PetBinding
         from hermes_companion.renderer.live import active_pet
         from conftest import shared_tk_root
-        sheet = active_pet()[1]
         with TemporaryDirectory() as d:
+            try:
+                sheet = active_pet()[1]
+            except RuntimeError:
+                # No pet installed (e.g. CI): use a blank 8x9 Codex-sized atlas.
+                from PIL import Image
+                sheet = Path(d) / 'spritesheet.png'
+                Image.new('RGBA', (1536, 1872), (0, 0, 0, 0)).save(sheet)
             dock = MultiPetDock(
                 [PetBinding('Scout', 'simulation-a'), PetBinding('Guide')],
                 [sheet] * 2, Path(d) / 'absent.jsonl', simulation=True,
@@ -58,8 +64,14 @@ class MultiPetMappedProofTests(unittest.TestCase):
         from hermes_companion.renderer.live import active_pet
         user32 = ctypes.windll.user32
         foreground = user32.GetForegroundWindow()
-        sheet = active_pet()[1]
         with TemporaryDirectory() as d:
+            try:
+                sheet = active_pet()[1]
+            except RuntimeError:
+                # No pet installed (e.g. CI): use a blank 8x9 Codex-sized atlas.
+                from PIL import Image
+                sheet = Path(d) / 'spritesheet.png'
+                Image.new('RGBA', (1536, 1872), (0, 0, 0, 0)).save(sheet)
             dock = MultiPetDock([PetBinding('Scout', 'simulation-a'), PetBinding('Builder', 'simulation-b'), PetBinding('Guide')], [sheet]*3, Path(d)/'absent.jsonl', simulation=True, visible=True)
             try:
                 dock.root.update()

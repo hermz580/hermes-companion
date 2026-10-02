@@ -1,8 +1,0 @@
-pillow>=10
-
-[config]
-pyyaml>=6
-
-[test]
-pytest>=8
-pyyaml>=6

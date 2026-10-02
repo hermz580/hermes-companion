@@ -110,13 +110,14 @@ class PlaygroundBrain:
         self._curious(now)
 
 
-def run_playground(companion: str = "samurai", notice: str = "full",
+def run_playground(companion: str = "herald", notice: str = "full",
+                   palette: str | None = None,
                    seed: int = 7, variety: bool = True, demo: bool = True) -> int:
     from hermes_companion.animation.director import Director
     from hermes_companion.renderer.desktop_sensors import DesktopSensors
     from hermes_companion.renderer.overlay import ProceduralLiveOverlay
 
-    overlay = ProceduralLiveOverlay(companion=companion)
+    overlay = ProceduralLiveOverlay(companion=companion, palette=palette)
     sensors = DesktopSensors.for_platform(
         notice, pet_box=lambda: (overlay.x, overlay.home_y,
                                  overlay.x + overlay.w, overlay.home_y + overlay.h))

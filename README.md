@@ -11,15 +11,23 @@ falls asleep when the agent goes idle.
 ## Try it in 30 seconds (Windows, no Hermes needed)
 
 Download the repo ([Code → Download ZIP](https://github.com/hermz580/hermes-companion/archive/refs/heads/main.zip)),
-unzip it and double-click **`Start-Companion.cmd`**. A samurai appears on your
-desktop, reacts to what you do and acts out a simulated Hermes session every
-90 seconds. Or from a terminal:
+unzip it and double-click **`Start-Companion.cmd`**. **Herald**, a winged
+messenger, appears on your desktop. It reacts to what you do and acts out a
+simulated Hermes session every 90 seconds. Or from a terminal:
 
 ```bash
 pip install .
-hermes-companion play                    # samurai
-hermes-companion play --companion astro
+hermes-companion play                              # Herald
+hermes-companion play --palette nebula             # olympus midnight ember verdant nebula
+hermes-companion play --companion samurai          # or astro
 ```
+
+![Herald: idle, noticing you, curious, terminal, web, delegating, failure, needs you, done, travel, git, asleep](docs/herald.png)
+
+Herald's staff orb and aura show what a move *means*: teal = working,
+violet = delegating, rose = failure, amber = needs you, gold = success,
+cyan = curious, lavender = resting. "!" means it noticed something you did,
+and "?" means it's wondering about it.
 
 ## Quickstart
 

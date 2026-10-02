@@ -364,9 +364,10 @@ print(json.dumps(mons))
             companion=args.companion, home_x=home_x, home_y=home_y)
     from hermes_companion.renderer.desktop_sensors import DesktopSensors
     sensors = DesktopSensors.for_platform(
-        args.notice, pet_box=lambda: (overlay.x, overlay.y,
-                                      overlay.x + getattr(overlay, "w", 0),
-                                      overlay.y + getattr(overlay, "h", 0)))
+        args.notice, pet_box=lambda: (
+            overlay.x, getattr(overlay, "y", getattr(overlay, "home_y", 0)),
+            overlay.x + getattr(overlay, "w", 0),
+            getattr(overlay, "y", getattr(overlay, "home_y", 0)) + getattr(overlay, "h", 0)))
     tail = EventTail(events, overlay, from_end=not args.replay,
                      relay=relay, bound_session_id=bound_session_id,
                      follow=follow_mode, companion_id=slug,
@@ -394,6 +395,14 @@ print(json.dumps(mons))
             overlay.root.after(delay, lambda e=event, t=tool: _play_demo(tail, e, t))
     overlay.run()
     return 0
+
+
+def cmd_play(args: argparse.Namespace) -> int:
+    """Run a companion on the desktop with no Hermes install needed."""
+    from hermes_companion.renderer.playground import run_playground
+    return run_playground(companion=args.companion, notice=args.notice,
+                          seed=args.seed, variety=not args.no_variety,
+                          demo=not args.no_demo)
 
 
 def _make_grab_publisher(relay):
@@ -824,6 +833,15 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--no-variety", action="store_true",
                     help="play each Hermes chain exactly as written, no flourishes")
     pl.set_defaults(fn=cmd_live)
+
+    pp = sub.add_parser("play", help="try a companion now - no Hermes needed")
+    pp.add_argument("--companion", choices=("samurai", "astro"), default="samurai")
+    pp.add_argument("--notice", choices=("off", "ambient", "full"), default="full",
+                    help="what it may notice on the desktop (content-free)")
+    pp.add_argument("--no-demo", action="store_true",
+                    help="don't loop a simulated Hermes session")
+    pp.add_argument("--no-variety", action="store_true")
+    pp.set_defaults(fn=cmd_play)
 
     pr = sub.add_parser("relay", help="run the LAN event relay (one per fleet)")
     pr.add_argument("--host", default="0.0.0.0", help="bind address (default 0.0.0.0)")

@@ -8,6 +8,19 @@ falls asleep when the agent goes idle.
 
 ![Pose sheet: idle, walk, jump, terminal work, web scan, memory vault, celebrate, bow](docs/poses.png)
 
+## Try it in 30 seconds (Windows, no Hermes needed)
+
+Download the repo ([Code → Download ZIP](https://github.com/hermz580/hermes-companion/archive/refs/heads/main.zip)),
+unzip it and double-click **`Start-Companion.cmd`**. A samurai appears on your
+desktop, reacts to what you do and acts out a simulated Hermes session every
+90 seconds. Or from a terminal:
+
+```bash
+pip install .
+hermes-companion play                    # samurai
+hermes-companion play --companion astro
+```
+
 ## Quickstart
 
 ```bash

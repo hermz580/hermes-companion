@@ -256,6 +256,11 @@ class ProceduralLiveOverlay(TkOverlay):
             raise RuntimeError("procedural live overlay has no behavior engine")
         self._director.start_chain(chain)
 
+    def set_y(self, y: int) -> None:
+        """Vertical anchor (perching on windows); the Director only moves x."""
+        self.home_y = int(y)
+        self._place(self.x, self.home_y)
+
     def place_at(self, x: int, y: int) -> None:
         # Re-resolve which panel this position belongs to (relay grabs and
         # multi-pet placement can move a companion to another screen) and keep

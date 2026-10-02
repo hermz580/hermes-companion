@@ -32,7 +32,9 @@ class Director:
         self.step_i = 0
         self.step_start = 0.0
         self._pending: Chain | None = None
-        self._x = 0
+        # Start from where the surface really is; starting at 0 made the first
+        # move of every chain fling the pet toward the left screen edge.
+        self._x = getattr(surface, "x", 0) or 0
         self._move_start = 0
         self._step_first = True
         self.idle_pose = "idle_bob"

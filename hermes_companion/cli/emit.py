@@ -359,9 +359,14 @@ print(json.dumps(mons))
             if relay is not None:
                 relay.close()
             return 2
-        from hermes_companion.renderer.overlay import ProceduralLiveOverlay
-        overlay = ProceduralLiveOverlay(
-            companion=args.companion, home_x=home_x, home_y=home_y)
+        if args.render == "smooth":
+            from hermes_companion.renderer.layered import SmoothLiveOverlay
+            overlay = SmoothLiveOverlay(
+                companion=args.companion, home_x=home_x, home_y=home_y)
+        else:
+            from hermes_companion.renderer.overlay import ProceduralLiveOverlay
+            overlay = ProceduralLiveOverlay(
+                companion=args.companion, home_x=home_x, home_y=home_y)
     from hermes_companion.renderer.desktop_sensors import DesktopSensors
     sensors = DesktopSensors.for_platform(
         args.notice, pet_box=lambda: (
@@ -372,7 +377,8 @@ print(json.dumps(mons))
                      relay=relay, bound_session_id=bound_session_id,
                      follow=follow_mode, companion_id=slug,
                      idle=False, replay=args.replay,
-                     variety=not args.no_variety, sensors=sensors)
+                     variety=not args.no_variety, sensors=sensors,
+                     perch=not args.no_perch)
     if args.companion is not None:
         overlay.bind_engine(tail.engine)
     overlay.on_ready = lambda: (
@@ -401,7 +407,8 @@ def cmd_play(args: argparse.Namespace) -> int:
     """Run a companion on the desktop with no Hermes install needed."""
     from hermes_companion.renderer.playground import run_playground
     return run_playground(companion=args.companion, notice=args.notice,
-                          palette=args.palette,
+                          palette=args.palette, render=args.render,
+                          perch=not args.no_perch,
                           seed=args.seed, variety=not args.no_variety,
                           demo=not args.no_demo)
 
@@ -831,6 +838,10 @@ def build_parser() -> argparse.ArgumentParser:
                     help="what the pet may notice on the desktop (content-free): "
                          "ambient = cursor/windows/displays/away; full adds clicks, "
                          "typing rhythm and clipboard changes (default: full)")
+    pl.add_argument("--render", choices=("smooth", "classic"), default="smooth",
+                    help="procedural companions: smooth anti-aliased or classic")
+    pl.add_argument("--no-perch", action="store_true",
+                    help="procedural companions: don't perch on windows")
     pl.add_argument("--no-variety", action="store_true",
                     help="play each Hermes chain exactly as written, no flourishes")
     pl.set_defaults(fn=cmd_live)
@@ -844,6 +855,10 @@ def build_parser() -> argparse.ArgumentParser:
     pp.add_argument("--no-demo", action="store_true",
                     help="don't loop a simulated Hermes session")
     pp.add_argument("--no-variety", action="store_true")
+    pp.add_argument("--render", choices=("smooth", "classic"), default="smooth",
+                    help="smooth = anti-aliased, glowing, true transparency (default)")
+    pp.add_argument("--no-perch", action="store_true",
+                    help="stay on the floor instead of living on your windows")
     pp.set_defaults(fn=cmd_play)
 
     pr = sub.add_parser("relay", help="run the LAN event relay (one per fleet)")

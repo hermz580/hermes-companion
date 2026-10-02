@@ -256,7 +256,8 @@ def draw_herald(canvas, pose: str, progress: float = 0.0,
     if body == "sit" and pose in ("sleep", "head_drop"):
         hcy += 6
     canvas.create_oval(hcx - 18, hcy - 18, hcx + 18, hcy + 18, fill=P["skin"], outline="")
-    canvas.create_arc(hcx - 19, hcy - 20, hcx + 19, hcy + 12, start=200, extent=140,
+    # Tk arc angles run counter-clockwise from 3 o'clock: 20..160 is the top.
+    canvas.create_arc(hcx - 19, hcy - 20, hcx + 19, hcy + 12, start=20, extent=140,
                       style="chord", fill=P["hair"], outline="")
     # petasos helmet with wings
     canvas.create_oval(hcx - 24, hcy - 14, hcx + 24, hcy - 6, fill=P["helmet"],

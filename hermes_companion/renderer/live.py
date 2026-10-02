@@ -118,7 +118,7 @@ class EventTail:
                  follow_dwell_s: float = 2.5, clock=None,
                  idle: bool = False, replay: bool = False,
                  auth_key: bytes | None = None, variety: bool = False,
-                 sensors=None) -> None:
+                 sensors=None, perch: bool = False) -> None:
         """Drive one companion from the signed event log.
 
         Exactly one source of ownership is required: a pinned
@@ -168,6 +168,8 @@ class EventTail:
         from hermes_companion.core.curiosity import CuriosityModel
         self.sensors = sensors
         self.curiosity = CuriosityModel(seed=seed or None) if sensors is not None else None
+        self._want_perch = perch
+        self.perch = None
         self.stuck = StuckDetector()
         self._stuck_state = None
         self._offset = 0 if replay else (
@@ -497,14 +499,21 @@ class EventTail:
 
     def _poll_curiosity_director(self, director) -> None:
         from hermes_companion.renderer.playground import reaction_chain
+        if self._want_perch and self.perch is None and hasattr(self.overlay, "set_y"):
+            from hermes_companion.behavior.perch import PerchDriver
+            self.perch = PerchDriver(self.overlay, director, self.sensors)
         try:
             observations = self.sensors.sample()
         except Exception:
             return
+        if self.perch is not None:
+            self.perch.tick(time.monotonic(), self.attention.signal.state)
         for obs in observations:
             reaction = self.curiosity.observe(obs, self.attention.signal.state)
             if reaction is None or director.chain is not None:
                 continue
+            if self.perch is not None and (self.perch.perched or self.perch.motion):
+                reaction.target = None
             director.start_chain(reaction_chain(reaction, int(self.overlay.x),
                                                 int(self.overlay.w)))
             return

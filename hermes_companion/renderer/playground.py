@@ -13,6 +13,7 @@ from __future__ import annotations
 import time
 
 from hermes_companion.behavior.behavior_engine import BehaviorEngine, Chain
+from hermes_companion.behavior.perch import PerchDriver
 from hermes_companion.core.attention import AttentionModel
 from hermes_companion.core.curiosity import CuriosityModel, Reaction
 from hermes_companion.core.events import EventKind, SemanticEvent, classify_tool
@@ -55,7 +56,7 @@ def reaction_chain(reaction: Reaction, current_x: int, width: int) -> Chain:
 class PlaygroundBrain:
     def __init__(self, director, surface, *, sensors=None, seed: int = 7,
                  variety: bool = True, demo: bool = True, start: float = 0.0,
-                 log=print) -> None:
+                 perch: bool = False, log=print) -> None:
         self.engine = BehaviorEngine(seed=seed, variety=variety)
         self.director = director
         self.surface = surface
@@ -67,9 +68,13 @@ class PlaygroundBrain:
         self._next = 0
         self._loop = 0
         self.log = log
+        self.want_perch = perch
+        self.perch: PerchDriver | None = None
 
     def bind(self, director) -> None:
         self.director = director
+        if self.want_perch and self.sensors is not None and hasattr(self.surface, "set_y"):
+            self.perch = PerchDriver(self.surface, director, self.sensors, log=self.log)
 
     def _hermes(self, now: float) -> None:
         if not self.demo:
@@ -100,6 +105,8 @@ class PlaygroundBrain:
             reaction = self.curiosity.observe(obs, self.attention.signal.state)
             if reaction is None or self.director.chain is not None:
                 continue   # never talk over a chain that is already playing
+            if self.perch is not None and (self.perch.perched or self.perch.motion):
+                reaction.target = None   # don't walk off the edge of a title bar
             chain = reaction_chain(reaction, int(self.surface.x), int(self.surface.w))
             self.log(f"CURIOUS {obs.kind.value} {chain.poses}")
             self.director.start_chain(chain)
@@ -108,29 +115,38 @@ class PlaygroundBrain:
     def tick(self, now: float) -> None:
         self._hermes(now)
         self._curious(now)
+        if self.perch is not None:
+            self.perch.tick(now, self.attention.signal.state)
 
 
 def run_playground(companion: str = "herald", notice: str = "full",
                    palette: str | None = None,
-                   seed: int = 7, variety: bool = True, demo: bool = True) -> int:
+                   seed: int = 7, variety: bool = True, demo: bool = True,
+                   render: str = "smooth", perch: bool = True) -> int:
     from hermes_companion.animation.director import Director
     from hermes_companion.renderer.desktop_sensors import DesktopSensors
     from hermes_companion.renderer.overlay import ProceduralLiveOverlay
 
-    overlay = ProceduralLiveOverlay(companion=companion, palette=palette)
+    if render == "smooth":
+        from hermes_companion.renderer.layered import SmoothLiveOverlay
+        overlay = SmoothLiveOverlay(companion=companion, palette=palette)
+        print(f"render: smooth ({overlay.mode})", flush=True)
+    else:
+        overlay = ProceduralLiveOverlay(companion=companion, palette=palette)
     sensors = DesktopSensors.for_platform(
         notice, pet_box=lambda: (overlay.x, overlay.home_y,
                                  overlay.x + overlay.w, overlay.home_y + overlay.h))
     if sensors is None and notice != "off":
         print("curiosity unavailable on this platform (needs Windows)", flush=True)
     brain = PlaygroundBrain(None, overlay, sensors=sensors, seed=seed,
-                            variety=variety, demo=demo, start=time.monotonic())
+                            variety=variety, demo=demo, start=time.monotonic(),
+                            perch=perch)
     overlay._director = Director(brain.engine, overlay)
     brain.bind(overlay._director)
 
     def poll() -> None:
         brain.tick(time.monotonic())
-        overlay.root.after(100, poll)
+        overlay.root.after(33, poll)    # 30 Hz so hops and drops look smooth
 
     def ready() -> None:
         print(f"PLAY READY companion={companion} notice={notice} "

@@ -138,6 +138,8 @@ not a sandbox against malicious code already running as the same OS account.
 - Content-free events only; no raw text rendered.
 - Local event records are MAC-authenticated; renderers fail closed on unsigned
   or forged JSONL records.
-- Input/typing awareness default-OFF.
+- Desktop curiosity (`live --notice`) reads only content-free signals:
+  positions, counters and on/off states, never keys, titles or clipboard text.
+  `--notice off` disables it; `ambient` excludes typing, clicks and clipboard.
 - All sensors individually toggleable.
 - Fail-open plugin: a broken companion never breaks Hermes.

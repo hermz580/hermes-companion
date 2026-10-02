@@ -29,6 +29,34 @@ hermes plugins enable hermes-companion
 hermes-companion live
 ```
 
+## What it does
+
+- **Shows Hermes's real work.** Every Hermes action has a fixed signature
+  move (terminal work, approval wave, failure recoil) that is never altered.
+- **Hundreds of thousands of variations.** Flourishes, gaits, tempos and
+  entrances/exits are generated around each signature. Tests check 1,000 seeds
+  per chain to prove that decoration never changes the meaning.
+  Turn it off with `--no-variety`.
+- **Curious about you.** The pet notices cursor dashes, hovering near it,
+  focus switches, window moves/resizes/maximize/minimize, typing bursts and
+  pauses, clicks, clipboard changes, displays plugged in, you stepping away
+  and coming back, late nights and long sessions. It habituates to repeats
+  and gets bored when nothing happens.
+- **Hermes always wins.** While Hermes works, curiosity can only glance in
+  place. While Hermes needs you or something failed, curiosity is silent.
+
+### Privacy: what `--notice` reads
+
+Sensors are content-free: positions, counters and on/off states only. They
+never read key values, window titles, process names, clipboard contents or
+screen pixels.
+
+| `--notice` | Notices |
+|---|---|
+| `off` | nothing |
+| `ambient` | cursor, windows, displays, away/back, time of day |
+| `full` (default) | ambient + clicks, typing rhythm, clipboard *changed* |
+
 ## Requirements
 
 | Feature | Needs |

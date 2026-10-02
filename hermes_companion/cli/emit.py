@@ -362,10 +362,16 @@ print(json.dumps(mons))
         from hermes_companion.renderer.overlay import ProceduralLiveOverlay
         overlay = ProceduralLiveOverlay(
             companion=args.companion, home_x=home_x, home_y=home_y)
+    from hermes_companion.renderer.desktop_sensors import DesktopSensors
+    sensors = DesktopSensors.for_platform(
+        args.notice, pet_box=lambda: (overlay.x, overlay.y,
+                                      overlay.x + getattr(overlay, "w", 0),
+                                      overlay.y + getattr(overlay, "h", 0)))
     tail = EventTail(events, overlay, from_end=not args.replay,
                      relay=relay, bound_session_id=bound_session_id,
                      follow=follow_mode, companion_id=slug,
-                     idle=False, replay=args.replay)
+                     idle=False, replay=args.replay,
+                     variety=not args.no_variety, sensors=sensors)
     if args.companion is not None:
         overlay.bind_engine(tail.engine)
     overlay.on_ready = lambda: (
@@ -811,6 +817,12 @@ def build_parser() -> argparse.ArgumentParser:
                     help="join a LAN relay; token comes only from HERMES_COMPANION_TOKEN")
     pl.add_argument("--no-idle", action="store_true",
                     help="disable idle progression (look_around/sit/sleep)")
+    pl.add_argument("--notice", choices=("off", "ambient", "full"), default="full",
+                    help="what the pet may notice on the desktop (content-free): "
+                         "ambient = cursor/windows/displays/away; full adds clicks, "
+                         "typing rhythm and clipboard changes (default: full)")
+    pl.add_argument("--no-variety", action="store_true",
+                    help="play each Hermes chain exactly as written, no flourishes")
     pl.set_defaults(fn=cmd_live)
 
     pr = sub.add_parser("relay", help="run the LAN event relay (one per fleet)")

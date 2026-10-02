@@ -117,7 +117,8 @@ class EventTail:
                  companion_id: str = "active-companion",
                  follow_dwell_s: float = 2.5, clock=None,
                  idle: bool = False, replay: bool = False,
-                 auth_key: bytes | None = None) -> None:
+                 auth_key: bytes | None = None, variety: bool = False,
+                 sensors=None) -> None:
         """Drive one companion from the signed event log.
 
         Exactly one source of ownership is required: a pinned
@@ -162,8 +163,11 @@ class EventTail:
         from hermes_companion.core.attention import AttentionModel
         from hermes_companion.core.stuck import StuckDetector
         seed = int(os.environ.get("HERMES_COMPANION_SEED", "0") or "0")
-        self.engine = BehaviorEngine(seed=seed or None)
+        self.engine = BehaviorEngine(seed=seed or None, variety=variety)
         self.attention = AttentionModel()
+        from hermes_companion.core.curiosity import CuriosityModel
+        self.sensors = sensors
+        self.curiosity = CuriosityModel(seed=seed or None) if sensors is not None else None
         self.stuck = StuckDetector()
         self._stuck_state = None
         self._offset = 0 if replay else (
@@ -441,9 +445,55 @@ class EventTail:
         if state == "stuck" and hasattr(self.overlay, "set_attention"):
             self.overlay.set_attention("stuck", verdict.label)
 
+    def _overlay_busy(self) -> bool:
+        return bool(getattr(self.overlay, "_queue", None)) \
+            or getattr(self.overlay, "_beat", None) is not None
+
+    def _poll_curiosity(self) -> None:
+        """Let the pet notice the desktop without ever hiding Hermes's truth.
+
+        Glances (Hermes busy) only play when nothing else is on screen; quiet
+        mode investigations may walk toward what was noticed.
+        """
+        if self.sensors is None or self.curiosity is None \
+                or not hasattr(self.overlay, "_beats_for_step"):
+            return  # procedural overlays don't take beat-level curiosity yet
+        try:
+            observations = self.sensors.sample()
+        except Exception:
+            return  # a sensor hiccup must never break the live pet
+        state = self.attention.signal.state
+        for obs in observations:
+            if obs.kind.value in ("user.back", "input.typing_started", "cursor.moved"):
+                # The user is here: don't drift off to sleep in front of them.
+                self.engine.idle_elapsed = 0.0
+                self.engine._idle_fired.clear()
+            reaction = self.curiosity.observe(obs, state)
+            if reaction is None:
+                continue
+            if reaction.glance and self._overlay_busy():
+                continue
+            if not reaction.glance and self._overlay_busy() and state != "quiet":
+                continue
+            beats = []
+            if reaction.target is not None:
+                tx = reaction.target[0] - self.overlay.w // 2
+                dx = max(-400, min(400, tx - self.overlay.x))
+                if abs(dx) > 40:
+                    beats.extend(self.overlay._beats_for_step({
+                        "pose": "walk_to_workspace", "duration_ms": 700,
+                        "move": {"type": "walk", "dx": dx, "dy": 0,
+                                 "duration_ms": 700, "easing": "easeInOutQuad"}}))
+            for i, step in enumerate(reaction.steps):
+                beats.extend(self.overlay._beats_for_step(step, "idle", i))
+            print(f"CURIOUS {obs.kind.value} {[s['pose'] for s in reaction.steps]}", flush=True)
+            self.overlay.enqueue(beats, replace=not self._overlay_busy())
+            break
+
     def poll(self) -> None:
         self._poll_file()
         self._poll_relay()
+        self._poll_curiosity()
         self._poll_idle()
         self._poll_stuck()
         self.overlay.root.after(100, self.poll)

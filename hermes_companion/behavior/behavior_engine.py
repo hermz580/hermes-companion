@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from hermes_companion.behavior.behavior_rules import (
     CHAINS, CHAINS_BY_CATEGORY, IDLE_PROGRESSION,
 )
+from hermes_companion.behavior.move_grammar import MoveGrammar
 from hermes_companion.behavior.priorities import EVENT_PRIORITY
 from hermes_companion.core.events import EventKind, SemanticEvent
 from hermes_companion.core.state import State, StateMachine
@@ -33,9 +34,12 @@ class Chain:
 
 class BehaviorEngine:
     def __init__(self, seed: int | None = None, extravagance: int = 3,
-                 clock=time.monotonic) -> None:
+                 clock=time.monotonic, variety: bool = False) -> None:
         self.seed = seed
         self.rng = random.Random(seed)
+        # Variety gets its own PRNG so turning it on never shifts the choices
+        # the rest of the engine makes from self.rng.
+        self.grammar = MoveGrammar(random.Random(f"{seed}:variety")) if variety else None
         self.extravagance = extravagance
         self.clock = clock
         self.sm = StateMachine()
@@ -90,6 +94,8 @@ class BehaviorEngine:
         state, steps = spec
         combo_tier, combo_count = self._combo_tier(now)
         chain_steps = self._shape_combo_steps(list(steps), state, ev, combo_tier)
+        if self.grammar is not None:
+            chain_steps = self.grammar.decorate(chain_steps, state)
         chain = Chain(name=ev.kind.value, state=state, priority=prio, steps=chain_steps)
 
         # Interrupt check (spec §10): a higher-priority chain replaces the

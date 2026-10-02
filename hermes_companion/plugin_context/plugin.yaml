@@ -1,0 +1,6 @@
+name: hermes-companion-context
+version: "0.2.0"
+description: "Injects validated companion memory into real LLM calls via the real pre_llm_call hook (appended to the user message, never the system prompt). Opt-in via `hermes plugins enable hermes-companion-context`."
+author: HarpStar
+hooks:
+  - pre_llm_call

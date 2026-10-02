@@ -6,3 +6,6 @@ bindings.json
 injection_audit.jsonl
 proof/
 *.log
+build/
+dist/
+*.egg-info/

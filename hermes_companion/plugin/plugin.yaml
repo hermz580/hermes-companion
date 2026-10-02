@@ -1,0 +1,13 @@
+name: hermes-companion
+version: "0.2.0"
+description: "Event-reactive desktop companion — makes Hermes activity visible via a pet character. Consumes tool/approval/session/subagent hooks and drives the companion behavior engine. Opt-in via `hermes plugins enable hermes-companion`."
+author: HarpStar
+hooks:
+  - pre_tool_call
+  - post_tool_call
+  - pre_approval_request
+  - post_approval_response
+  - on_session_start
+  - on_session_end
+  - subagent_start
+  - subagent_stop

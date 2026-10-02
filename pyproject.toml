@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hermes-companion"
+version = "0.2.0"
+description = "Event-reactive desktop character that makes Hermes agent activity visible."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = ["pillow>=10"]
+
+[project.optional-dependencies]
+config = ["pyyaml>=6"]
+test = ["pytest>=8", "pyyaml>=6"]
+
+[project.scripts]
+hermes-companion = "hermes_companion.cli.emit:main"
+
+[tool.setuptools.packages.find]
+include = ["hermes_companion*"]
+exclude = ["hermes_companion.tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["hermes_companion/tests"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.json"]

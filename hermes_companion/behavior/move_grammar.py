@@ -82,13 +82,18 @@ def variant_space() -> int:
 class MoveGrammar:
     """Decorates signature steps; remembers recent flourishes to avoid repeats."""
 
-    def __init__(self, rng: random.Random, memory: int = 6) -> None:
+    def __init__(self, rng: random.Random, memory: int = 6,
+                 extra: dict[str, tuple[str, ...]] | None = None) -> None:
         self.rng = rng
         self.recent: deque[str] = deque(maxlen=memory)
+        # A companion may bring its own body-language moves (Nia's dances).
+        # They join the shared pool for the same mood only.
+        self.pools = {m: tuple(p) + tuple((extra or {}).get(m, ()))
+                      for m, p in FLOURISH_POSES.items()}
 
     def _pick_flourish(self, mood: str) -> dict:
-        pool = [p for p in FLOURISH_POSES[mood] if p not in self.recent]
-        pose = self.rng.choice(pool or FLOURISH_POSES[mood])
+        pool = [p for p in self.pools[mood] if p not in self.recent]
+        pose = self.rng.choice(pool or self.pools[mood])
         self.recent.append(pose)
         return {"pose": pose, "duration_ms": self.rng.choice(FLOURISH_MS),
                 "role": "flourish"}

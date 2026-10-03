@@ -13,7 +13,7 @@ Adding a companion = one entry here + a draw function that honors
 """
 from __future__ import annotations
 
-from hermes_companion.animation import animator, astro_boy, herald, samurai
+from hermes_companion.animation import animator, astro_boy, herald, nia, samurai
 
 # name -> (draw_fn, default_palette, palette_names, description)
 COMPANIONS: dict[str, dict] = {
@@ -47,6 +47,16 @@ COMPANIONS: dict[str, dict] = {
                 "flapping helmet/sandal wings · streaming scarf · "
                 "curiosity marks · olympus | midnight | ember | verdant | nebula",
     },
+    "nia": {
+        "draw": nia.draw_nia,
+        "palettes": list(nia.NIA_PALETTES.keys()),
+        "default": nia.NIA_DEFAULT_PALETTE,
+        "extra_flourishes": nia.nia_flourishes(),
+        "desc": "Afrocentric storyteller · afro, locs or headwrap · kente-inspired "
+                "sash · beaded collar · mudcloth wrap · talking drum · "
+                f"{len(nia.NIA_MOVES)} extra dance and storytelling moves · "
+                "kente | indigo | ochre | emerald | royal",
+    },
 }
 
 DEFAULT_COMPANION = "astro"
@@ -63,6 +73,13 @@ def get_companion(name: str | None) -> dict:
         raise KeyError(
             f"unknown companion '{name}' — known: {', '.join(COMPANIONS)}")
     return COMPANIONS[name]
+
+
+def extra_flourishes(name: str | None) -> dict[str, tuple[str, ...]]:
+    """A companion's own body-language moves, by mood (empty for most)."""
+    if not name or name not in COMPANIONS:
+        return {}
+    return dict(COMPANIONS[name].get("extra_flourishes", {}))
 
 
 def draw_companion(canvas, companion: str | None, pose: str,

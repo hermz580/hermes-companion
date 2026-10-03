@@ -34,12 +34,14 @@ class Chain:
 
 class BehaviorEngine:
     def __init__(self, seed: int | None = None, extravagance: int = 3,
-                 clock=time.monotonic, variety: bool = False) -> None:
+                 clock=time.monotonic, variety: bool = False,
+                 extra_flourishes: dict | None = None) -> None:
         self.seed = seed
         self.rng = random.Random(seed)
         # Variety gets its own PRNG so turning it on never shifts the choices
         # the rest of the engine makes from self.rng.
-        self.grammar = MoveGrammar(random.Random(f"{seed}:variety")) if variety else None
+        self.grammar = MoveGrammar(random.Random(f"{seed}:variety"),
+                                   extra=extra_flourishes) if variety else None
         self.extravagance = extravagance
         self.clock = clock
         self.sm = StateMachine()

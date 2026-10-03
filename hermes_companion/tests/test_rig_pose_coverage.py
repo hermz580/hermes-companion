@@ -22,7 +22,7 @@ _spec = importlib.util.spec_from_file_location("render_pose_sheet", _SCRIPT)
 _sheet = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_sheet)
 
-COMPANIONS = ("pet", "samurai", "astro", "herald")
+COMPANIONS = ("pet", "samurai", "astro", "herald", "nia")
 
 
 class RigVocabularyTests(unittest.TestCase):

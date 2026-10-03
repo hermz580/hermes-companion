@@ -13,7 +13,7 @@ Adding a companion = one entry here + a draw function that honors
 """
 from __future__ import annotations
 
-from hermes_companion.animation import animator, astro_boy, herald, nia, samurai
+from hermes_companion.animation import animator, astro_boy, herald, nia, nyamekra, samurai
 
 # name -> (draw_fn, default_palette, palette_names, description)
 COMPANIONS: dict[str, dict] = {
@@ -56,6 +56,16 @@ COMPANIONS: dict[str, dict] = {
                 "sash · beaded collar · mudcloth wrap · talking drum · "
                 f"{len(nia.NIA_MOVES)} extra dance and storytelling moves · "
                 "kente | indigo | ochre | emerald | royal",
+    },
+    "nyamekra": {
+        "draw": nyamekra.draw_nyamekra,
+        "palettes": list(nyamekra.NYAMEKRA_PALETTES.keys()),
+        "default": nyamekra.NYAMEKRA_DEFAULT_PALETTE,
+        "extra_flourishes": nyamekra.nyamekra_flourishes(),
+        "desc": "the All-Doing Crow · one form · celestial halo · galaxy eyes · "
+                "gold crown, ankh and neck rings · kente-woven feathered robe · "
+                f"{len(nyamekra.NYAMEKRA_MOVES)} own moves channelling the ten "
+                "Symbols of Essence",
     },
 }
 

@@ -122,7 +122,7 @@ class PlaygroundBrain:
             self.perch.tick(now, self.attention.signal.state)
 
 
-def run_playground(companion: str = "herald", notice: str = "full",
+def run_playground(companion: str = "nyamekra", notice: str = "full",
                    palette: str | None = None,
                    seed: int = 7, variety: bool = True, demo: bool = True,
                    render: str = "smooth", perch: bool = True) -> int:

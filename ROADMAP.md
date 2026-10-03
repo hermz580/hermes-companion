@@ -9,7 +9,7 @@ really doing always reads correctly, and decoration never replaces it.
 - [x] `hermes-companion doctor` to say exactly what a PC is missing
 - [x] CI that installs from scratch and opens the real window on Windows
 - [ ] A one-file `.exe` release (PyInstaller) so no Python install is needed
-- [ ] A recorded demo GIF for the README
+- [x] A demo GIF for the README (`docs/demo.gif`, rendered from real chains)
 
 ## Next: make it feel alive
 1. **Live Hermes by default.** Make `live` work with Nyamekra without a Petdex

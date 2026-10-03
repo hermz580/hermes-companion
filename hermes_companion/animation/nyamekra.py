@@ -479,7 +479,7 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
     role = ROLE_OF.get(pose)
 
     cx = 100 + shear + dx
-    cy = 150 + dy + {"jump": -26, "fall": 14, "sit": 14, "tall": -5}.get(body, 0)
+    cy = 150 + dy + {"jump": -12, "fall": 14, "sit": 14, "tall": -5}.get(body, 0)
     top = cy - 58
 
     # ---- celestial halo: always present, always gold --------------------------

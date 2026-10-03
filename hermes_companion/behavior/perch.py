@@ -167,8 +167,9 @@ class PerchDriver:
         if anchor != self.applied:
             prev = self.applied
             self.applied = anchor
-            if anchor.reason == "ride" and prev is not None and prev.kind == "perch" \
-                    and self.motion is None:
+            instant = getattr(getattr(self.surface, "renderer", None), "reduced_motion", False)
+            if instant or (anchor.reason == "ride" and prev is not None and prev.kind == "perch"
+                           and self.motion is None):
                 self._apply(anchor.x, anchor.y)
             else:
                 style = "drop" if anchor.kind == "floor" and anchor.y > self.surface.home_y + 20 \

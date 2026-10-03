@@ -127,7 +127,9 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
                    palette: str | None = None,
                    seed: int = 7, variety: bool = True, demo: bool = True,
                    render: str = "smooth", perch: bool = True,
-                   size: str = "standard", seconds: float | None = None) -> int:
+                   size: str = "standard", seconds: float | None = None,
+                   reduced_motion: bool = False, high_contrast: bool = False,
+                   artpack: str | None = None) -> int:
     from hermes_companion.animation.director import Director
     from hermes_companion.renderer.desktop_sensors import DesktopSensors
     from hermes_companion.renderer.overlay import ProceduralLiveOverlay
@@ -135,7 +137,9 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
     if render == "smooth":
         from hermes_companion.renderer.layered import SmoothLiveOverlay
         overlay = SmoothLiveOverlay(companion=companion, palette=palette,
-                                    scale=SIZES.get(size, 1.0))
+                                    scale=SIZES.get(size, 1.0),
+                                    reduced_motion=reduced_motion,
+                                    high_contrast=high_contrast, artpack=artpack)
         print(f"render: smooth ({overlay.mode})", flush=True)
     else:
         overlay = ProceduralLiveOverlay(companion=companion, palette=palette)
@@ -149,6 +153,8 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
                             perch=perch)
     overlay._director = Director(brain.engine, overlay)
     brain.bind(overlay._director)
+    if reduced_motion:
+        brain.curiosity.threshold += 0.15    # fewer, calmer reactions
 
     def poll() -> None:
         brain.tick(time.monotonic())

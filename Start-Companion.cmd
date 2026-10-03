@@ -8,6 +8,9 @@ REM   Start-Companion.cmd nia                          Nia (storyteller)
 REM   Start-Companion.cmd samurai / astro
 REM   Start-Companion.cmd --palette fire --size large  Nyamekra with options
 REM   Start-Companion.cmd nia --palette indigo         any companion + options
+REM   Start-Companion.cmd live                         Nyamekra driven by your real Hermes
+REM   Start-Companion.cmd live nia                     any companion, live
+REM   Start-Companion.cmd --reduced-motion --high-contrast   accessibility
 REM   Start-Companion.cmd doctor                       check this PC can run it
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
@@ -49,9 +52,15 @@ if /i "%FIRST%"=="doctor" (
     pause
     exit /b %ERRORLEVEL%
 )
+set "MODE=play"
+if /i "%FIRST%"=="live" (
+    set "MODE=live"
+    shift
+)
 set "WHO=nyamekra"
-if defined FIRST if not "!FIRST:~0,1!"=="-" (
-    set "WHO=%FIRST%"
+set "NEXT=%~1"
+if defined NEXT if not "!NEXT:~0,1!"=="-" (
+    set "WHO=%NEXT%"
     shift
 )
 set "REST="
@@ -62,8 +71,17 @@ shift
 goto collect
 
 :run
-echo Starting %WHO%. Close this window to stop it.
-".venv\Scripts\python.exe" -m hermes_companion play --companion %WHO% %REST%
+if "%MODE%"=="live" (
+    echo Connecting %WHO% to Hermes. Close this window to stop it.
+    if not exist ".venv\live.ok" (
+        ".venv\Scripts\python.exe" hermes_companion\plugin\install.py
+        if not errorlevel 1 echo ok> ".venv\live.ok"
+    )
+    ".venv\Scripts\python.exe" -m hermes_companion live --companion %WHO% --follow %REST%
+) else (
+    echo Starting %WHO%. Close this window to stop it.
+    ".venv\Scripts\python.exe" -m hermes_companion play --companion %WHO% %REST%
+)
 if errorlevel 1 (
     echo.
     echo Something went wrong. Run "Start-Companion.cmd doctor" and send the output.

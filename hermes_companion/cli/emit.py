@@ -308,12 +308,17 @@ print(json.dumps(mons))
         pet_h = round(208 * scale) + 28
         return left + (right - left - pet_w) // 2, bottom - pet_h - 58
 
-    slug, sheet, configured_scale = active_pet()
+    if args.companion is not None:
+        # Drawn companions (Nyamekra, Nia, Herald...) need no Petdex sprite.
+        slug, sheet, configured_scale = args.companion, None, 1.0
+    else:
+        slug, sheet, configured_scale = active_pet()
     from hermes_companion.core import binding as bind_mod
     following = bind_mod.following_companion()
     # Follow mode displays whichever session is active. Honoured only when the
-    # grant names THIS body, so it can never leak to a different sprite.
-    follow_mode = following == slug
+    # grant names THIS body (or the user passes --follow on this very command),
+    # so it can never leak to a different sprite.
+    follow_mode = following == slug or bool(getattr(args, "follow", False))
     bound_session_id = None if follow_mode else bound_session_for_companion(slug)
     if not follow_mode and not bound_session_id:
         print(f"REFUSING LIVE DISPLAY: pet {slug!r} has no unique explicit "
@@ -362,7 +367,8 @@ print(json.dumps(mons))
         if args.render == "smooth":
             from hermes_companion.renderer.layered import SmoothLiveOverlay
             overlay = SmoothLiveOverlay(
-                companion=args.companion, home_x=home_x, home_y=home_y)
+                companion=args.companion, home_x=home_x, home_y=home_y,
+                palette=args.palette)
         else:
             from hermes_companion.renderer.overlay import ProceduralLiveOverlay
             overlay = ProceduralLiveOverlay(
@@ -409,7 +415,8 @@ def cmd_play(args: argparse.Namespace) -> int:
     return run_playground(companion=args.companion, notice=args.notice,
                           palette=args.palette, render=args.render,
                           perch=not args.no_perch, size=args.size,
-                          seconds=args.seconds,
+                          seconds=args.seconds, reduced_motion=args.reduced_motion,
+                          high_contrast=args.high_contrast, artpack=args.artpack,
                           seed=args.seed, variety=not args.no_variety,
                           demo=not args.no_demo)
 
@@ -839,6 +846,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="what the pet may notice on the desktop (content-free): "
                          "ambient = cursor/windows/displays/away; full adds clicks, "
                          "typing rhythm and clipboard changes (default: full)")
+    pl.add_argument("--follow", action="store_true",
+                    help="show whichever Hermes session is active (explicit consent)")
+    pl.add_argument("--palette", default=None, help="energy style / palette")
     pl.add_argument("--render", choices=("smooth", "classic"), default="smooth",
                     help="procedural companions: smooth anti-aliased or classic")
     pl.add_argument("--no-perch", action="store_true",
@@ -861,6 +871,12 @@ def build_parser() -> argparse.ArgumentParser:
     pp.add_argument("--no-variety", action="store_true")
     pp.add_argument("--render", choices=("smooth", "classic"), default="smooth",
                     help="smooth = anti-aliased, glowing, true transparency (default)")
+    pp.add_argument("--reduced-motion", action="store_true",
+                    help="accessibility: minimal movement, no squash or hopping")
+    pp.add_argument("--high-contrast", action="store_true",
+                    help="accessibility: thick mood ring and a word label")
+    pp.add_argument("--artpack", default=None,
+                    help="folder of PNG frames (<pose>.png or <pose>_0.png...) to use instead of drawing")
     pp.add_argument("--seconds", type=float, default=None,
                     help="quit after this many seconds (smoke test)")
     pp.add_argument("--size", choices=("tiny", "standard", "large"), default="standard",

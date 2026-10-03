@@ -41,3 +41,19 @@ jobs:
           $out3 = cmd /c "echo.| Start-Companion.cmd herald --seconds 3" 2>&1 | Out-String
           Write-Output $out3
           if ($out3 -notmatch "PLAY OK") { Write-Error "named companion did not run"; exit 1 }
+
+  linux-window:
+    # macOS/Linux fallback: the companion must run in a normal window.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y xvfb python3-tk
+      - run: pip install -e .
+      - name: Windowed smoke test
+        run: |
+          out=$(xvfb-run -a hermes-companion play --seconds 3 --high-contrast --reduced-motion 2>&1)
+          echo "$out"
+          echo "$out" | grep -q "PLAY OK" && echo "$out" | grep -q "render=windowed"

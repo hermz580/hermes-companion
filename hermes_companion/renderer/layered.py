@@ -115,10 +115,13 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
 
     def __init__(self, *, companion: str, home_x: int | None = None,
                  home_y: int | None = None, palette: str | None = None,
-                 glow: bool = True, scale: float = 1.0) -> None:
+                 glow: bool = True, scale: float = 1.0, reduced_motion: bool = False,
+                 high_contrast: bool = False, artpack: str | None = None) -> None:
         super().__init__(companion=companion, home_x=home_x, home_y=home_y,
                          palette=palette)
-        self.renderer = FrameRenderer(companion, palette, glow=glow, scale=scale)
+        self.renderer = FrameRenderer(companion, palette, glow=glow, scale=scale,
+                                      reduced_motion=reduced_motion,
+                                      high_contrast=high_contrast, artpack=artpack)
         self.w, self.h = int(FRAME_W * scale), int(FRAME_H * scale)
         if scale != 1.0:
             # keep the feet on the same floor line when the frame grows/shrinks
@@ -129,19 +132,22 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
         self._photo = None
         self._image_item = None
         self.blitter: LayeredBlitter | None = None
-        self.mode = "chroma"
+        self.mode = "windowed" if getattr(self, "windowed", False) else "chroma"
         try:
+            if self.mode == "windowed":
+                raise OSError("no per-pixel alpha outside Windows")
             self.root.update_idletasks()
             self.root.wm_attributes("-transparentcolor", "")
             self.blitter = LayeredBlitter(self._hwnd(), self.w, self.h)
             self.mode = "layered"
         except Exception:
             self.blitter = None
-            try:
-                from hermes_companion.animation.animator import BG
-                self.root.wm_attributes("-transparentcolor", BG)
-            except tk.TclError:
-                pass
+            if self.mode != "windowed":
+                try:
+                    from hermes_companion.animation.animator import BG
+                    self.root.wm_attributes("-transparentcolor", BG)
+                except tk.TclError:
+                    pass
 
     # The Director drives these -------------------------------------------
     def set_pose(self, pose: str, progress: float = 0.0) -> None:
@@ -177,8 +183,14 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
                 from hermes_companion.animation.animator import BG
                 self.root.wm_attributes("-transparentcolor", BG)
                 super()._place(self.x, self._y)
-        from PIL import ImageTk
-        self._photo = ImageTk.PhotoImage(chroma_fallback(frame))
+        from PIL import Image, ImageTk
+        if getattr(self, "windowed", False):
+            self.mode = "windowed"
+            from hermes_companion.renderer.overlay import WINDOWED_BG
+            shown = Image.alpha_composite(Image.new("RGBA", frame.size, WINDOWED_BG), frame)
+        else:
+            shown = chroma_fallback(frame)
+        self._photo = ImageTk.PhotoImage(shown)
         if self._image_item is None:
             self.canvas.delete("all")
             self._image_item = self.canvas.create_image(0, 0, image=self._photo, anchor="nw")

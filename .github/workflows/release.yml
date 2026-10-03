@@ -1,0 +1,59 @@
+name: Release
+
+# Builds HermesCompanion.exe (no Python needed), proves it starts on a real
+# Windows desktop, and attaches it to a GitHub release for version tags.
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths: ["packaging/**", ".github/workflows/release.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # A regular (not editable) install, plus --paths ., so PyInstaller can
+      # find and bundle the hermes_companion package itself.
+      - run: pip install . pyinstaller
+      - run: python packaging/make_icon.py
+      - name: Confirm the package imports from the build environment
+        run: python -c "import hermes_companion.cli.emit, hermes_companion.renderer.tray; print('ok')"
+      - name: Build
+        run: >
+          pyinstaller --noconfirm --onefile --windowed
+          --name HermesCompanion
+          --icon packaging/icon.ico
+          --paths .
+          --collect-submodules hermes_companion
+          --hidden-import pystray._win32
+          packaging/launcher.py
+      - name: Smoke test the exe (real window, must exit cleanly)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\HermesCompanion.exe -ArgumentList "play","--seconds","6","--no-memory" -PassThru
+          $log = Join-Path $env:LOCALAPPDATA "hermes-companion\last-run.log"
+          if (-not $p.WaitForExit(90000)) { $p.Kill(); Get-Content $log -ErrorAction SilentlyContinue; Write-Error "exe did not finish"; exit 1 }
+          Get-Content $log -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0) { Write-Error "exe exit code $($p.ExitCode)"; exit 1 }
+          $d = Start-Process -FilePath dist\HermesCompanion.exe -ArgumentList "doctor","--no-window" -PassThru
+          if (-not $d.WaitForExit(60000)) { $d.Kill(); Write-Error "doctor hung"; exit 1 }
+          if ($d.ExitCode -ne 0) { Write-Error "doctor reported problems"; exit 1 }
+          Get-Item dist\HermesCompanion.exe | Format-List Name, Length
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HermesCompanion-exe
+          path: dist/HermesCompanion.exe
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/HermesCompanion.exe
+          generate_release_notes: true

@@ -8,6 +8,15 @@ falls asleep when the agent goes idle.
 
 ![Nyamekra acting out a real Hermes session: terminal, web, failure, approval, code, done](docs/demo.gif)
 
+## Easiest: download the app (Windows, no Python needed)
+
+Grab **`HermesCompanion.exe`** from the
+[latest release](https://github.com/hermz580/hermes-companion/releases/latest)
+and double-click it. Nyamekra appears on your desktop and a tray icon gives
+you every setting. From a terminal the same file takes any command:
+`HermesCompanion.exe live`, `HermesCompanion.exe doctor`,
+`HermesCompanion.exe play --palette fire --size large`.
+
 ## Try it in 30 seconds (Windows, no Hermes needed)
 
 Download the repo ([Code → Download ZIP](https://github.com/hermz580/hermes-companion/archive/refs/heads/main.zip)),

@@ -38,6 +38,7 @@ DEMO_SESSION: tuple[tuple[float, str, str], ...] = (
     (58.0, "agent.idle", ""),
 )
 DEMO_LOOP_S = 90.0
+SIZES = {"tiny": 0.6, "standard": 1.0, "large": 1.4}
 
 
 def reaction_chain(reaction: Reaction, current_x: int, width: int) -> Chain:
@@ -125,14 +126,16 @@ class PlaygroundBrain:
 def run_playground(companion: str = "nyamekra", notice: str = "full",
                    palette: str | None = None,
                    seed: int = 7, variety: bool = True, demo: bool = True,
-                   render: str = "smooth", perch: bool = True) -> int:
+                   render: str = "smooth", perch: bool = True,
+                   size: str = "standard") -> int:
     from hermes_companion.animation.director import Director
     from hermes_companion.renderer.desktop_sensors import DesktopSensors
     from hermes_companion.renderer.overlay import ProceduralLiveOverlay
 
     if render == "smooth":
         from hermes_companion.renderer.layered import SmoothLiveOverlay
-        overlay = SmoothLiveOverlay(companion=companion, palette=palette)
+        overlay = SmoothLiveOverlay(companion=companion, palette=palette,
+                                    scale=SIZES.get(size, 1.0))
         print(f"render: smooth ({overlay.mode})", flush=True)
     else:
         overlay = ProceduralLiveOverlay(companion=companion, palette=palette)

@@ -18,11 +18,18 @@ _spec.loader.exec_module(_sheet)
 
 
 def test_one_form_only():
-    assert list(NYAMEKRA_PALETTES) == ["nyamekra"]
-    # asking for any palette still draws the same being
-    a = _sheet.signatures("nyamekra", "idle_bob", None)
-    b = _sheet.signatures("nyamekra", "idle_bob", "anything-else")
-    assert a == b
+    # every energy style is the same body; only the energy around it differs
+    bodies = {tuple(sorted(v.items())) for v in NYAMEKRA_PALETTES.values()}
+    assert len(bodies) == 1
+    assert len(NYAMEKRA_PALETTES) == 10
+    # unknown names fall back to the default energy, never a different being
+    assert _sheet.signatures("nyamekra", "idle_bob", None) == \
+        _sheet.signatures("nyamekra", "idle_bob", "anything-else")
+
+
+def test_energy_styles_differ():
+    sigs = {_sheet.signatures("nyamekra", "idle_bob", e) for e in NYAMEKRA_PALETTES}
+    assert len(sigs) == len(NYAMEKRA_PALETTES)
 
 
 def test_largest_repertoire_and_millions_of_performances():
@@ -86,3 +93,38 @@ def test_faces_the_way_it_travels():
     assert beak_side("idle_bob") == "right"
     assert beak_side("run_to_user") == "left"
     assert beak_side("return_home") == "left"
+
+
+def test_expressions_follow_meaning():
+    from hermes_companion.animation.nyamekra import EXPRESSIONS, expression_of
+    assert len(EXPRESSIONS) == 9
+    assert expression_of("terminal_work", "work", False) == "focused"
+    assert expression_of("shock", "fail", False) == "sad"
+    assert expression_of("wave", "approve", False) == "protective"
+    assert expression_of("celebrate", "joy", False) == "joyful"
+    assert expression_of("wing_spread", "joy", True) == "playful"
+    assert expression_of("peeking", "curious", False) == "curious"
+    assert expression_of("meditate", "calm", True) == "wise"
+    assert expression_of("defense_shield", "fail", True) == "fierce"
+
+
+def test_role_looks_only_on_real_hermes_work():
+    from hermes_companion.animation.nyamekra import ROLE_OF, ROLE_TOOL
+    engine = set(_sheet.engine_poses())
+    assert set(ROLE_OF) <= engine            # every role is triggered by a real engine pose
+    assert not set(ROLE_OF) & set(NYAMEKRA_MOVES)   # decoration never wears a role
+    assert set(ROLE_OF.values()) <= set(ROLE_TOOL)
+    tech, travel = (_sheet.signatures("nyamekra", p) for p in ("terminal_work", "web_scan"))
+    assert tech != travel
+
+
+def test_dynamic_poses_exist():
+    for move in ("flight", "landing", "casting", "perch_crouch", "sprint_dash",
+                 "defense_shield", "interact"):
+        assert move in NYAMEKRA_MOVES
+
+
+def test_sizes_render():
+    from hermes_companion.renderer.smooth import FrameRenderer
+    for scale, w in ((0.6, 120), (1.0, 200), (1.4, 280)):
+        assert FrameRenderer("nyamekra", scale=scale).frame("idle_bob", 0.2).size[0] == w

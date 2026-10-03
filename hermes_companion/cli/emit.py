@@ -408,7 +408,7 @@ def cmd_play(args: argparse.Namespace) -> int:
     from hermes_companion.renderer.playground import run_playground
     return run_playground(companion=args.companion, notice=args.notice,
                           palette=args.palette, render=args.render,
-                          perch=not args.no_perch,
+                          perch=not args.no_perch, size=args.size,
                           seed=args.seed, variety=not args.no_variety,
                           demo=not args.no_demo)
 
@@ -850,7 +850,8 @@ def build_parser() -> argparse.ArgumentParser:
     pp.add_argument("--companion", choices=("nyamekra", "herald", "nia", "samurai", "astro"),
                     default="nyamekra")
     pp.add_argument("--palette", default=None,
-                    help="herald: olympus midnight ember verdant nebula; "
+                    help="nyamekra energy: cosmic earth fire water air shadow light "
+                         "neon natural robotic; herald: olympus midnight ember verdant nebula; "
                          "nia: kente indigo ochre emerald royal")
     pp.add_argument("--notice", choices=("off", "ambient", "full"), default="full",
                     help="what it may notice on the desktop (content-free)")
@@ -859,6 +860,8 @@ def build_parser() -> argparse.ArgumentParser:
     pp.add_argument("--no-variety", action="store_true")
     pp.add_argument("--render", choices=("smooth", "classic"), default="smooth",
                     help="smooth = anti-aliased, glowing, true transparency (default)")
+    pp.add_argument("--size", choices=("tiny", "standard", "large"), default="standard",
+                    help="companion size (smooth render)")
     pp.add_argument("--no-perch", action="store_true",
                     help="stay on the floor instead of living on your windows")
     pp.set_defaults(fn=cmd_play)

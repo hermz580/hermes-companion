@@ -169,9 +169,12 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
         overlay.set_x(overlay.home_x)
     brain.bind(overlay._director)
     if tray is not None:
-        from hermes_companion.renderer.tray import start_tray
-        if start_tray(overlay, tray) is not None:
-            print("tray: right-click the companion icon for settings", flush=True)
+        try:
+            from hermes_companion.renderer.tray import start_tray
+            if start_tray(overlay, tray) is not None:
+                print("tray: right-click the companion icon for settings", flush=True)
+        except Exception as exc:          # a tray problem must never stop the pet
+            print(f"tray unavailable: {exc}", flush=True)
     if hasattr(overlay, "attach_voice"):
         overlay.attach_voice(bubbles=bubbles, sound=sound)
     if memory:

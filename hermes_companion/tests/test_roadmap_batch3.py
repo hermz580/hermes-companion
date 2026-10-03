@@ -57,3 +57,14 @@ def test_tray_choices_apply_cleanly():
     assert len(v["with"]) == 3                             # at most three extras
     v = apply_choice(v, "toggle_with", "herald")
     assert "herald" not in v["with"]
+
+
+def test_real_pystray_menu_builds():
+    """pystray rejects handlers with extra parameters; build the real menu."""
+    import os
+    os.environ.setdefault("PYSTRAY_BACKEND", "dummy")
+    pystray = __import__("pytest").importorskip("pystray")
+    from hermes_companion.renderer.tray import build_menu
+    menu = build_menu(pystray, dict(S.DEFAULTS), lambda: None, lambda: None)
+    labels = [item.text for item in menu.items]
+    assert "Character" in labels and "Quit" in labels

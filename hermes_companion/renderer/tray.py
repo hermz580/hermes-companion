@@ -72,6 +72,48 @@ def apply_choice(values: dict, kind: str, payload) -> dict:
     return out
 
 
+def _checked_fn(values: dict, kind: str, payload):
+    def checked(_item):
+        if kind == "radio":
+            return values.get(payload[0]) == payload[1]
+        if kind == "toggle":
+            return bool(values.get(payload))
+        return payload in values.get("with", [])
+    return checked
+
+
+def _clicked_fn(values: dict, kind: str, payload, quit_all):
+    # pystray only accepts callables taking 0-2 positional arguments, so each
+    # handler is built by a factory instead of capturing via default args.
+    def clicked(_icon, _item):
+        relaunch(apply_choice(values, kind, payload), on_quit=quit_all)
+    return clicked
+
+
+def build_menu(pystray, values: dict, quit_all, show_settings):
+    """The real pystray menu for `values` (also used by the tests)."""
+    def build(items):
+        entries = []
+        for label, kind, payload in items:
+            if kind == "submenu":
+                entries.append(pystray.MenuItem(label, pystray.Menu(*build(payload))))
+            elif kind == "action":
+                handler = quit_all if payload == "quit" else show_settings
+                entries.append(pystray.MenuItem(label, _action_fn(handler)))
+            else:
+                entries.append(pystray.MenuItem(
+                    label, _clicked_fn(values, kind, payload, quit_all),
+                    checked=_checked_fn(values, kind, payload), radio=(kind == "radio")))
+        return entries
+    return pystray.Menu(*build(menu_model(values)))
+
+
+def _action_fn(handler):
+    def action(_icon, _item):
+        handler()
+    return action
+
+
 def start_tray(overlay, values: dict):
     """Run the tray icon in a background thread. Returns the icon or None."""
     try:
@@ -82,38 +124,19 @@ def start_tray(overlay, values: dict):
 
     icon_img = FrameRenderer(values["companion"], values.get("palette")) \
         .frame("idle_bob", 0.0).crop((40, 0, 160, 120)).resize((64, 64))
+    holder: dict = {}
 
     def quit_all():
-        icon.stop()
+        if "icon" in holder:
+            holder["icon"].stop()
         overlay.root.after(0, overlay.close)
 
-    def build(items):
-        entries = []
-        for label, kind, payload in items:
-            if kind == "submenu":
-                entries.append(pystray.MenuItem(label, pystray.Menu(*build(payload))))
-            elif kind == "action":
-                action = quit_all if payload == "quit" else \
-                    (lambda _i, _m: overlay.root.after(0, lambda: open_settings(overlay, values)))
-                entries.append(pystray.MenuItem(label, (lambda _i, _m, a=action: a())
-                                                if payload == "quit" else action))
-            else:
-                def checked(_item, kind=kind, payload=payload):
-                    if kind == "radio":
-                        return values.get(payload[0]) == payload[1]
-                    if kind == "toggle":
-                        return bool(values.get(payload))
-                    return payload in values.get("with", [])
-
-                def clicked(_i, _m, kind=kind, payload=payload):
-                    relaunch(apply_choice(values, kind, payload), on_quit=quit_all)
-
-                entries.append(pystray.MenuItem(label, clicked, checked=checked,
-                                                radio=(kind == "radio")))
-        return entries
+    def show_settings():
+        overlay.root.after(0, lambda: open_settings(overlay, values))
 
     icon = pystray.Icon("hermes-companion", icon_img, "Hermes Companion",
-                        pystray.Menu(*build(menu_model(values))))
+                        build_menu(pystray, values, quit_all, show_settings))
+    holder["icon"] = icon
     threading.Thread(target=icon.run, daemon=True).start()
     return icon
 

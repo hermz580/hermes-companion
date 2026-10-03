@@ -25,3 +25,19 @@ jobs:
           pytest -q
           --deselect hermes_companion/tests/test_plugin_loader.py
           --deselect hermes_companion/tests/test_plugin_bundle_shadowing.py::BundleFreshnessTest::test_the_actually_installed_bundle_is_current
+      # Prove a fresh PC can actually run it: the real launcher installs into
+      # .venv, forwards options, opens the desktop window, and exits cleanly.
+      - name: Doctor
+        run: hermes-companion doctor
+      - name: Launcher smoke test (real window)
+        shell: pwsh
+        run: |
+          $out = cmd /c "echo.| Start-Companion.cmd --palette fire --size large --seconds 6" 2>&1 | Out-String
+          Write-Output $out
+          if ($out -notmatch "PLAY OK") { Write-Error "Start-Companion.cmd did not run"; exit 1 }
+          $out2 = cmd /c "hermes-companion.cmd play --companion nia --palette indigo --seconds 4" 2>&1 | Out-String
+          Write-Output $out2
+          if ($out2 -notmatch "PLAY OK") { Write-Error "hermes-companion.cmd did not run"; exit 1 }
+          $out3 = cmd /c "echo.| Start-Companion.cmd herald --seconds 3" 2>&1 | Out-String
+          Write-Output $out3
+          if ($out3 -notmatch "PLAY OK") { Write-Error "named companion did not run"; exit 1 }

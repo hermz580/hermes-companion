@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import ctypes
+import sys
 import tkinter as tk
 
 from hermes_companion.animation.animator import BG
@@ -18,6 +19,7 @@ WS_EX_LAYERED = 0x00080000
 WS_EX_TRANSPARENT = 0x00000020
 WS_EX_TOOLWINDOW = 0x00000080
 GWL_EXSTYLE = -20
+WINDOWED_BG = "#0b0912"
 SM_XVIRTUALSCREEN = 76
 SM_YVIRTUALSCREEN = 77
 SM_CXVIRTUALSCREEN = 78
@@ -128,10 +130,23 @@ class TkOverlay:
         self.companion = companion
         self.palette = palette
         self.root = tk.Tk()
-        self.root.overrideredirect(True)
-        self.root.wm_attributes("-topmost", True)
-        self.root.wm_attributes("-transparentcolor", BG)
-        self.canvas = tk.Canvas(self.root, width=w, height=h, bg=BG,
+        # Windows: a borderless, transparent, click-through desktop pet.
+        # Elsewhere (macOS/Linux) Tk has no colour-key transparency, so the
+        # companion lives in a small normal window instead of failing.
+        self.windowed = sys.platform != "win32"
+        bg = BG
+        if self.windowed:
+            bg = WINDOWED_BG
+            self.root.title(f"Hermes Companion - {companion or 'pet'}")
+            click_through = False
+        else:
+            self.root.overrideredirect(True)
+            self.root.wm_attributes("-transparentcolor", BG)
+        try:
+            self.root.wm_attributes("-topmost", True)
+        except tk.TclError:
+            pass
+        self.canvas = tk.Canvas(self.root, width=w, height=h, bg=bg,
                                 highlightthickness=0, bd=0)
         self.canvas.pack()
         self.w, self.h = w, h
@@ -171,6 +186,13 @@ class TkOverlay:
 
     # -- window plumbing ----------------------------------------------------
     def _place(self, x: int, y: int) -> None:
+        if getattr(self, "windowed", False):
+            # A normal window stays where the user put it; motion is drawn
+            # inside it rather than by moving the window around the desktop.
+            if not getattr(self, "_placed_once", False):
+                self.root.geometry(f"{self.w}x{self.h}+{max(0, x)}+{max(0, y)}")
+                self._placed_once = True
+            return
         self.root.geometry(f"{self.w}x{self.h}+{x}+{y}")
 
     def _hwnd(self) -> int:

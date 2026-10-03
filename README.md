@@ -6,7 +6,7 @@ agent's real lifecycle events: it walks to a terminal when a tool runs, panics
 and runs to you when approval is needed, celebrates when work finishes, and
 falls asleep when the agent goes idle.
 
-![Pose sheet: idle, walk, jump, terminal work, web scan, memory vault, celebrate, bow](docs/poses.png)
+![Nyamekra acting out a real Hermes session: terminal, web, failure, approval, code, done](docs/demo.gif)
 
 ## Try it in 30 seconds (Windows, no Hermes needed)
 
@@ -190,6 +190,28 @@ Full architecture, multi-device relay and security notes:
 pip install -e ".[test]"
 pytest
 ```
+
+## Live with your real Hermes
+
+```bat
+Start-Companion.cmd live            :: Nyamekra follows your active Hermes session
+Start-Companion.cmd live nia        :: any companion
+```
+
+The first `live` run installs and enables the Hermes observer plugin. Live
+mode shows whichever Hermes session is active, because you asked for it
+with `live`. Without Hermes it simply waits.
+
+## Accessibility and art
+
+- `--reduced-motion`: minimal movement. No squash, no hops, fewer reactions.
+- `--high-contrast`: a thick mood ring plus a plain-word label ("Working",
+  "Needs you", "Problem", "Done").
+- `--artpack FOLDER`: use your own painted frames. Put `<pose>.png` (or
+  `<pose>_0.png`, `<pose>_1.png`… for animation) in a folder. Poses without
+  art keep the built-in drawing, so a pack can start with a single image.
+- macOS and Linux: the companion runs in a small normal window, since the
+  transparent desktop overlay is Windows-only.
 
 ## Troubleshooting
 

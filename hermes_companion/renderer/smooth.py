@@ -174,39 +174,114 @@ class FrameRenderer:
     """Renders and caches high-quality frames for one companion + palette."""
 
     def __init__(self, companion: str, palette: str | None = None,
-                 glow: bool = True, squash: bool = True, scale: float = 1.0):
+                 glow: bool = True, squash: bool = True, scale: float = 1.0,
+                 reduced_motion: bool = False, high_contrast: bool = False,
+                 artpack: str | None = None):
         from hermes_companion.animation.characters import COMPANIONS
         self.draw = COMPANIONS[companion]["draw"]
         self.companion, self.palette = companion, palette
-        self.glow, self.squash, self.scale = glow, squash, scale
+        self.glow, self.scale = glow, scale
+        # Reduced motion: no squash/stretch and far fewer animation phases, so
+        # the companion still shows state but barely moves.
+        self.reduced_motion = reduced_motion
+        self.squash = squash and not reduced_motion
+        self.steps = 3 if reduced_motion else PROGRESS_STEPS
+        self.high_contrast = high_contrast
+        self.artpack = ArtPack(artpack) if artpack else None
         self._cache: OrderedDict[tuple, Image.Image] = OrderedDict()
 
     def mood_color(self, pose: str) -> str:
-        if self.companion == "herald":
-            from hermes_companion.animation.herald import MOOD_COLORS, mood_of
-            return MOOD_COLORS[mood_of(pose)]
-        return "#93c5fd"
+        from hermes_companion.animation.herald import MOOD_COLORS, mood_of
+        return MOOD_COLORS[mood_of(pose)]
 
     def frame(self, pose: str, progress: float) -> Image.Image:
-        step = int((progress % 1.0) * PROGRESS_STEPS)
+        step = int((progress % 1.0) * self.steps)
         key = (pose, step)
         hit = self._cache.get(key)
         if hit is not None:
             self._cache.move_to_end(key)
             return hit
-        p = step / PROGRESS_STEPS
-        canvas = PILCanvas()
-        self.draw(canvas, pose, p, palette=self.palette)
+        p = step / self.steps
         out_w, out_h = int(FRAME_W * self.scale), int(FRAME_H * self.scale)
-        img = canvas.img.resize((out_w, out_h), Image.LANCZOS)
+        art = self.artpack.frame(pose, p, (out_w, out_h)) if self.artpack else None
+        if art is not None:
+            img = art
+        else:
+            canvas = PILCanvas()
+            self.draw(canvas, pose, p, palette=self.palette)
+            img = canvas.img.resize((out_w, out_h), Image.LANCZOS)
         if self.squash:
             img = _squash(img, pose, p)
         if self.glow:
             img = _glow(img, self.mood_color(pose), radius=6.0 * self.scale)
+        if self.high_contrast:
+            img = _high_contrast(img, pose, self.mood_color(pose))
         self._cache[key] = img
         if len(self._cache) > CACHE_FRAMES:
             self._cache.popitem(last=False)
         return img
+
+
+MOOD_LABELS = {"work": "Working", "delegate": "Delegating", "fail": "Problem",
+               "approve": "Needs you", "joy": "Done", "curious": "Curious",
+               "rest": "Resting", "calm": "Ready"}
+
+
+def mood_label(pose: str) -> str:
+    from hermes_companion.animation.herald import mood_of
+    return MOOD_LABELS[mood_of(pose)]
+
+
+def _high_contrast(img: Image.Image, pose: str, color: str) -> Image.Image:
+    """A thick mood ring and a plain-word label, for low vision / glanceability."""
+    out = img.copy()
+    d = ImageDraw.Draw(out)
+    w, h = out.size
+    d.ellipse([w * 0.08, h * 0.04, w * 0.92, h * 0.84], outline=color, width=max(3, w // 40))
+    label = mood_label(pose)
+    f = _font(max(10, w // 14), True)
+    bw = d.textlength(label, font=f) + 14
+    y = h - h // 9
+    d.rounded_rectangle([w / 2 - bw / 2, y - h // 18, w / 2 + bw / 2, y + h // 18],
+                        radius=6, fill="#000000", outline=color, width=2)
+    d.text((w / 2, y), label, fill="#ffffff", font=f, anchor="mm")
+    return out
+
+
+class ArtPack:
+    """Hand-made frames that replace the procedural drawing pose by pose.
+
+    A folder of PNGs (transparent background, any size, scaled to the frame):
+    ``<pose>.png`` for a still, or ``<pose>_0.png``, ``<pose>_1.png`` ... for
+    an animation. Poses without art keep the procedural rig, so a pack can
+    start with a single image and grow.
+    """
+
+    def __init__(self, folder: str) -> None:
+        from pathlib import Path
+        self.folder = Path(folder)
+        self._frames: dict[str, list] = {}
+        if self.folder.is_dir():
+            for f in sorted(self.folder.glob("*.png")):
+                stem = f.stem
+                base, _, idx = stem.rpartition("_")
+                name = base if idx.isdigit() and base else stem
+                self._frames.setdefault(name, []).append(f)
+
+    @property
+    def poses(self) -> set[str]:
+        return set(self._frames)
+
+    def frame(self, pose: str, progress: float, size) -> Image.Image | None:
+        files = self._frames.get(pose)
+        if not files:
+            return None
+        f = files[int(progress * len(files)) % len(files)]
+        img = Image.open(f).convert("RGBA")
+        img.thumbnail(size, Image.LANCZOS)
+        out = Image.new("RGBA", size, (0, 0, 0, 0))
+        out.alpha_composite(img, ((size[0] - img.width) // 2, size[1] - img.height))
+        return out
 
 
 def premultiplied_bgra(img: Image.Image) -> bytes:

@@ -139,7 +139,8 @@ class PerchDriver:
 
     def __init__(self, surface, director, sensors, *, log=print) -> None:
         self.surface, self.director, self.sensors = surface, director, sensors
-        self.planner = PerchPlanner(surface.w, surface.h, floor_y=surface.home_y)
+        self.planner = PerchPlanner(surface.w, surface.h, floor_y=surface.home_y,
+                                    feet_y=int(FEET_Y * surface.h / 220))
         self.applied: Anchor | None = None
         self.motion: PerchMotion | None = None
         self.log = log

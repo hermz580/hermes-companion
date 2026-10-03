@@ -44,6 +44,35 @@ gold-patterned stoles, hanging orb pendants and a second ankh, gold
 gauntlets and greaves, and a taller jewelled crown. It turns to face the
 way it travels.
 
+![Nyamekra's role looks, elemental energies and dynamic poses](docs/nyamekra-roles.png)
+
+**Different tasks, different looks, same Nyamekra.** The body never changes.
+Role gear appears only while Hermes is actually doing that kind of work, so
+the look itself tells you what's happening, and a key-tool emblem glows on
+the chest:
+
+| Hermes is… | Look | Emblem |
+|---|---|---|
+| running terminal or dev work | Tech: headset and HUD | automation |
+| on the web | Traveler: pack strap and satchel | travel |
+| reading or organising files | Teacher: spectacles and scarf | knowledge |
+| making media or design | Creative: beret and paint | creation |
+| repairing or retrying | Healer: leaf sash and healing glow | healing |
+| needing you | Tactical: gold pauldrons | protection |
+| delegating to helpers | Celestial: spirit glow | omnipresence |
+| using memory | Majestic | time |
+
+**Nine expressions** follow what each move means: calm, focused, curious,
+joyful, fierce, wise, playful, sad and protective. **Ten elemental energy
+styles** (`--palette`): cosmic, earth, fire, water, air, shadow, light,
+neon, natural and robotic. They change only the energy around Nyamekra,
+never the being. **Sizes:** `--size tiny|standard|large`. **Dynamic poses:**
+flight, landing, casting, perch, sprint, defense and interact.
+
+```bash
+hermes-companion play --palette fire --size large
+```
+
 Nyamekra never changes form. Its range comes from composition: 8 gestures
 can each channel any of the 10 Symbols of Essence (ankh, adinkra heart,
 crow, sun, moon, spiral, baobab, pyramid, orbital rings, infinity). On top

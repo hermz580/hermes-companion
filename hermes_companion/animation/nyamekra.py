@@ -29,15 +29,60 @@ from hermes_companion.animation.herald import (
 from hermes_companion.animation.nia import _limb
 
 # One form, one look. (Kept as a dict so the registry contract is the same.)
-NYAMEKRA_PALETTES: dict[str, dict[str, str]] = {
-    "nyamekra": {
+_BODY: dict[str, str] = {
         "feather": "#0d0b10", "feather_hi": "#2a2238", "sheen": "#4b2e83",
         "gold": "#e8b84a", "gold_hi": "#ffe39a", "gold_dk": "#9a6b16",
         "robe": "#120f17", "violet": "#5b3aa6", "beak": "#4a4248", "beak_hi": "#8a7f86",
         "talon": "#15121a",
-    },
 }
-NYAMEKRA_DEFAULT_PALETTE = "nyamekra"
+
+# Elemental & energy styles: the being never changes, only the energy it
+# carries. name -> (particle colour, accent colour, particle kind)
+ENERGY: dict[str, tuple[str, str, str]] = {
+    "cosmic": ("#c4b5fd", "#ffe39a", "star"),
+    "earth": ("#a16207", "#d6b98c", "pebble"),
+    "fire": ("#f97316", "#fde047", "ember"),
+    "water": ("#38bdf8", "#e0f2fe", "bubble"),
+    "air": ("#e2e8f0", "#94a3b8", "swirl"),
+    "shadow": ("#3b3448", "#7c6f9a", "wisp"),
+    "light": ("#fefce8", "#fde68a", "ray"),
+    "neon": ("#f0abfc", "#22d3ee", "spark"),
+    "natural": ("#4ade80", "#bef264", "leaf"),
+    "robotic": ("#67e8f9", "#94a3b8", "circuit"),
+}
+# Every palette is the same body; the name only selects the energy style.
+NYAMEKRA_PALETTES: dict[str, dict[str, str]] = {name: dict(_BODY) for name in ENERGY}
+NYAMEKRA_DEFAULT_PALETTE = "cosmic"
+
+# Expressions from the character sheet; chosen from what the pose means.
+# name -> (brow tilt, eye scale, upper lid 0..1, beak open, eye sparkle)
+EXPRESSIONS: dict[str, tuple[float, float, float, float, bool]] = {
+    "calm": (0, 1.0, 0.45, 0, False), "focused": (2, 0.85, 0.35, 0, False),
+    "curious": (-3, 1.15, 0.0, 1, True), "joyful": (-2, 1.0, 0.25, 4, True),
+    "fierce": (4, 0.9, 0.3, 3, False), "wise": (0, 0.95, 0.55, 0, True),
+    "playful": (-2, 1.1, 0.1, 3, True), "sad": (-4, 0.95, 0.5, 0, False),
+    "protective": (3, 1.05, 0.15, 1, False),
+}
+_EXPRESSION_OF_MOOD = {"calm": "calm", "work": "focused", "curious": "curious",
+                       "joy": "joyful", "fail": "sad", "approve": "protective",
+                       "delegate": "wise", "rest": "calm"}
+
+# "Different tasks, different looks, same Nyamekra": role gear appears only
+# while Hermes is doing that kind of work, so the look itself says what is
+# happening. The body never changes.
+ROLE_OF: dict[str, str] = {
+    "terminal_work": "tech", "dev_merge": "tech", "lean_work": "tech", "work": "tech",
+    "web_scan": "traveler", "read": "teacher", "file_organize": "teacher",
+    "media_paint": "creative", "design_draft": "creative", "audio_tune": "creative",
+    "memory_vault": "majestic", "open_portal": "celestial", "orb_exits": "celestial",
+    "orb_returns": "celestial", "absorb": "celestial", "repair": "healer",
+    "retry": "healer", "recover": "healer", "attention": "tactical",
+    "run_to_user": "tactical", "panic": "tactical", "wait": "tactical",
+}
+# Key tools, shown as the chest emblem for each role.
+ROLE_TOOL = {"tech": "automation", "traveler": "travel", "teacher": "knowledge",
+             "creative": "creation", "healer": "healing", "tactical": "protection",
+             "celestial": "omnipresence", "majestic": "time"}
 
 SYMBOLS = ("ankh", "adinkra", "crow", "sun", "moon", "spiral", "baobab",
            "pyramid", "orbit", "infinity")
@@ -80,6 +125,14 @@ BODY_MOVES = {
     "storyteller_read": ("calm", (50, 80, 50, 80), 0.2, 0, 0, {"seat", "book"}),
     "glyph_weave":     ("focused", (40, 60, 110, 40), 0.3, 1, 0, {"glyphs"}),
     "turn_back":       ("calm", (12, 10, 12, 10), 0.2, 0, 0, {"back"}),
+    # dynamic poses from the sheet
+    "flight":          ("bright", (80, 10, 80, 10), 1.0, 8, 4, {"flight", "beat"}),
+    "landing":         ("calm", (60, 20, 60, 20), 0.8, 0, 0, {"land"}),
+    "casting":         ("focused", (40, 50, 95, 5), 0.4, 1, 0, {"cast"}),
+    "perch_crouch":    ("calm", (35, 90, 35, 90), 0.1, 0, 0, {"crouch"}),
+    "sprint_dash":     ("bright", (20, 100, 60, 40), 0.6, 2, 6, {"sprint"}),
+    "defense_shield":  ("uneasy", (70, 60, 90, 20), 0.5, 0, 0, {"shield"}),
+    "interact":        ("focused", (30, 50, 75, 50), 0.2, 0, 0, {"interact"}),
 }
 
 # Poses that travel left: Nyamekra turns to face the way it is going.
@@ -261,8 +314,132 @@ def _wing(canvas, root_x, root_y, side, spread, P, p, beat):
             _feather(canvas, root_x, root_y, ang, ln, width, fill, P["gold_dk"] if layer == 0 else fill, tip)
 
 
+def expression_of(pose: str, mood: str, own: bool) -> str:
+    if pose in ("defense_shield", "attention", "panic"):
+        return "fierce"
+    if pose in ("storyteller_read", "meditate", "glyph_weave", "memory_vault") or \
+            pose.endswith("_baobab") or pose.endswith("_spiral"):
+        return "wise"
+    if own and mood == "joy":
+        return "playful"
+    return _EXPRESSION_OF_MOOD.get(mood, "calm")
+
+
+_TOOL_ICON = {"automation": "gear", "travel": "arrow", "knowledge": "book",
+              "creation": "star", "healing": "cross", "protection": "shield",
+              "omnipresence": "infinity", "time": "clock"}
+
+
+def _tool_icon(canvas, tool, x, y, color):
+    kind = _TOOL_ICON[tool]
+    if kind == "gear":
+        for i in range(8):
+            a = i * 0.785
+            canvas.create_line(x + math.cos(a) * 3, y + math.sin(a) * 3,
+                               x + math.cos(a) * 5.5, y + math.sin(a) * 5.5, fill=color, width=2)
+        canvas.create_oval(x - 3, y - 3, x + 3, y + 3, outline=color, width=1)
+    elif kind == "arrow":
+        canvas.create_line(x - 5, y + 4, x + 5, y - 4, fill=color, width=2)
+        canvas.create_polygon(x + 5, y - 4, x, y - 4, x + 5, y + 1, fill=color, outline="")
+    elif kind == "book":
+        canvas.create_polygon(x - 6, y - 4, x, y - 2, x + 6, y - 4, x + 6, y + 4, x, y + 6,
+                              x - 6, y + 4, fill="", outline=color)
+        canvas.create_line(x, y - 2, x, y + 6, fill=color)
+    elif kind == "star":
+        pts = []
+        for i in range(10):
+            a = -math.pi / 2 + i * math.pi / 5
+            r = 6 if i % 2 == 0 else 2.5
+            pts += [x + math.cos(a) * r, y + math.sin(a) * r]
+        canvas.create_polygon(*pts, fill=color, outline="")
+    elif kind == "cross":
+        canvas.create_rectangle(x - 1.5, y - 5, x + 1.5, y + 5, fill=color, outline="")
+        canvas.create_rectangle(x - 5, y - 1.5, x + 5, y + 1.5, fill=color, outline="")
+    elif kind == "shield":
+        canvas.create_polygon(x - 5, y - 5, x + 5, y - 5, x + 5, y, x, y + 6, x - 5, y,
+                              fill="", outline=color, width=2)
+    elif kind == "infinity":
+        _symbol(canvas, "infinity", x, y, 6, color, 0.0)
+    elif kind == "clock":
+        canvas.create_oval(x - 5, y - 5, x + 5, y + 5, outline=color, width=1)
+        canvas.create_line(x, y, x, y - 4, fill=color, width=1)
+        canvas.create_line(x, y, x + 3, y + 1, fill=color, width=1)
+
+
+def _energy(canvas, style, cx, cy, p):
+    col, accent, kind = ENERGY[style]
+    for i in range(10):
+        a = i * 0.628 + p * 2.0
+        r = 48 + 10 * math.sin(p * 6.28 + i)
+        x, y = cx + math.cos(a) * r, cy - 30 + math.sin(a) * r * 0.9
+        c = col if i % 2 else accent
+        if kind in ("star", "spark"):
+            canvas.create_line(x - 2.5, y, x + 2.5, y, fill=c, width=1)
+            canvas.create_line(x, y - 2.5, x, y + 2.5, fill=c, width=1)
+        elif kind == "ember":
+            y -= (p * 30 + i * 5) % 30
+            canvas.create_oval(x - 1.8, y - 2.6, x + 1.8, y + 2.6, fill=c, outline="")
+        elif kind == "bubble":
+            y -= (p * 24 + i * 6) % 24
+            canvas.create_oval(x - 2.5, y - 2.5, x + 2.5, y + 2.5, fill="", outline=c)
+        elif kind == "swirl":
+            canvas.create_arc(x - 5, y - 3, x + 5, y + 3, start=i * 36, extent=200,
+                              style="arc", outline=c, width=1)
+        elif kind == "wisp":
+            canvas.create_line(x, y, x + 3, y - 4, x - 1, y - 8, fill=c, width=2, smooth=True)
+        elif kind == "ray":
+            canvas.create_line(cx + math.cos(a) * 36, cy - 30 + math.sin(a) * 33, x, y, fill=c, width=1)
+        elif kind == "leaf":
+            canvas.create_polygon(x - 3, y, x, y - 3, x + 3, y, x, y + 3, fill=c, outline="", smooth=True)
+        elif kind == "pebble":
+            canvas.create_oval(x - 2, y - 1.5, x + 2, y + 1.5, fill=c, outline="")
+        elif kind == "circuit":
+            canvas.create_line(x - 4, y, x, y, x, y - 4, fill=c, width=1)
+            canvas.create_oval(x - 1, y - 5, x + 1, y - 3, fill=c, outline="")
+
+
+def _role_gear(canvas, role, cx, top, hcx, hcy, hands, P, p):
+    if role == "tech":                                            # headset + HUD ring
+        canvas.create_arc(hcx - 20, hcy - 22, hcx + 20, hcy + 10, start=20, extent=140,
+                          style="arc", outline="#22d3ee", width=2)
+        canvas.create_oval(hcx - 23, hcy - 4, hcx - 15, hcy + 6, fill="#0f172a", outline="#22d3ee")
+        canvas.create_line(hcx - 19, hcy + 6, hcx - 8, hcy + 12, fill="#22d3ee", width=1)
+    elif role == "traveler":                                      # pack strap + satchel
+        canvas.create_line(cx - 18, top + 2, cx + 20, top + 46, fill="#7c4a1e", width=4)
+        canvas.create_rectangle(cx + 16, top + 40, cx + 30, top + 52, fill="#7c4a1e", outline=P["gold_dk"])
+    elif role == "teacher":                                       # spectacles + scarf
+        canvas.create_oval(hcx + 1, hcy - 11, hcx + 11, hcy + 1, outline=P["gold_hi"], width=1)
+        canvas.create_line(cx - 16, top + 1, cx + 16, top + 1, fill="#1e3a8a", width=5)
+        canvas.create_line(cx + 10, top + 1, cx + 14, top + 22, fill="#1e3a8a", width=5)
+    elif role == "creative":                                      # tilted beret + paint dots
+        canvas.create_oval(hcx - 18, hcy - 26, hcx + 10, hcy - 14, fill="#9f1239", outline="")
+        canvas.create_oval(hcx - 4, hcy - 30, hcx, hcy - 26, fill="#9f1239", outline="")
+        for i, col in enumerate(("#f472b6", "#fbbf24", "#60a5fa", "#a3e635")):
+            canvas.create_oval(cx - 14 + i * 9, top + 54, cx - 10 + i * 9, top + 58, fill=col, outline="")
+    elif role == "healer":                                        # leaf sash + healing glow
+        canvas.create_line(cx + 18, top + 2, cx - 20, top + 44, fill="#15803d", width=4)
+        for i in range(4):
+            lx, ly = cx + 14 - i * 9, top + 8 + i * 10
+            canvas.create_polygon(lx - 3, ly, lx, ly - 3, lx + 3, ly, lx, ly + 3, fill="#4ade80", outline="")
+        hx, hy = hands[1]
+        canvas.create_oval(hx - 8, hy - 8, hx + 8, hy + 8, outline="#4ade80", width=2)
+    elif role == "tactical":                                      # pauldrons
+        for side in (-1, 1):
+            canvas.create_arc(cx + side * 22 - 10, top - 4, cx + side * 22 + 10, top + 14,
+                              start=0, extent=180, style="chord", fill=P["gold_dk"], outline=P["gold"])
+    elif role == "celestial":                                     # spirit glow
+        for r in (40, 48):
+            canvas.create_oval(cx - r, top - 6, cx + r, top + 90, outline="#c4b5fd", width=1)
+        for i in range(6):
+            a = p * 6.28 + i
+            canvas.create_oval(cx + math.cos(a) * 44 - 1.5, top + 40 + math.sin(a) * 46 - 1.5,
+                               cx + math.cos(a) * 44 + 1.5, top + 40 + math.sin(a) * 46 + 1.5,
+                               fill="#ede9fe", outline="")
+
+
 def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None = None) -> None:
-    P = NYAMEKRA_PALETTES[NYAMEKRA_DEFAULT_PALETTE]
+    P = _BODY
+    style = palette if palette in ENERGY else NYAMEKRA_DEFAULT_PALETTE
     canvas.delete("all")
     if pose in FACE_LEFT:
         canvas = _Mirror(canvas)
@@ -292,8 +469,14 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
     glow = MOOD_COLORS.get(mood, MOOD_COLORS["calm"])
     if "float" in fx:
         dy -= 8 + 2 * osc
-    if "seat" in fx:
+    if "seat" in fx or "crouch" in fx:
         dy += 12
+    if "flight" in fx:
+        dy -= 8 + 4 * osc
+    if "sprint" in fx:
+        shear += 10
+    expr = EXPRESSIONS[expression_of(pose, mood, own is not None)]
+    role = ROLE_OF.get(pose)
 
     cx = 100 + shear + dx
     cy = 150 + dy + {"jump": -26, "fall": 14, "sit": 14, "tall": -5}.get(body, 0)
@@ -324,6 +507,8 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
         canvas.create_oval(sx - 1.3, sy - 1.3, sx + 1.3, sy + 1.3, fill=P["gold_hi"], outline="")
     # mood is shown by the inner glow so the halo itself never changes
     canvas.create_oval(hx - 24, hy - 24, hx + 24, hy + 24, outline=glow, width=2)
+
+    _energy(canvas, style, cx, cy, p)
 
     # ---- wings (behind the robe) -------------------------------------------------
     beat = "beat" in fx or body == "jump"
@@ -480,7 +665,7 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
                       outline=P["violet"], width=2)
     # beak (open when cawing), gold-banded
     face = 1
-    open_ = 5 if "caw" in fx and osc > 0 else (3 if eyes == "wide" else 0)
+    open_ = 5 if "caw" in fx and osc > 0 else max(expr[3], 3 if eyes == "wide" else 0)
     bx0, by0 = hcx + 12 * face, hcy + 2
     tip = bx0 + 27 * face
     canvas.create_polygon(bx0 - 2, by0 - 8, bx0 + 12, by0 - 6, tip, by0 + 2 - open_ * 0.3,
@@ -498,7 +683,7 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
         canvas.create_line(ex0 - 4, ey0 - 4, ex0 + 4, ey0 + 4, width=2, fill=P["gold"])
         canvas.create_line(ex0 - 4, ey0 + 4, ex0 + 4, ey0 - 4, width=2, fill=P["gold"])
     else:
-        r = 7.5 if eyes == "wide" or "eye" in fx else 6.5
+        r = (7.5 if eyes == "wide" or "eye" in fx else 6.5) * expr[1]
         canvas.create_oval(ex0 - r, ey0 - r, ex0 + r, ey0 + r, fill="#1b1033", outline=P["gold"], width=1)
         canvas.create_oval(ex0 - r * 0.7, ey0 - r * 0.7, ex0 + r * 0.7, ey0 + r * 0.7, fill=P["violet"],
                            outline="")
@@ -513,8 +698,18 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
                                fill=P["gold_hi"], outline="")
         if "eye" in fx:
             canvas.create_oval(ex0 - r - 3, ey0 - r - 3, ex0 + r + 3, ey0 + r + 3, outline=glow, width=2)
-    canvas.create_line(ex0 - 7, ey0 - 8, ex0 + 6, ey0 - 7 - (2 if mood == "fail" else 0),
-                       fill=P["feather_hi"], width=2)
+        if expr[2] > 0:                                          # upper lid: calm, wise, sad
+            lid = ey0 - r + 2 * r * expr[2]
+            canvas.create_polygon(ex0 - r - 1, ey0 - r - 1, ex0 + r + 1, ey0 - r - 1,
+                                  ex0 + r + 1, lid, ex0 - r - 1, lid,
+                                  fill=P["feather"], outline="")
+            canvas.create_line(ex0 - r, lid, ex0 + r, lid, fill=P["gold_dk"], width=1)
+        if expr[4]:                                              # sparkle: curious, joyful, wise
+            canvas.create_oval(ex0 + r * 0.3, ey0 - r * 0.6, ex0 + r * 0.3 + 2.2, ey0 - r * 0.6 + 2.2,
+                               fill="white", outline="")
+    tilt = expr[0]
+    canvas.create_line(ex0 - 8, ey0 - 9 - tilt, ex0 + 7, ey0 - 9 + tilt,
+                       fill=P["feather_hi"], width=3)
     # crown with sun-orb
     ctop = hcy - 15
     canvas.create_polygon(hcx - 13, ctop, hcx - 15, ctop - 11, hcx - 8, ctop - 6, hcx - 5, ctop - 16,
@@ -582,6 +777,45 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
         for i in range(3):
             y = cy - 30 + i * 14
             canvas.create_line(cx - 50 - i * 6, y, cx - 72 - i * 6, y, fill=P["gold_dk"], width=2)
+
+    # ---- role look + key-tool emblem ---------------------------------------------------
+    if role is not None:
+        _role_gear(canvas, role, cx, top, hcx, hcy, hands, P, p)
+        mx, my = cx, top + 64
+        canvas.create_oval(mx - 8, my - 8, mx + 8, my + 8, fill=P["robe"], outline=glow, width=2)
+        _tool_icon(canvas, ROLE_TOOL[role], mx, my, P["gold_hi"])
+
+    # ---- dynamic poses ----------------------------------------------------------------------
+    if "land" in fx:
+        for k in (-1, 1):
+            for i in range(3):
+                canvas.create_oval(cx + k * (24 + i * 8) - 3, cy + 46 - i * 3, cx + k * (24 + i * 8) + 3,
+                                   cy + 50 - i * 3, fill="#6b6280", outline="")
+    if "cast" in fx:
+        hx, hy = hands[1]
+        for i in range(4):
+            canvas.create_line(hx, hy, hx + 14 + i * 7, hy - 6 + math.sin(p * 12 + i) * 6,
+                               fill=glow if i % 2 else P["gold_hi"], width=2)
+    if "sprint" in fx:
+        for i in range(4):
+            y = cy - 40 + i * 12
+            canvas.create_line(cx - 40 - i * 6, y, cx - 66 - i * 6, y, fill=P["gold_dk"], width=2)
+    if "shield" in fx:
+        sx, sy2 = cx + 40, cy - 34
+        pts = []
+        for i in range(6):
+            a = i * math.pi / 3 + math.pi / 6
+            pts += [sx + math.cos(a) * 18, sy2 + math.sin(a) * 22]
+        canvas.create_line(*pts, pts[0], pts[1], fill=glow, width=3)
+        _tool_icon(canvas, "protection", sx, sy2, P["gold_hi"])
+    if "interact" in fx:
+        hx, hy = hands[1]
+        canvas.create_rectangle(hx + 4, hy - 26, hx + 34, hy - 6, outline="#22d3ee", width=1)
+        for i in range(3):
+            canvas.create_line(hx + 8, hy - 21 + i * 5, hx + 26 - i * 4, hy - 21 + i * 5, fill="#67e8f9")
+    if "flight" in fx:
+        for i in range(3):
+            canvas.create_line(cx - 20 + i * 20, cy + 52, cx - 26 + i * 20, cy + 64, fill=P["gold_dk"], width=1)
 
     # ---- shared cues: tools, effects, curiosity -----------------------------------------
     if extra == "zzz":

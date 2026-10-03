@@ -115,11 +115,15 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
 
     def __init__(self, *, companion: str, home_x: int | None = None,
                  home_y: int | None = None, palette: str | None = None,
-                 glow: bool = True) -> None:
+                 glow: bool = True, scale: float = 1.0) -> None:
         super().__init__(companion=companion, home_x=home_x, home_y=home_y,
                          palette=palette)
-        self.renderer = FrameRenderer(companion, palette, glow=glow)
-        self.w, self.h = FRAME_W, FRAME_H
+        self.renderer = FrameRenderer(companion, palette, glow=glow, scale=scale)
+        self.w, self.h = int(FRAME_W * scale), int(FRAME_H * scale)
+        if scale != 1.0:
+            # keep the feet on the same floor line when the frame grows/shrinks
+            self.home_y += FRAME_H - self.h
+            self.canvas.configure(width=self.w, height=self.h)
         self._pose = ("idle_bob", 0.0)
         self._y = self.home_y
         self._photo = None

@@ -202,6 +202,21 @@ The first `live` run installs and enables the Hermes observer plugin. Live
 mode shows whichever Hermes session is active, because you asked for it
 with `live`. Without Hermes it simply waits.
 
+## Speech bubbles, sound and memory
+
+- **Speech bubbles** (on by default) say what Hermes is doing in plain words:
+  "On it!", "Working with terminal…", "I need your OK!", "All done!". The
+  text comes only from Hermes's content-free status, never your prompts or
+  files. Turn them off with `--no-bubbles`.
+- **Sound** (`--sound`, off by default): soft synthesised chimes for start,
+  done, needs-you and problems. There are no audio files, and it's rate-limited.
+- **Memory** learns your rhythm: hours you're active, breaks and usual
+  session length. It's stored as counts only in
+  `%LOCALAPPDATA%\hermes-companion\personality.json`. That's how the
+  companion knows to say "Good morning! Day 12 together", "Welcome back - nice
+  break" or "Longer than usual today - time for a stretch?". Delete the file to
+  make it forget, or use `--no-memory`.
+
 ## Accessibility and art
 
 - `--reduced-motion`: minimal movement. No squash, no hops, fewer reactions.

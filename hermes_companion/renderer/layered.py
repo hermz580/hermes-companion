@@ -172,6 +172,13 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
 
     def _present(self) -> None:
         frame = self.renderer.frame(*self._pose)
+        text = getattr(self, "_bubble_text", None)
+        if text:                                     # no bubble window: draw it in-frame
+            from hermes_companion.renderer.voice import bubble_image
+            b = bubble_image(text, width=self.w - 8)
+            b.thumbnail((self.w - 4, self.h // 3))
+            frame = frame.copy()
+            frame.alpha_composite(b, ((self.w - b.width) // 2, 2))
         if self.blitter is not None:
             try:
                 self.blitter.blit(frame, self.x, self._y)
@@ -197,7 +204,41 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
         else:
             self.canvas.itemconfigure(self._image_item, image=self._photo)
 
+    # -- voice: speech bubbles + opt-in chimes -------------------------------
+    def attach_voice(self, *, bubbles: bool = True, sound: bool = False):
+        from hermes_companion.renderer.voice import BubbleWindow, Chimes, Voice
+        self._bubble_text = None
+        self._bubble_window = None
+        show = self._show_bubble_inline
+        if bubbles and self.blitter is not None:
+            try:
+                self._bubble_window = BubbleWindow(self)
+                show = self._bubble_window.show
+            except Exception:
+                self._bubble_window = None
+        if not bubbles:
+            show = lambda _text: None   # noqa: E731
+        self.voice = Voice(show, Chimes() if sound else None)
+        return self.voice
+
+    def _show_bubble_inline(self, text) -> None:
+        self._bubble_text = text
+        self._present()
+
+    def set_attention(self, state: str, label: str) -> None:
+        voice = getattr(self, "voice", None)
+        if voice is not None:
+            voice.on_attention(state, label)
+
+    def _tick(self) -> None:
+        voice = getattr(self, "voice", None)
+        if voice is not None:
+            voice.tick()
+        super()._tick()
+
     def close(self) -> None:
+        if getattr(self, "_bubble_window", None) is not None:
+            self._bubble_window.close()
         if self.blitter is not None:
             self.blitter.close()
         super().close()

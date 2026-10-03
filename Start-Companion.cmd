@@ -2,6 +2,7 @@
 REM One-click: installs Hermes Companion into .venv (first run only) and
 REM starts a curious herald on your desktop. No Hermes install needed.
 REM   Start-Companion.cmd            herald (winged messenger)
+REM   Start-Companion.cmd nia        Nia (storyteller, biggest move set)
 REM   Start-Companion.cmd samurai    samurai
 REM   Start-Companion.cmd astro      astro
 setlocal

@@ -24,6 +24,24 @@ hermes-companion play --companion samurai          # or astro
 
 ![Herald: idle, noticing you, curious, terminal, web, delegating, failure, needs you, done, travel, git, asleep](docs/herald.png)
 
+### Nia, the storyteller
+
+```bash
+hermes-companion play --companion nia                 # or: Start-Companion.cmd nia
+hermes-companion play --companion nia --palette indigo   # kente indigo ochre emerald royal
+```
+
+![Nia: idle, terminal, needs you, done, noticed you, failed, and six of Nia's own moves](docs/nia.png)
+
+Nia is a detailed Afrocentric companion: a textured afro, swinging locs
+with gold cuffs and cowries, or a headwrap; a kente-inspired woven sash,
+beaded collar, gold hoops and bangles; mudcloth-inspired wraps; and a
+talking drum. An Akoma (heart) emblem glows while Nia waits on you.
+Nia has the largest move set of any companion: every shared engine pose,
+plus 21 moves of its own (drum rolls, footwork, step-claps, spins,
+storytelling and more). They're used only as decoration around Hermes's
+signature moves, so they never change what an action means.
+
 Herald's staff orb and aura show what a move *means*: teal = working,
 violet = delegating, rose = failure, amber = needs you, gold = success,
 cyan = curious, lavender = resting. "!" means it noticed something you did,

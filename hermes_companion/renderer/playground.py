@@ -57,7 +57,10 @@ class PlaygroundBrain:
     def __init__(self, director, surface, *, sensors=None, seed: int = 7,
                  variety: bool = True, demo: bool = True, start: float = 0.0,
                  perch: bool = False, log=print) -> None:
-        self.engine = BehaviorEngine(seed=seed, variety=variety)
+        from hermes_companion.animation.characters import extra_flourishes
+        self.engine = BehaviorEngine(
+            seed=seed, variety=variety,
+            extra_flourishes=extra_flourishes(getattr(surface, "companion", None)))
         self.director = director
         self.surface = surface
         self.attention = AttentionModel()

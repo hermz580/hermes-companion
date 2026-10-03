@@ -8,7 +8,7 @@ really doing always reads correctly, and decoration never replaces it.
 - [x] One-click `Start-Companion.cmd` that retries a failed install and forwards options
 - [x] `hermes-companion doctor` to say exactly what a PC is missing
 - [x] CI that installs from scratch and opens the real window on Windows
-- [ ] A one-file `.exe` release (PyInstaller) so no Python install is needed
+- [x] A one-file `HermesCompanion.exe` release (built and smoke-tested on Windows CI)
 - [x] A demo GIF for the README (`docs/demo.gif`, rendered from real chains)
 
 ## Next: make it feel alive

@@ -20,13 +20,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e . pyinstaller
+      # A regular (not editable) install, plus --paths ., so PyInstaller can
+      # find and bundle the hermes_companion package itself.
+      - run: pip install . pyinstaller
       - run: python packaging/make_icon.py
+      - name: Confirm the package imports from the build environment
+        run: python -c "import hermes_companion.cli.emit, hermes_companion.renderer.tray; print('ok')"
       - name: Build
         run: >
           pyinstaller --noconfirm --onefile --windowed
           --name HermesCompanion
           --icon packaging/icon.ico
+          --paths .
           --collect-submodules hermes_companion
           --hidden-import pystray._win32
           packaging/launcher.py

@@ -24,6 +24,37 @@ hermes-companion play --companion samurai          # or astro
 
 ![Herald: idle, noticing you, curious, terminal, web, delegating, failure, needs you, done, travel, git, asleep](docs/herald.png)
 
+### Nyamekra, the All-Doing Crow
+
+```bash
+hermes-companion play                       # Nyamekra is the default
+Start-Companion.cmd                         # same, one click
+```
+
+![Nyamekra: Hermes states (top) and its own moves channelling the Symbols of Essence (bottom)](docs/nyamekra.png)
+
+One being, one form. Nyamekra is an Afrocentric anthropomorphic crow with
+black feathers and a violet sheen. It has a gold crown with a sun-orb and a
+celestial halo of orbital rings that is always present, plus galaxy eyes,
+stacked gold neck rings, a golden ankh, and a feathered robe and mantle
+woven with gold. It holds the world-orb.
+
+From the turnaround sheet it also has a long feather cape, twin
+gold-patterned stoles, hanging orb pendants and a second ankh, gold
+gauntlets and greaves, and a taller jewelled crown. It turns to face the
+way it travels.
+
+Nyamekra never changes form. Its range comes from composition: 8 gestures
+can each channel any of the 10 Symbols of Essence (ankh, adinkra heart,
+crow, sun, moon, spiral, baobab, pyramid, orbital rings, infinity). On top
+of that come 20 wing, crow-body and scene moves: wing spread, wing beat,
+glide, caw, preen, halo spin, orb juggle and meditate, plus Commanding
+Presence (scepter with armillary sphere), Cosmic Control (orbiting planets),
+The Storyteller (seated, reading a glowing book among floating glyphs),
+Glyph Weave and a back view. With every shared engine pose, the move grammar
+turns that into millions of distinct performances of a single Hermes
+action. The Hermes action itself never changes.
+
 ### Nia, the storyteller
 
 ```bash
@@ -37,7 +68,7 @@ Nia is a detailed Afrocentric companion: a textured afro, swinging locs
 with gold cuffs and cowries, or a headwrap; a kente-inspired woven sash,
 beaded collar, gold hoops and bangles; mudcloth-inspired wraps; and a
 talking drum. An Akoma (heart) emblem glows while Nia waits on you.
-Nia has the largest move set of any companion: every shared engine pose,
+Nia has more moves than the original companions: every shared engine pose,
 plus 21 moves of its own (drum rolls, footwork, step-claps, spins,
 storytelling and more). They're used only as decoration around Hermes's
 signature moves, so they never change what an action means.

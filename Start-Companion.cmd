@@ -1,14 +1,15 @@
 @echo off
 REM One-click: installs Hermes Companion into .venv (first run only) and
-REM starts a curious herald on your desktop. No Hermes install needed.
-REM   Start-Companion.cmd            herald (winged messenger)
-REM   Start-Companion.cmd nia        Nia (storyteller, biggest move set)
+REM starts Nyamekra, the All-Doing Crow, on your desktop. No Hermes install needed.
+REM   Start-Companion.cmd            Nyamekra (the All-Doing Crow)
+REM   Start-Companion.cmd herald     Herald (winged messenger)
+REM   Start-Companion.cmd nia        Nia (storyteller)
 REM   Start-Companion.cmd samurai    samurai
 REM   Start-Companion.cmd astro      astro
 setlocal
 cd /d "%~dp0"
 set "WHO=%~1"
-if "%WHO%"=="" set "WHO=herald"
+if "%WHO%"=="" set "WHO=nyamekra"
 
 if not exist ".venv\Scripts\python.exe" (
     echo Setting up Python environment, one moment...

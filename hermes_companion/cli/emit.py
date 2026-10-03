@@ -828,7 +828,7 @@ def build_parser() -> argparse.ArgumentParser:
                     help="start the pet on monitor N (1 = first attached display)")
     pl.add_argument("--grab", action="store_true",
                     help="enable sprite hitbox + drag (opt-in pointer interaction, §25)")
-    pl.add_argument("--companion", choices=("pet", "samurai", "astro", "herald", "nia"), default=None,
+    pl.add_argument("--companion", choices=("pet", "samurai", "astro", "herald", "nia", "nyamekra"), default=None,
                     help="render a procedural companion instead of the configured Alpha atlas")
     pl.add_argument("--relay", default=None, metavar="HOST:PORT",
                     help="join a LAN relay; token comes only from HERMES_COMPANION_TOKEN")
@@ -847,7 +847,8 @@ def build_parser() -> argparse.ArgumentParser:
     pl.set_defaults(fn=cmd_live)
 
     pp = sub.add_parser("play", help="try a companion now - no Hermes needed")
-    pp.add_argument("--companion", choices=("herald", "nia", "samurai", "astro"), default="herald")
+    pp.add_argument("--companion", choices=("nyamekra", "herald", "nia", "samurai", "astro"),
+                    default="nyamekra")
     pp.add_argument("--palette", default=None,
                     help="herald: olympus midnight ember verdant nebula; "
                          "nia: kente indigo ochre emerald royal")

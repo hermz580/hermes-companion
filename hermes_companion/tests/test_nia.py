@@ -17,11 +17,12 @@ _sheet = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_sheet)
 
 
-def test_nia_has_the_largest_repertoire():
+def test_nia_outmoves_the_original_companions():
     shared = len(_sheet.engine_poses())
     counts = {name: shared + sum(len(v) for v in extra_flourishes(name).values())
               for name in COMPANIONS}
-    assert max(counts, key=counts.get) == "nia"
+    for other in ("pet", "samurai", "astro", "herald"):
+        assert counts["nia"] > counts[other]
     assert counts["nia"] >= shared + 20
 
 

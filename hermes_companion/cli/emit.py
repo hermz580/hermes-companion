@@ -387,6 +387,8 @@ print(json.dumps(mons))
                      perch=not args.no_perch)
     if args.companion is not None:
         overlay.bind_engine(tail.engine)
+        if hasattr(overlay, "attach_voice"):
+            overlay.attach_voice(bubbles=not args.no_bubbles, sound=args.sound)
     overlay.on_ready = lambda: (
         print(f"LIVE READY pet={slug} scale={scale:g}", flush=True),
         print(f"FOLLOWING ACTIVE SESSION" if follow_mode
@@ -417,6 +419,8 @@ def cmd_play(args: argparse.Namespace) -> int:
                           perch=not args.no_perch, size=args.size,
                           seconds=args.seconds, reduced_motion=args.reduced_motion,
                           high_contrast=args.high_contrast, artpack=args.artpack,
+                          sound=args.sound, bubbles=not args.no_bubbles,
+                          memory=not args.no_memory,
                           seed=args.seed, variety=not args.no_variety,
                           demo=not args.no_demo)
 
@@ -846,6 +850,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="what the pet may notice on the desktop (content-free): "
                          "ambient = cursor/windows/displays/away; full adds clicks, "
                          "typing rhythm and clipboard changes (default: full)")
+    pl.add_argument("--sound", action="store_true", help="soft chimes (drawn companions)")
+    pl.add_argument("--no-bubbles", action="store_true", help="no speech bubbles")
     pl.add_argument("--follow", action="store_true",
                     help="show whichever Hermes session is active (explicit consent)")
     pl.add_argument("--palette", default=None, help="energy style / palette")
@@ -871,6 +877,10 @@ def build_parser() -> argparse.ArgumentParser:
     pp.add_argument("--no-variety", action="store_true")
     pp.add_argument("--render", choices=("smooth", "classic"), default="smooth",
                     help="smooth = anti-aliased, glowing, true transparency (default)")
+    pp.add_argument("--sound", action="store_true", help="soft chimes for start, done, needs-you, problems")
+    pp.add_argument("--no-bubbles", action="store_true", help="no speech bubbles")
+    pp.add_argument("--no-memory", action="store_true",
+                    help="don't learn your rhythm (nothing is stored)")
     pp.add_argument("--reduced-motion", action="store_true",
                     help="accessibility: minimal movement, no squash or hopping")
     pp.add_argument("--high-contrast", action="store_true",

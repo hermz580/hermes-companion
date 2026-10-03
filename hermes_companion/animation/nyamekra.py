@@ -74,7 +74,55 @@ BODY_MOVES = {
     "meditate":       ("calm", (40, 100, 40, 100), 0.2, 0, 0, {"float"}),
     "survey_realms":  ("focused", (15, 20, 100, 30), 0.3, 0, 4, {"scan"}),
     "steady_breath":  ("uneasy", (25, 40, 25, 40), 0.1, 0, 0, {"breath"}),
+    # from the turnaround sheet's scenes
+    "commanding_presence": ("focused", (40, 60, 85, 10), 0.5, 1, 0, {"scepter"}),
+    "cosmic_control":  ("bright", (30, 30, 130, 30), 0.6, 2, 0, {"cosmos"}),
+    "storyteller_read": ("calm", (50, 80, 50, 80), 0.2, 0, 0, {"seat", "book"}),
+    "glyph_weave":     ("focused", (40, 60, 110, 40), 0.3, 1, 0, {"glyphs"}),
+    "turn_back":       ("calm", (12, 10, 12, 10), 0.2, 0, 0, {"back"}),
 }
+
+# Poses that travel left: Nyamekra turns to face the way it is going.
+FACE_LEFT = frozenset({"run_to_user", "return_home", "panic", "orb_returns"})
+
+
+class _Mirror:
+    """Canvas proxy that draws everything mirrored across the frame centre."""
+
+    def __init__(self, canvas, width: int = 200) -> None:
+        self._c, self._w = canvas, width
+
+    def _xs(self, coords):
+        flat = list(coords[0]) if len(coords) == 1 and isinstance(coords[0], (list, tuple)) \
+            else list(coords)
+        return [self._w - v if i % 2 == 0 else v for i, v in enumerate(flat)]
+
+    def delete(self, *a):
+        return self._c.delete(*a)
+
+    def create_line(self, *coords, **kw):
+        return self._c.create_line(*self._xs(coords), **kw)
+
+    def create_polygon(self, *coords, **kw):
+        return self._c.create_polygon(*self._xs(coords), **kw)
+
+    def _box(self, method, x1, y1, x2, y2, **kw):
+        return getattr(self._c, method)(self._w - x2, y1, self._w - x1, y2, **kw)
+
+    def create_oval(self, x1, y1, x2, y2, **kw):
+        return self._box("create_oval", x1, y1, x2, y2, **kw)
+
+    def create_rectangle(self, x1, y1, x2, y2, **kw):
+        return self._box("create_rectangle", x1, y1, x2, y2, **kw)
+
+    def create_arc(self, x1, y1, x2, y2, **kw):
+        if "start" in kw or "extent" in kw:
+            start, extent = kw.get("start", 0.0), kw.get("extent", 90.0)
+            kw = dict(kw, start=180.0 - start - extent, extent=extent)
+        return self._box("create_arc", x1, y1, x2, y2, **kw)
+
+    def create_text(self, x, y, **kw):
+        return self._c.create_text(self._w - x, y, **kw)
 
 
 def _build_moves() -> dict[str, tuple]:
@@ -216,6 +264,8 @@ def _wing(canvas, root_x, root_y, side, spread, P, p, beat):
 def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None = None) -> None:
     P = NYAMEKRA_PALETTES[NYAMEKRA_DEFAULT_PALETTE]
     canvas.delete("all")
+    if pose in FACE_LEFT:
+        canvas = _Mirror(canvas)
     p = progress % 1.0
     osc = math.sin(p * 2 * math.pi)
     own = NYAMEKRA_MOVES.get(pose)
@@ -242,6 +292,8 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
     glow = MOOD_COLORS.get(mood, MOOD_COLORS["calm"])
     if "float" in fx:
         dy -= 8 + 2 * osc
+    if "seat" in fx:
+        dy += 12
 
     cx = 100 + shear + dx
     cy = 150 + dy + {"jump": -26, "fall": 14, "sit": 14, "tall": -5}.get(body, 0)
@@ -278,8 +330,25 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
     for side in (-1, 1):
         _wing(canvas, cx + side * 12, top + 10, side, wing, P, p + (0.25 if side > 0 else 0), beat)
 
-    # ---- feathered robe with kente-like gold weave -----------------------------------
+    # ---- long feather cape: from the shoulders to the floor --------------------------
     hem = cy + 40
+    for row in range(3):
+        n = 11 - row * 2
+        span = 46 - row * 8
+        for i in range(n):
+            t = i / (n - 1)
+            fx0 = cx - span + 2 * span * t
+            length = (hem + 10 - top) * (0.92 - row * 0.12) * (0.85 + 0.15 * math.sin(t * math.pi))
+            sway_ang = math.pi / 2 + (t - 0.5) * 0.5 + math.sin(p * 6.28 + i) * 0.03
+            _feather(canvas, fx0 * 0.6 + cx * 0.4, top + 4 + row * 6, sway_ang, length,
+                     7 - row, (P["feather"], P["feather_hi"], P["sheen"])[row],
+                     P["violet"] if row == 0 else P["feather"], P["violet"] if row == 0 else None)
+    if "seat" in fx:                                              # a carved stone seat
+        canvas.create_rectangle(cx - 40, hem - 22, cx + 40, hem + 6, fill="#2a2420", outline=P["gold_dk"])
+        for i in range(5):
+            canvas.create_line(cx - 34 + i * 17, hem - 18, cx - 26 + i * 17, hem + 2, fill=P["gold_dk"])
+
+    # ---- feathered robe with kente-like gold weave -----------------------------------
     robe = [cx - 20, top - 2, cx + 20, top - 2, cx + 27, top + 30]
     n_hem = 9
     for i in range(n_hem + 1):                                    # feathered, flowing hem
@@ -308,11 +377,25 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
                                       fill=P["gold_hi"], outline="")
             else:
                 canvas.create_rectangle(bx - 2, yy - 2, bx + 2, yy + 2, fill=P["violet"], outline="")
-    canvas.create_line(cx, top + 4, cx, hem - 12, fill=P["gold_dk"], width=4)  # front panel
-    for i in range(6):
-        yy = top + 10 + i * 11
-        canvas.create_line(cx - 3, yy, cx + 3, yy + 4, fill=P["gold"], width=1)
-        canvas.create_line(cx + 3, yy, cx - 3, yy + 4, fill=P["gold"], width=1)
+    for side in (-1, 1):                                          # gold-patterned stoles
+        x0 = cx + side * 10
+        canvas.create_line(x0, top + 2, x0 + side * 4, hem + 2, fill=P["gold_dk"], width=8)
+        for i in range(8):
+            yy = top + 8 + i * 9.5
+            xx = x0 + side * 4 * (yy - top) / (hem - top)
+            if i % 2:
+                canvas.create_polygon(xx - 3, yy, xx, yy - 3.5, xx + 3, yy, xx, yy + 3.5,
+                                      fill="", outline=P["gold_hi"])
+            else:
+                canvas.create_line(xx - 3, yy - 2, xx + 3, yy + 2, fill=P["gold"], width=1)
+                canvas.create_line(xx + 3, yy - 2, xx - 3, yy + 2, fill=P["gold"], width=1)
+    belt = top + 46
+    canvas.create_line(cx - 22, belt, cx + 22, belt, fill=P["gold"], width=3)
+    for k, px in enumerate((-17, 0, 17)):                         # orb pendants on chains
+        drop = 10 + (k % 2) * 6 + math.sin(p * 6.28 + k) * 1.5
+        canvas.create_line(cx + px, belt, cx + px, belt + drop, fill=P["gold_dk"], width=1)
+        _glow_dot(canvas, cx + px, belt + drop + 3, 2.6, P["gold"], P["gold_hi"])
+    _symbol(canvas, "ankh", cx, hem - 18, 7, P["gold"], p)        # the lower ankh
 
     # ---- feathered shoulder mantle --------------------------------------------------
     for row, (rad, col) in enumerate(((30, P["feather"]), (24, P["feather_hi"]), (17, P["feather"]))):
@@ -327,6 +410,10 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
     # ---- taloned feet ----------------------------------------------------------------
     for side in (-1, 1):
         fx_, fy = cx + side * 12 + (osc * 4 * side if "hop" in fx else 0), hem + 2
+        canvas.create_rectangle(fx_ - 4, fy - 14, fx_ + 4, fy - 3, fill=P["gold"], outline=P["gold_dk"])
+        for k in range(3):
+            canvas.create_line(fx_ - 4, fy - 12 + k * 3.5, fx_ + 4, fy - 12 + k * 3.5,
+                               fill=P["gold_dk"], width=1)
         for t in (-1, 0, 1):
             canvas.create_line(fx_, fy, fx_ + t * 6 + side * 2, fy + 7, fill=P["gold_dk"], width=2)
         canvas.create_oval(fx_ - 4, fy - 4, fx_ + 4, fy + 2, fill=P["talon"], outline=P["gold_dk"])
@@ -344,9 +431,12 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
         ex, ey, hx2, hy2 = _limb(canvas, cx + side * 16, sy, min(sh, 100) if not up else 180 - sh,
                                  el, 18, 17, side, 9, P["feather"], flip_up=up)
         canvas.create_line(cx + side * 16, sy, ex, ey, fill=P["sheen"], width=2)
-        for k in (0.55, 0.7, 0.85):
+        gx0, gy0 = ex + (hx2 - ex) * 0.4, ey + (hy2 - ey) * 0.4
+        canvas.create_line(gx0, gy0, hx2, hy2, fill=P["gold"], width=8, capstyle="round")
+        for k in (0.5, 0.68, 0.86):
             bx, by = ex + (hx2 - ex) * k, ey + (hy2 - ey) * k
-            canvas.create_oval(bx - 5, by - 2.5, bx + 5, by + 2.5, fill=P["gold"], outline=P["gold_dk"])
+            canvas.create_oval(bx - 4.5, by - 2, bx + 4.5, by + 2, outline=P["gold_dk"], width=1)
+        _glow_dot(canvas, ex + (hx2 - ex) * 0.6, ey + (hy2 - ey) * 0.6, 1.6, P["gold_hi"], P["gold_hi"])
         for t in (-1, 0, 1):                                      # talon fingers
             canvas.create_line(hx2, hy2, hx2 + t * 4 + side * 2, hy2 + 6, fill=P["talon"], width=2)
             canvas.create_line(hx2 + t * 4 + side * 2, hy2 + 6, hx2 + t * 4 + side * 3, hy2 + 8,
@@ -427,9 +517,11 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
                        fill=P["feather_hi"], width=2)
     # crown with sun-orb
     ctop = hcy - 15
-    canvas.create_polygon(hcx - 12, ctop, hcx - 13, ctop - 9, hcx - 7, ctop - 5, hcx - 3, ctop - 13,
-                          hcx, ctop - 6, hcx + 3, ctop - 13, hcx + 7, ctop - 5, hcx + 13, ctop - 9,
-                          hcx + 12, ctop, fill=P["gold"], outline=P["gold_dk"])
+    canvas.create_polygon(hcx - 13, ctop, hcx - 15, ctop - 11, hcx - 8, ctop - 6, hcx - 5, ctop - 16,
+                          hcx, ctop - 8, hcx + 5, ctop - 16, hcx + 8, ctop - 6, hcx + 15, ctop - 11,
+                          hcx + 13, ctop, fill=P["gold"], outline=P["gold_dk"])
+    for gx in (-15, -5, 5, 15):
+        _glow_dot(canvas, hcx + gx, ctop - (11 if abs(gx) > 10 else 16), 1.5, P["gold_hi"], P["violet"])
     canvas.create_line(hcx - 12, ctop - 1, hcx + 12, ctop - 1, fill=P["gold_hi"], width=1)
     _glow_dot(canvas, hcx, ctop - 17, 3.5, P["gold"], P["gold_hi"])
 
@@ -438,6 +530,50 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
         sx_, sy_ = hands[1][0], hands[1][1] - 20 - abs(osc) * 4
         canvas.create_oval(sx_ - 15, sy_ - 15, sx_ + 15, sy_ + 15, outline=glow, width=1)
         _symbol(canvas, symbol, sx_, sy_, 10 + 1.5 * abs(osc), P["gold_hi"], p)
+    if "scepter" in fx:                                           # scepter + armillary sphere
+        sx0, sy0 = hands[0]
+        canvas.create_line(sx0, sy0 + 40, sx0, sy0 - 36, fill=P["gold"], width=3)
+        ox, oy = sx0, sy0 - 46
+        canvas.create_oval(ox - 9, oy - 9, ox + 9, oy + 9, outline=P["gold"], width=2)
+        for tilt in (0.3, -0.6, 1.2):
+            pts = []
+            for i in range(17):
+                t = i / 16 * 2 * math.pi + p * 2
+                a, b = math.cos(t) * 13, math.sin(t) * 4.5
+                pts += [ox + a * math.cos(tilt) - b * math.sin(tilt), oy + a * math.sin(tilt) + b * math.cos(tilt)]
+            canvas.create_line(*pts, fill=P["gold_hi"], width=1, smooth=True)
+        _glow_dot(canvas, ox, oy, 2.5, P["gold"], P["gold_hi"])
+    if "cosmos" in fx:                                            # planets orbiting the body
+        for k, (col, rad) in enumerate((("#c97b3a", 4), ("#3a6fc9", 5), ("#8a5ac9", 3), ("#d9c25a", 3.5))):
+            t = p * 2 * math.pi * (1 + k * 0.3) + k * 1.6
+            ox, oy = cx + math.cos(t) * (58 - k * 4), cy - 40 + math.sin(t) * (18 + k * 3)
+            canvas.create_oval(ox - rad, oy - rad, ox + rad, oy + rad, fill=col, outline=P["gold_hi"])
+        canvas.create_oval(cx - 58, cy - 58, cx + 58, cy - 22, outline=P["violet"], width=1)
+    if "book" in fx:                                              # glowing open book
+        bx0 = (hands[0][0] + hands[1][0]) / 2
+        by0 = (hands[0][1] + hands[1][1]) / 2 - 4
+        canvas.create_polygon(bx0 - 16, by0, bx0, by0 + 4, bx0 + 16, by0, bx0 + 16, by0 - 10,
+                              bx0, by0 - 6, bx0 - 16, by0 - 10, fill="#f6e7b8", outline=P["gold_dk"])
+        canvas.create_line(bx0, by0 - 6, bx0, by0 + 4, fill=P["gold_dk"])
+        for i in range(3):
+            canvas.create_line(bx0 - 13, by0 - 7 + i * 2.5, bx0 - 3, by0 - 5 + i * 2.5, fill=P["gold_dk"])
+        canvas.create_oval(bx0 - 20, by0 - 22, bx0 + 20, by0 + 2, outline=P["gold_hi"], width=1)
+    if "glyphs" in fx or "book" in fx:                            # floating glyph panels
+        for k in range(3):
+            gx = cx + 44 + k * 4
+            gy = cy - 70 + k * 22 + math.sin(p * 6.28 + k) * 3
+            canvas.create_rectangle(gx - 9, gy - 9, gx + 9, gy + 9, outline=P["gold"], width=1)
+            _symbol(canvas, SYMBOLS[(k * 3 + int(p * 3)) % len(SYMBOLS)], gx, gy, 5, P["gold_hi"], p)
+    if "back" in fx:                                              # back view: cloak and medallion
+        canvas.create_oval(hcx - 20, hcy - 19, hcx + 20, hcy + 20, fill=P["feather"], outline=P["sheen"])
+        canvas.create_polygon(cx - 30, top - 2, cx + 30, top - 2, cx + 38, hem + 6, cx - 38, hem + 6,
+                              fill=P["feather"], outline=P["violet"])
+        for i in range(6):
+            yy = top + 12 + i * 12
+            canvas.create_line(cx - 30 - i, yy, cx + 30 + i, yy, fill=P["feather_hi"], width=1)
+        canvas.create_line(cx, top + 4, cx, hem + 4, fill=P["gold_dk"], width=8)
+        _glow_dot(canvas, cx, top + 18, 6, P["gold"], P["gold_hi"])
+        _symbol(canvas, "ankh", cx, top + 42, 8, P["gold"], p)
     if "scan" in fx:
         for i in range(3):
             canvas.create_arc(hcx + 20, hcy - 20 - i * 6, hcx + 60 + i * 10, hcy + 20 + i * 6,

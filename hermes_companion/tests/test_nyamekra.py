@@ -65,3 +65,24 @@ def test_signatures_survive_with_the_crow_repertoire():
             out = MoveGrammar(random.Random(seed), extra=extra).decorate(steps, state)
             assert signature_of(out) == [("terminal_work", 900)]
             assert {s["pose"] for s in out if s["role"] == "flourish"} <= allowed
+
+
+def test_turnaround_sheet_scenes_exist():
+    for move in ("commanding_presence", "cosmic_control", "storyteller_read",
+                 "glyph_weave", "turn_back"):
+        assert move in NYAMEKRA_MOVES
+
+
+def test_faces_the_way_it_travels():
+    from hermes_companion.renderer.smooth import FrameRenderer
+    r = FrameRenderer("nyamekra", glow=False, squash=False)
+
+    def beak_side(pose):
+        a = r.frame(pose, 0.3).getchannel("A")
+        mass = lambda x0, x1: sum(1 for y in range(55, 72) for x in range(x0, x1)
+                                  if a.getpixel((x, y)) > 128)
+        return "right" if mass(110, 140) > mass(60, 90) else "left"
+
+    assert beak_side("idle_bob") == "right"
+    assert beak_side("run_to_user") == "left"
+    assert beak_side("return_home") == "left"

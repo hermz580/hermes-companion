@@ -39,13 +39,21 @@ celestial halo of orbital rings that is always present, plus galaxy eyes,
 stacked gold neck rings, a golden ankh, and a feathered robe and mantle
 woven with gold. It holds the world-orb.
 
+From the turnaround sheet it also has a long feather cape, twin
+gold-patterned stoles, hanging orb pendants and a second ankh, gold
+gauntlets and greaves, and a taller jewelled crown. It turns to face the
+way it travels.
+
 Nyamekra never changes form. Its range comes from composition: 8 gestures
 can each channel any of the 10 Symbols of Essence (ankh, adinkra heart,
-crow, sun, moon, spiral, baobab, pyramid, orbital rings, infinity). Add 15
-wing and crow-body moves (wing spread, wing beat, glide, caw, preen, halo
-spin, orb juggle, meditate and more) and every shared engine pose, and the
-move grammar turns that into about 1.7 million distinct performances of a
-single Hermes action. The Hermes action itself never changes.
+crow, sun, moon, spiral, baobab, pyramid, orbital rings, infinity). On top
+of that come 20 wing, crow-body and scene moves: wing spread, wing beat,
+glide, caw, preen, halo spin, orb juggle and meditate, plus Commanding
+Presence (scepter with armillary sphere), Cosmic Control (orbiting planets),
+The Storyteller (seated, reading a glowing book among floating glyphs),
+Glyph Weave and a back view. With every shared engine pose, the move grammar
+turns that into millions of distinct performances of a single Hermes
+action. The Hermes action itself never changes.
 
 ### Nia, the storyteller
 

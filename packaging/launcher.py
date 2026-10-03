@@ -3,15 +3,44 @@
 Double-click: starts `play` with your saved settings (tray icon included).
 With arguments it behaves exactly like the `hermes-companion` command, e.g.
 `HermesCompanion.exe live`, `HermesCompanion.exe doctor`.
+
+A windowed .exe has no console, so output and any error go to
+%LOCALAPPDATA%\\hermes-companion\\last-run.log instead of vanishing.
 """
+import os
 import sys
+import traceback
+from pathlib import Path
 
-from hermes_companion.cli.emit import main
 
-if __name__ == "__main__":
-    args = sys.argv[1:]
+def _log_file():
+    base = os.environ.get("LOCALAPPDATA")
+    root = Path(base) / "hermes-companion" if base else Path.home() / ".hermes-companion"
+    root.mkdir(parents=True, exist_ok=True)
+    return open(root / "last-run.log", "w", encoding="utf-8", buffering=1)
+
+
+def run(argv):
+    from hermes_companion.cli.emit import main
+    args = list(argv)
     if not args:
         args = ["play"]
     elif args[0] == "live" and "--companion" not in args:
         args = ["live", "--companion", "nyamekra", "--follow"] + args[1:]
-    sys.exit(main(args))
+    return main(args)
+
+
+if __name__ == "__main__":
+    if sys.stdout is None or sys.stderr is None:      # windowed build
+        log = _log_file()
+        sys.stdout = sys.stdout or log
+        sys.stderr = sys.stderr or log
+    try:
+        code = run(sys.argv[1:])
+    except SystemExit as exc:
+        code = exc.code if isinstance(exc.code, int) else 0
+    except BaseException:
+        traceback.print_exc()
+        code = 1
+    sys.stdout.flush()
+    os._exit(int(code or 0))      # don't wait on leftover tray/GUI threads

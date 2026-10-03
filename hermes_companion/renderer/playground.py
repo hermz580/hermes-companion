@@ -73,6 +73,7 @@ class PlaygroundBrain:
         self._loop = 0
         self.log = log
         self.want_perch = perch
+        self.personality = None
         self.perch: PerchDriver | None = None
 
     def bind(self, director) -> None:
@@ -93,6 +94,8 @@ class PlaygroundBrain:
             self._next += 1
             ev = SemanticEvent(EventKind(kind), tool=tool, category=classify_tool(tool))
             signal = self.attention.ingest(ev)
+            if hasattr(self.surface, "set_attention"):
+                self.surface.set_attention(signal.state, signal.label)
             chain = self.engine.handle(ev)
             self.log(f"HERMES {kind} {tool} -> {signal.label}")
             if chain is not None:
@@ -105,8 +108,15 @@ class PlaygroundBrain:
             observations = self.sensors.sample(now)
         except Exception:
             return
+        voice = getattr(self.surface, "voice", None)
+        if observations and self.personality is not None:
+            said = self.personality.activity()
+            if said and voice is not None:
+                voice.greet(said)
         for obs in observations:
             reaction = self.curiosity.observe(obs, self.attention.signal.state)
+            if reaction is not None and voice is not None:
+                voice.on_curious(obs.kind.value)
             if reaction is None or self.director.chain is not None:
                 continue   # never talk over a chain that is already playing
             if self.perch is not None and (self.perch.perched or self.perch.motion):
@@ -129,7 +139,8 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
                    render: str = "smooth", perch: bool = True,
                    size: str = "standard", seconds: float | None = None,
                    reduced_motion: bool = False, high_contrast: bool = False,
-                   artpack: str | None = None) -> int:
+                   artpack: str | None = None, sound: bool = False,
+                   bubbles: bool = True, memory: bool = True) -> int:
     from hermes_companion.animation.director import Director
     from hermes_companion.renderer.desktop_sensors import DesktopSensors
     from hermes_companion.renderer.overlay import ProceduralLiveOverlay
@@ -153,6 +164,16 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
                             perch=perch)
     overlay._director = Director(brain.engine, overlay)
     brain.bind(overlay._director)
+    if hasattr(overlay, "attach_voice"):
+        overlay.attach_voice(bubbles=bubbles, sound=sound)
+    if memory:
+        from hermes_companion.core.personality import Personality
+        brain.personality = Personality.load()
+        brain.curiosity.threshold += brain.personality.curiosity_bias()
+        greeting = brain.personality.start()
+        if greeting and getattr(overlay, "voice", None) is not None:
+            overlay.root.after(1500, lambda: overlay.voice.greet(greeting))
+        print(f"memory: {brain.personality.summary()}", flush=True)
     if reduced_motion:
         brain.curiosity.threshold += 0.15    # fewer, calmer reactions
 

@@ -35,7 +35,7 @@ jobs:
           $out = cmd /c "echo.| Start-Companion.cmd --palette fire --size large --seconds 6" 2>&1 | Out-String
           Write-Output $out
           if ($out -notmatch "PLAY OK") { Write-Error "Start-Companion.cmd did not run"; exit 1 }
-          $out2 = cmd /c "hermes-companion.cmd play --companion nia --palette indigo --seconds 4" 2>&1 | Out-String
+          $out2 = cmd /c "hermes-companion.cmd play --companion nia --palette indigo --sound --seconds 6" 2>&1 | Out-String
           Write-Output $out2
           if ($out2 -notmatch "PLAY OK") { Write-Error "hermes-companion.cmd did not run"; exit 1 }
           $out3 = cmd /c "echo.| Start-Companion.cmd herald --seconds 3" 2>&1 | Out-String

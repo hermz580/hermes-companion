@@ -140,14 +140,15 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
                    size: str = "standard", seconds: float | None = None,
                    reduced_motion: bool = False, high_contrast: bool = False,
                    artpack: str | None = None, sound: bool = False,
-                   bubbles: bool = True, memory: bool = True) -> int:
+                   bubbles: bool = True, memory: bool = True, x_offset: int = 0,
+                   tray: dict | None = None) -> int:
     from hermes_companion.animation.director import Director
     from hermes_companion.renderer.desktop_sensors import DesktopSensors
     from hermes_companion.renderer.overlay import ProceduralLiveOverlay
 
     if render == "smooth":
         from hermes_companion.renderer.layered import SmoothLiveOverlay
-        overlay = SmoothLiveOverlay(companion=companion, palette=palette,
+        overlay = SmoothLiveOverlay(companion=companion, palette=palette, home_x=None,
                                     scale=SIZES.get(size, 1.0),
                                     reduced_motion=reduced_motion,
                                     high_contrast=high_contrast, artpack=artpack)
@@ -163,7 +164,14 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
                             variety=variety, demo=demo, start=time.monotonic(),
                             perch=perch)
     overlay._director = Director(brain.engine, overlay)
+    if x_offset:
+        overlay.home_x += x_offset
+        overlay.set_x(overlay.home_x)
     brain.bind(overlay._director)
+    if tray is not None:
+        from hermes_companion.renderer.tray import start_tray
+        if start_tray(overlay, tray) is not None:
+            print("tray: right-click the companion icon for settings", flush=True)
     if hasattr(overlay, "attach_voice"):
         overlay.attach_voice(bubbles=bubbles, sound=sound)
     if memory:

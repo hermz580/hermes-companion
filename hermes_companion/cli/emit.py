@@ -411,18 +411,58 @@ print(json.dumps(mons))
     return 0
 
 
+def resolve_play_settings(args: argparse.Namespace, saved: dict) -> dict:
+    """Saved settings, overridden by anything given on the command line."""
+    v = dict(saved)
+    for key in ("companion", "palette", "size", "notice"):
+        if getattr(args, key, None) is not None:
+            v[key] = getattr(args, key)
+    if args.companion is not None and args.companion != saved.get("companion"):
+        v["palette"] = args.palette          # a saved palette belongs to the saved character
+    for flag, key, value in (("sound", "sound", True), ("no_bubbles", "bubbles", False),
+                             ("no_memory", "memory", False), ("no_perch", "perch", False),
+                             ("reduced_motion", "reduced_motion", True),
+                             ("high_contrast", "high_contrast", True)):
+        if getattr(args, flag, False):
+            v[key] = value
+    if args.with_ is not None:
+        v["with"] = [c.strip() for c in args.with_.split(",") if c.strip()]
+    v["with"] = [c for c in v.get("with", []) if c != v["companion"]][:3]
+    return v
+
+
 def cmd_play(args: argparse.Namespace) -> int:
     """Run a companion on the desktop with no Hermes install needed."""
+    import atexit
+    import subprocess
+    from hermes_companion.core import settings as S
     from hermes_companion.renderer.playground import run_playground
-    return run_playground(companion=args.companion, notice=args.notice,
-                          palette=args.palette, render=args.render,
-                          perch=not args.no_perch, size=args.size,
-                          seconds=args.seconds, reduced_motion=args.reduced_motion,
-                          high_contrast=args.high_contrast, artpack=args.artpack,
-                          sound=args.sound, bubbles=not args.no_bubbles,
-                          memory=not args.no_memory,
+    v = resolve_play_settings(args, S.load())
+
+    # Companions on screen together: each extra one is its own process, placed
+    # beside the main one, playing the same demo timeline (no memory/tray).
+    siblings = []
+    if not args.sibling:
+        for i, name in enumerate(v["with"], start=1):
+            sib = dict(v, companion=name, palette=None, memory=False, **{"with": []})
+            extra = ["--sibling", "--x-offset", str(230 * (1 if i % 2 else -1) * ((i + 1) // 2))]
+            if args.seconds:
+                extra += ["--seconds", str(args.seconds)]
+            if args.no_demo:
+                extra.append("--no-demo")
+            siblings.append(subprocess.Popen(S.play_command(sib, extra)))
+        atexit.register(lambda: [p.terminate() for p in siblings if p.poll() is None])
+
+    return run_playground(companion=v["companion"], notice=v["notice"],
+                          palette=v["palette"], render=args.render,
+                          perch=v["perch"], size=v["size"],
+                          seconds=args.seconds, reduced_motion=v["reduced_motion"],
+                          high_contrast=v["high_contrast"], artpack=args.artpack,
+                          sound=v["sound"] and not args.sibling, bubbles=v["bubbles"],
+                          memory=v["memory"] and not args.sibling,
                           seed=args.seed, variety=not args.no_variety,
-                          demo=not args.no_demo)
+                          demo=not args.no_demo, x_offset=args.x_offset,
+                          tray=None if (args.no_tray or args.sibling) else v)
 
 
 def _make_grab_publisher(relay):
@@ -865,12 +905,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     pp = sub.add_parser("play", help="try a companion now - no Hermes needed")
     pp.add_argument("--companion", choices=("nyamekra", "herald", "nia", "samurai", "astro"),
-                    default="nyamekra")
+                    default=None, help="default: your saved setting (nyamekra)")
+    pp.add_argument("--with", dest="with_", default=None, metavar="NAMES",
+                    help="extra companions on screen, e.g. --with nia,herald")
+    pp.add_argument("--no-tray", action="store_true", help="no system-tray icon")
+    pp.add_argument("--sibling", action="store_true", help=argparse.SUPPRESS)
+    pp.add_argument("--x-offset", type=int, default=0, help=argparse.SUPPRESS)
     pp.add_argument("--palette", default=None,
                     help="nyamekra energy: cosmic earth fire water air shadow light "
                          "neon natural robotic; herald: olympus midnight ember verdant nebula; "
                          "nia: kente indigo ochre emerald royal")
-    pp.add_argument("--notice", choices=("off", "ambient", "full"), default="full",
+    pp.add_argument("--notice", choices=("off", "ambient", "full"), default=None,
                     help="what it may notice on the desktop (content-free)")
     pp.add_argument("--no-demo", action="store_true",
                     help="don't loop a simulated Hermes session")
@@ -889,11 +934,16 @@ def build_parser() -> argparse.ArgumentParser:
                     help="folder of PNG frames (<pose>.png or <pose>_0.png...) to use instead of drawing")
     pp.add_argument("--seconds", type=float, default=None,
                     help="quit after this many seconds (smoke test)")
-    pp.add_argument("--size", choices=("tiny", "standard", "large"), default="standard",
+    pp.add_argument("--size", choices=("tiny", "standard", "large"), default=None,
                     help="companion size (smooth render)")
     pp.add_argument("--no-perch", action="store_true",
                     help="stay on the floor instead of living on your windows")
     pp.set_defaults(fn=cmd_play)
+
+    pset = sub.add_parser("settings", help="open the settings window")
+    pset.set_defaults(fn=lambda a: (__import__("hermes_companion.renderer.tray", fromlist=["x"])
+                                    .open_settings(None, __import__("hermes_companion.core.settings",
+                                                                    fromlist=["x"]).load()), 0)[1])
 
     pdoc = sub.add_parser("doctor", help="check this PC can run the companion")
     pdoc.add_argument("--no-window", action="store_true", help="skip opening a test window")

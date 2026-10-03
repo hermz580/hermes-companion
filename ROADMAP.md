@@ -20,11 +20,11 @@ really doing always reads correctly, and decoration never replaces it.
 3. ✅ **Speech bubbles.** Short readable status lines ("Running a terminal
    command...", "Need your OK") from the existing content-free labels.
 4. ✅ **Sound (opt-in).** Soft wing and chime cues per mood; off by default.
-5. **Tray icon + settings panel.** Switch energy, size and character, and
+5. ✅ **Tray icon + settings panel.** Switch energy, size and character, and
    pause curiosity without a terminal.
 
 ## Later: grow the world
-- **Multi-companion scenes.** Nyamekra, Nia and Herald on screen together,
+- ✅ **Multi-companion scenes** (`--with`; portal hand-offs still to come). Nyamekra, Nia and Herald on screen together,
   handing delegated work through portals (signed social signals already exist).
 - ✅ **Custom art packs.** Load hand-painted frames that match the character
   sheets, with the procedural rig as the fallback.

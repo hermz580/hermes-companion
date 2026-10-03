@@ -217,6 +217,20 @@ with `live`. Without Hermes it simply waits.
   break" or "Longer than usual today - time for a stretch?". Delete the file to
   make it forget, or use `--no-memory`.
 
+## Tray, settings and friends on screen
+
+- **Tray icon** (Windows): right-click the companion in the system tray to
+  switch character, energy, size, curiosity, bubbles, sound, memory,
+  perching and accessibility. Choices are saved, and the companion restarts
+  with them.
+- **Settings window:** pick "Settings…" from the tray, or run
+  `hermes-companion settings`. Saved to
+  `%LOCALAPPDATA%\hermes-companion\settings.json`. Command-line flags always
+  win over saved settings.
+- **Companions on screen together:** `hermes-companion play --with nia,herald`
+  (up to three extra) puts them beside the main one, all acting out the
+  same Hermes session.
+
 ## Accessibility and art
 
 - `--reduced-motion`: minimal movement. No squash, no hops, fewer reactions.

@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: pip install -e ".[test]"
+      - run: pip install -e ".[test]" pystray
       - name: Headless self-check
         run: hermes-companion --seed 42 selfcheck
       # Tests that inspect a locally installed Hermes agent are skipped in CI.
@@ -38,6 +38,9 @@ jobs:
           $out2 = cmd /c "hermes-companion.cmd play --companion nia --palette indigo --sound --seconds 6" 2>&1 | Out-String
           Write-Output $out2
           if ($out2 -notmatch "PLAY OK") { Write-Error "hermes-companion.cmd did not run"; exit 1 }
+          $out4 = cmd /c "hermes-companion.cmd play --with nia,herald --seconds 5" 2>&1 | Out-String
+          Write-Output $out4
+          if (([regex]::Matches($out4, "PLAY READY")).Count -lt 3) { Write-Error "companions on screen did not all start"; exit 1 }
           $out3 = cmd /c "echo.| Start-Companion.cmd herald --seconds 3" 2>&1 | Out-String
           Write-Output $out3
           if ($out3 -notmatch "PLAY OK") { Write-Error "named companion did not run"; exit 1 }

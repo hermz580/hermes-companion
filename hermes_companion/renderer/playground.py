@@ -127,7 +127,7 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
                    palette: str | None = None,
                    seed: int = 7, variety: bool = True, demo: bool = True,
                    render: str = "smooth", perch: bool = True,
-                   size: str = "standard") -> int:
+                   size: str = "standard", seconds: float | None = None) -> int:
     from hermes_companion.animation.director import Director
     from hermes_companion.renderer.desktop_sensors import DesktopSensors
     from hermes_companion.renderer.overlay import ProceduralLiveOverlay
@@ -158,6 +158,21 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
         print(f"PLAY READY companion={companion} notice={notice} "
               f"demo={'on' if demo else 'off'}  (Ctrl+C here to quit)", flush=True)
         overlay.root.after(100, poll)
+
+    stats = {"ticks": 0}
+    _tick = brain.tick
+
+    def counted_tick(now):
+        stats["ticks"] += 1
+        _tick(now)
+
+    brain.tick = counted_tick
+    if seconds:
+        def finish() -> None:
+            print(f"PLAY OK ran {seconds:g}s, {stats['ticks']} ticks, "
+                  f"render={getattr(overlay, 'mode', render)}", flush=True)
+            overlay.close()
+        overlay.root.after(int(seconds * 1000), finish)
 
     overlay.on_ready = ready
     try:

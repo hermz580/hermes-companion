@@ -9,3 +9,4 @@ proof/
 build/
 dist/
 *.egg-info/
+.venv/

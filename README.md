@@ -191,6 +191,14 @@ pip install -e ".[test]"
 pytest
 ```
 
+## Troubleshooting
+
+Run `Start-Companion.cmd doctor`. It checks Python, Tk, Pillow, rendering,
+the desktop window and the Hermes install, and says exactly what to fix.
+Inside the folder you can type `hermes-companion ...` (for example
+`hermes-companion play --palette fire --size large`) after the first
+`Start-Companion.cmd` run. See [ROADMAP.md](ROADMAP.md) for what is next.
+
 ## License
 
 See [LICENSE](LICENSE).

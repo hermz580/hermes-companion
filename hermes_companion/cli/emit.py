@@ -409,6 +409,7 @@ def cmd_play(args: argparse.Namespace) -> int:
     return run_playground(companion=args.companion, notice=args.notice,
                           palette=args.palette, render=args.render,
                           perch=not args.no_perch, size=args.size,
+                          seconds=args.seconds,
                           seed=args.seed, variety=not args.no_variety,
                           demo=not args.no_demo)
 
@@ -860,11 +861,18 @@ def build_parser() -> argparse.ArgumentParser:
     pp.add_argument("--no-variety", action="store_true")
     pp.add_argument("--render", choices=("smooth", "classic"), default="smooth",
                     help="smooth = anti-aliased, glowing, true transparency (default)")
+    pp.add_argument("--seconds", type=float, default=None,
+                    help="quit after this many seconds (smoke test)")
     pp.add_argument("--size", choices=("tiny", "standard", "large"), default="standard",
                     help="companion size (smooth render)")
     pp.add_argument("--no-perch", action="store_true",
                     help="stay on the floor instead of living on your windows")
     pp.set_defaults(fn=cmd_play)
+
+    pdoc = sub.add_parser("doctor", help="check this PC can run the companion")
+    pdoc.add_argument("--no-window", action="store_true", help="skip opening a test window")
+    pdoc.set_defaults(fn=lambda a: __import__(
+        "hermes_companion.cli.doctor", fromlist=["run_doctor"]).run_doctor(not a.no_window))
 
     pr = sub.add_parser("relay", help="run the LAN event relay (one per fleet)")
     pr.add_argument("--host", default="0.0.0.0", help="bind address (default 0.0.0.0)")

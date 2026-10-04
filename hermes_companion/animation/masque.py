@@ -316,14 +316,30 @@ def _eye(canvas, x, y, r, openness, iris=EYE_IRIS, look=(0.0, 0.0)):
                           fill="#f0e6d2", outline=GOLD_DK, smooth=True)
     ir = min(r * 0.5, h * 0.95)
     ix, iy = x + look[0] * r * 0.35, y + look[1] * h * 0.3
+    canvas.create_oval(ix - ir * 1.12, iy - ir * 1.12, ix + ir * 1.12, iy + ir * 1.12,
+                       fill="#7a4a12", outline="")                       # dark limbal ring
     canvas.create_oval(ix - ir, iy - ir, ix + ir, iy + ir, fill=iris, outline="")
+    canvas.create_oval(ix - ir * 0.75, iy - ir * 0.75, ix + ir * 0.75, iy + ir * 0.75,
+                       outline="#f7d27a", width=0.6)
     canvas.create_oval(ix - ir * 0.45, iy - ir * 0.45, ix + ir * 0.45, iy + ir * 0.45,
                        fill="#140b06", outline="")
     canvas.create_oval(ix - ir * 0.6, iy - ir * 0.75, ix - ir * 0.2, iy - ir * 0.35,
                        fill="white", outline="")
+    canvas.create_line(x - r, y, x - r * 0.4, y - h, x + r * 0.4, y - h, x + r, y,
+                       fill="#050307", width=1.6, smooth=True)          # upper lid line
+    if r >= 5:
+        for i in range(3):                                               # lashes
+            lx = x - r * 0.45 + i * r * 0.45
+            canvas.create_line(lx, y - h, lx + (i - 1) * r * 0.18, y - h - r * 0.35,
+                               fill="#050307", width=1.2)
 
 
-def _rose(canvas, x, y, r, bloom=1.0):
+def _rose(canvas, x, y, r, bloom=1.0, leaves=True):
+    if leaves:
+        for k in (-1, 1):
+            canvas.create_polygon(x + k * r * 0.6, y + r * 0.4, x + k * r * 1.9, y + r * 0.2,
+                                  x + k * r * 1.2, y + r * 1.1, fill="#1f3a22", outline="#2f5a34",
+                                  smooth=True)
     canvas.create_oval(x - r, y - r, x + r, y + r, fill=ROSE, outline="#3a0610")
     for i in range(5):
         a = i * 1.2566
@@ -390,9 +406,16 @@ def _mask_outline(x, y, w, h):
     return pts
 
 
-def draw_mask(canvas, x, y, w, h, face, cracks=0, tilt=0.0, teeth=True, lace=True, p=0.0):
-    """The porcelain mask. (x, y) is its centre; w/h half-sizes."""
+def draw_mask(canvas, x, y, w, h, face, cracks=0, tilt=0.0, teeth=True, lace=True, p=0.0,
+              vy=0.0):
+    """The porcelain mask. (x, y) is its centre; w/h half-sizes.
+
+    ``tilt`` turns it sideways (features slide toward the facing side) and
+    ``vy`` tips it up (-1) or down (+1): features slide and a shadow falls
+    under the brow or the chin.
+    """
     sx = math.sin(tilt) * w * 0.25                      # slip/turn shifts the features
+    fy = vy * h * 0.16                                  # look up/down shifts them vertically
     canvas.create_polygon(*_mask_outline(x + 2, y + 3, w, h), fill="#1a1520", outline="",
                           smooth=True)
     canvas.create_polygon(*_mask_outline(x, y, w, h), fill=PORCELAIN, outline=GOLD_DK, smooth=True)
@@ -405,8 +428,33 @@ def draw_mask(canvas, x, y, w, h, face, cracks=0, tilt=0.0, teeth=True, lace=Tru
                           outline=GOLD, width=1.5)
         canvas.create_arc(x + k * w * 0.55 - w * 0.2, y - h * 0.75, x + k * w * 0.55 + w * 0.2,
                           y - h * 0.35, start=90, extent=180 * k, style="arc", outline=GOLD, width=1)
-    canvas.create_polygon(x, y - h * 0.82, x + 4, y - h * 0.72, x, y - h * 0.62, x - 4, y - h * 0.72,
-                          fill=GOLD_HI, outline=GOLD_DK)
+    # porcelain sheen down one cheek, and the shadow of the tip
+    canvas.create_arc(x - w * 0.85, y - h * 0.8, x + w * 0.2, y + h * 0.8, start=120, extent=110,
+                      style="arc", outline="#ffffff", width=2)
+    if vy < -0.2:                                       # looking up: the chin falls into shadow
+        canvas.create_arc(x - w * 0.8, y + h * 0.2, x + w * 0.8, y + h * 1.05, start=200, extent=140,
+                          style="chord", fill=PORCELAIN_SH, outline="")
+    elif vy > 0.2:                                      # looking down: the brow shades the eyes
+        canvas.create_arc(x - w * 0.85, y - h * 1.0, x + w * 0.85, y - h * 0.1, start=20, extent=140,
+                          style="chord", fill=PORCELAIN_SH, outline="")
+    # temple curls and a dotted brow line
+    for k in (-1, 1):
+        cxk, cyk = x + k * w * 0.62, y - h * 0.38
+        for rr in (6, 3.5):
+            canvas.create_arc(cxk - rr, cyk - rr, cxk + rr, cyk + rr, start=90 if k < 0 else -90,
+                              extent=270 * k, style="arc", outline=GOLD, width=1)
+        for i in range(5):
+            bx = x + k * w * (0.12 + 0.11 * i)
+            by = y - h * (0.52 - 0.03 * i)
+            canvas.create_oval(bx - 0.9, by - 0.9, bx + 0.9, by + 0.9, fill=GOLD, outline="")
+    # crescent moon and gem on the brow
+    canvas.create_arc(x - 7, y - h * 0.98, x + 7, y - h * 0.7, start=200, extent=140, style="chord",
+                      fill=GOLD, outline="")
+    canvas.create_arc(x - 6, y - h * 1.02, x + 6, y - h * 0.76, start=200, extent=140, style="chord",
+                      fill="#fbf8f4", outline="")
+    canvas.create_polygon(x, y - h * 0.72, x + 4, y - h * 0.62, x, y - h * 0.52, x - 4, y - h * 0.62,
+                          fill="#c0304a", outline=GOLD_DK)
+    canvas.create_oval(x - 1, y - h * 0.66, x + 1, y - h * 0.62, fill="#ffd0d8", outline="")
     if lace:
         for i in range(7):
             a = math.pi * (0.15 + 0.7 * i / 6)
@@ -414,8 +462,8 @@ def draw_mask(canvas, x, y, w, h, face, cracks=0, tilt=0.0, teeth=True, lace=Tru
                                x - math.cos(a) * w * 0.95 + 1.2, y + math.sin(a) * h * 0.98 + 1.2,
                                fill=GOLD, outline="")
 
-    ex, ey, er = w * 0.38, y - h * 0.08, w * 0.24          # eye spacing / height / size
-    mx, my = x + sx, y + h * 0.42                           # mouth centre
+    ex, ey, er = w * 0.38, y - h * 0.08 + fy, w * 0.24     # eye spacing / height / size
+    mx, my = x + sx, y + h * 0.42 + fy * 0.8                # mouth centre
     L, R = (x - ex + sx, ey), (x + ex + sx, ey)
 
     def lids(shape):
@@ -649,6 +697,10 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
     if "lookup" in fx or "lookdown" in fx:
         mh *= 0.9                                            # foreshortened as it tips
 
+    # 0. a real window to sit on (behind everything else)
+    if "perch" in fx:
+        _window(canvas, PERCH_TOP)
+
     # 1. thorn halo
     hx, hy = CX + sway * 0.2, 70 + hover
     spin = p * (2 * math.pi if "halo" in fx else 0.6)
@@ -663,6 +715,22 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
                               hx + math.cos(a) * r1, hy + math.sin(a) * r1,
                               hx + math.cos(a + 0.06) * r0, hy + math.sin(a + 0.06) * r0,
                               fill=GOLD if i % 2 else GOLD_DK, outline="")
+    for i in range(36):                                      # dotted inner ring
+        a = -spin * 0.5 + i * math.pi / 18
+        if math.sin(a) > 0.6:
+            continue
+        canvas.create_oval(hx + math.cos(a) * 48 - 0.9, hy + math.sin(a) * 48 - 0.9,
+                           hx + math.cos(a) * 48 + 0.9, hy + math.sin(a) * 48 + 0.9,
+                           fill=GOLD_HI, outline="")
+    for a in (math.pi, -math.pi / 4, -3 * math.pi / 4, 0.0):  # gems at the quarters
+        gx, gy = hx + math.cos(a) * 62, hy + math.sin(a) * 62
+        canvas.create_polygon(gx, gy - 4, gx + 3, gy, gx, gy + 4, gx - 3, gy, fill="#9b2c4a",
+                              outline=GOLD_HI)
+    canvas.create_arc(hx - 10, hy - 84, hx + 10, hy - 62, start=200, extent=140, style="chord",
+                      fill=GOLD, outline=GOLD_DK)                # crescent moon crowning the halo
+    canvas.create_arc(hx - 9, hy - 88, hx + 9, hy - 67, start=200, extent=140, style="chord",
+                      fill="#160f1f", outline="")
+    canvas.create_line(hx, hy - 62, hx, hy - 56, fill=GOLD, width=2)
     for k in (-1, 1):                                        # dangling gold charms
         canvas.create_line(hx + k * 56, hy + 10, hx + k * 58, hy + 40, fill=GOLD_DK, width=1)
         canvas.create_polygon(hx + k * 58, hy + 40, hx + k * 62, hy + 47, hx + k * 58, hy + 54,
@@ -709,6 +777,31 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
                            fill="#050307", outline=tint, width=1)
         _eye(canvas, ex, ey, r * 1.15, opn, look=look)
 
+    # 4a. gold chains draped across the mane, and a lantern on a tendril
+    if not back:
+        for row, (y0, sag) in enumerate(((mcy + mh + 24, 16), (mcy + mh + 70, 22))):
+            span = (78 + 30 * row) * size
+            pts = []
+            for j in range(13):
+                t = j / 12
+                pts.append((mcx - span + 2 * span * t, y0 + sag * math.sin(t * math.pi)
+                            + 2 * math.sin(p * 2 * math.pi + j)))
+            flat = [c for q in pts for c in q]
+            canvas.create_line(*flat, fill=GOLD_DK, width=1.4, smooth=True)
+            for j in range(1, 12, 2):
+                bx, by = pts[j]
+                canvas.create_oval(bx - 1.6, by - 1.6, bx + 1.6, by + 1.6, fill=GOLD_HI, outline="")
+            mx_, my_ = pts[6]                                # a pendant at the lowest point
+            canvas.create_polygon(mx_, my_ + 2, mx_ + 4, my_ + 8, mx_, my_ + 14, mx_ - 4, my_ + 8,
+                                  fill="#7a3fd1" if row else "#c0304a", outline=GOLD_HI)
+    lx_, ly_ = mcx - 112 * size, 150 + 4 * osc                # the lantern from the sheet
+    canvas.create_line(lx_ + 14, 118, lx_, ly_ - 10, fill=GOLD_DK, width=1)
+    canvas.create_polygon(lx_ - 6, ly_ - 10, lx_ + 6, ly_ - 10, lx_ + 8, ly_ + 8, lx_ - 8, ly_ + 8,
+                          fill="#2a1d0a", outline=GOLD)
+    canvas.create_oval(lx_ - 3.5, ly_ - 4, lx_ + 3.5, ly_ + 4, fill="#ffcf6b", outline="")
+    canvas.create_line(lx_ - 9, ly_ + 8, lx_ + 9, ly_ + 8, fill=GOLD, width=2)
+    canvas.create_polygon(lx_ - 4, ly_ - 10, lx_, ly_ - 15, lx_ + 4, ly_ - 10, fill=GOLD, outline="")
+
     # 4. roses + jewels
     for (dx, dy, r) in ((-58, 70, 7), (54, 58, 6), (-70, 150, 6), (66, 165, 7), (-30, 210, 5)):
         _rose(canvas, mcx + dx * size, dy + hover * 0.5, r * (1.3 if "roses" in fx else 1.0),
@@ -733,22 +826,13 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
         glyph(canvas, gl, min(max(tip[0], 14), FRAME[0] - 14), max(tip[1], 14), 10, colour)
 
     # 7. hands holding the mask (delicate, gold rings)
+    hands_later: list = []                                   # drawn over the mask's edges
     if back:
         pass                                                 # seen from behind: no hands, no face
     elif "slip" not in fx and form != "lean":
         for k in ((-1, 1) if turn < 0.55 else ((1,) if facing > 0 else (-1,))):
-            hx_, hy_ = mcx + facing * mw * 0.5 + k * (mw * (1 - 0.5 * turn) + 4), mcy + mh * 0.3
-            canvas.create_polygon(hx_ + k * 16, hy_ + 44, hx_ + k * 8, hy_ - 2, hx_ - k * 2, hy_ - 18,
-                                  hx_ - k * 9, hy_ - 10, hx_ - k * 3, hy_ + 8, hx_ - k * 6, hy_ + 40,
-                                  fill="#2b2138", outline="#6b5585", smooth=True)
-            for f in range(3):
-                fx0, fy0 = hx_ - k * 1, hy_ - 12 + f * 8
-                fx1, fy1 = hx_ - k * (14 + 2 * f), hy_ - 18 + f * 9
-                canvas.create_line(fx0, fy0, fx1, fy1, fill="#6b5585", width=5, capstyle="round")
-                canvas.create_line(fx0, fy0, fx1, fy1, fill="#2b2138", width=3.2, capstyle="round")
-                canvas.create_oval(fx1 - 1.6, fy1 - 1.6, fx1 + 1.6, fy1 + 1.6, fill=GOLD, outline="")
-            canvas.create_line(hx_ + k * 8, hy_ + 18, hx_ + k * 2, hy_ + 22, fill=GOLD, width=2)  # bracelet
-            canvas.create_oval(hx_ - k * 6 - 2, hy_ - 3, hx_ - k * 6 + 2, hy_ + 1, fill=GOLD, outline="")
+            hx_, hy_ = mcx + facing * mw * 0.5 + k * (mw * (1 - 0.5 * turn) + 8), mcy + mh * 0.55
+            hands_later.append((hx_, hy_, k))
     elif form == "lean":                                      # hands together, hopeful
         for k in (-1, 1):
             canvas.create_line(mcx + k * 40, mcy + mh + 30, mcx + k * 8, mcy + mh + 8,
@@ -764,9 +848,9 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
     if "swap" in fx and 0.4 < p < 0.6:
         face = "blank"
     if "lookup" in fx:
-        my_off -= 6
+        my_off -= 10
     if "lookdown" in fx:
-        my_off += 8
+        my_off += 12
     if "wake" in fx and p < 0.5:
         face = "blank"
     if back:
@@ -774,17 +858,55 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
     else:
         mw_eff = mw * (1.0 - 0.5 * turn)
         mx = mcx + mx_off + facing * mw * 0.5
+        vy = -1.0 if "lookup" in fx else 1.0 if "lookdown" in fx else 0.0
         draw_mask(canvas, mx, mcy + my_off, mw_eff, mh, face, cracks=st.cracks,
-                  tilt=tilt + facing * 1.1, teeth=teeth, lace=lace, p=p)
+                  tilt=tilt + facing * 1.1, teeth=teeth, lace=lace, p=p, vy=vy)
         if turn > 0.7:                                       # profile: brow and nose ridge
             sgn = 1 if facing > 0 else -1
             ex_ = mx + sgn * mw_eff
             canvas.create_polygon(ex_ - sgn * 2, mcy + my_off - mh * 0.15, ex_ + sgn * 6, mcy + my_off + mh * 0.05,
                                   ex_ - sgn * 2, mcy + my_off + mh * 0.2, fill=PORCELAIN, outline=GOLD_DK)
 
+    for hx_, hy_, k in hands_later:                          # fingers curl over the mask's edge
+        _hand(canvas, hx_, hy_, k, p)
+
     # 9. front effects
     _effects(canvas, fx, form, mcx, mcy, mw, mh, p, osc, colour, st, pose)
     _move_effects(canvas, fx, mcx, mcy, mw, mh, p, osc, colour)
+
+
+GLOVE, GLOVE_EDGE = "#2e2340", "#8a74a8"
+
+
+def _hand(canvas, x, y, k, p):
+    """A slender gloved hand cupping the mask's cheek: lace cuff, gold nails, a ring."""
+    # forearm sleeve rising from the mane
+    canvas.create_polygon(x + k * 18, y + 58, x + k * 6, y + 58, x - k * 1, y + 14, x + k * 12, y + 10,
+                          fill=GLOVE, outline=GLOVE_EDGE, smooth=True)
+    # lace cuff: a scalloped band with pearls
+    for i in range(5):
+        cx_, cy_ = x + k * (2 + i * 2.6), y + 14 + i * 0.8
+        canvas.create_oval(cx_ - 3, cy_ - 3, cx_ + 3, cy_ + 3, fill="#e9e1f2", outline=GLOVE_EDGE)
+    canvas.create_line(x - k * 1, y + 18, x + k * 14, y + 20, fill=GOLD, width=1.6)
+    # palm against the mask's cheek
+    canvas.create_polygon(x + k * 10, y + 14, x - k * 4, y + 10, x - k * 8, y - 4, x - k * 2, y - 16,
+                          x + k * 8, y - 12, x + k * 12, y + 2, fill=GLOVE, outline=GLOVE_EDGE, smooth=True)
+    # four long fingers curving over the mask's edge, gold-tipped
+    for f in range(4):
+        bx, by = x - k * (2 + f), y - 14 + f * 7
+        tx, ty = x - k * (15 + 2 * f), y - 22 + f * 9 + 1.5 * math.sin(p * 6 + f)
+        canvas.create_line(bx, by, (bx + tx) / 2 - k * 1, (by + ty) / 2 - 3, tx, ty,
+                           fill=GLOVE_EDGE, width=5.2, smooth=True, capstyle="round")
+        canvas.create_line(bx, by, (bx + tx) / 2 - k * 1, (by + ty) / 2 - 3, tx, ty,
+                           fill=GLOVE, width=3.6, smooth=True, capstyle="round")
+        canvas.create_polygon(tx, ty - 1.6, tx - k * 4.5, ty - 0.5, tx, ty + 1.6, fill=GOLD_HI,
+                              outline="")
+    # thumb and a ring with a stone
+    canvas.create_line(x + k * 4, y + 4, x - k * 6, y + 12, fill=GLOVE_EDGE, width=5, capstyle="round")
+    canvas.create_line(x + k * 4, y + 4, x - k * 6, y + 12, fill=GLOVE, width=3.4, capstyle="round")
+    rx_, ry_ = x - k * 7, y - 5
+    canvas.create_oval(rx_ - 2.6, ry_ - 2.6, rx_ + 2.6, ry_ + 2.6, outline=GOLD, width=1.4)
+    canvas.create_oval(rx_ - 1.4, ry_ - 3.6, rx_ + 1.4, ry_ - 0.8, fill="#c0304a", outline=GOLD_HI)
 
 
 def _back_of_head(canvas, x, y, w, h, p, tint):
@@ -808,6 +930,21 @@ def _back_of_head(canvas, x, y, w, h, p, tint):
     canvas.create_oval(x - 4, y - h * 0.15 - 4, x + 4, y - h * 0.15 + 4, fill=GOLD_HI, outline=GOLD_DK)
 
 
+PERCH_TOP = 232
+
+
+def _window(canvas, top):
+    """The window Masque perches on: title bar, buttons, a glimpse of its content."""
+    canvas.create_rectangle(6, top, 314, FRAME[1], fill="#141a28", outline="#6a7dab", width=2)
+    canvas.create_rectangle(6, top, 314, top + 22, fill="#2d3a58", outline="#6a7dab", width=2)
+    canvas.create_text(58, top + 11, text="Hermes", fill="#d6def5", font=("Segoe UI", 8, "bold"))
+    for i, col in enumerate(("#e0b84a", "#57b86b", "#d65a5a")):     # min / max / close
+        bx = 262 + i * 17
+        canvas.create_oval(bx - 5, top + 6, bx + 5, top + 16, fill=col, outline="")
+    for i in range(3):                                        # lines of text in the window
+        canvas.create_line(20, top + 34 + i * 12, 150 - i * 30, top + 34 + i * 12, fill="#3c4a6e", width=3)
+
+
 def _move_effects(canvas, fx, x, y, w, h, p, osc, colour):
     """Extra visuals for the movement actions and special moves."""
     if "click" in fx:                                        # a ripple where you clicked
@@ -821,14 +958,14 @@ def _move_effects(canvas, fx, x, y, w, h, p, osc, colour):
         cx_, cy_ = x + 120 * math.sin(p * 2 * math.pi), 30
         canvas.create_polygon(cx_, cy_, cx_, cy_ + 14, cx_ + 4, cy_ + 10, cx_ + 9, cy_ + 10,
                               fill="#ffffff", outline="#111111")
-    if "perch" in fx:                                        # tendrils gripping a title bar
-        canvas.create_rectangle(20, FLOOR - 10, 300, FLOOR, fill="#2a3550", outline="#5d6f99")
-        for k in (-1, 1):
-            canvas.create_oval(300 - 30 - k * 0, FLOOR - 8, 300 - 24, FLOOR - 2, fill="#d65a5a", outline="")
-        for i in range(6):
-            gx = 70 + i * 36
-            canvas.create_arc(gx - 8, FLOOR - 18, gx + 8, FLOOR + 2, start=0, extent=200, style="arc",
-                              outline=INK, width=5)
+    if "perch" in fx:                                        # tendrils grip the title bar's edge
+        top = PERCH_TOP
+        for i in range(7):
+            gx = 66 + i * 30
+            canvas.create_arc(gx - 9, top - 8, gx + 9, top + 12, start=-30, extent=240, style="arc",
+                              outline=INK, width=6)
+            canvas.create_arc(gx - 9, top - 8, gx + 9, top + 12, start=-30, extent=240, style="arc",
+                              outline="#3a2d4d", width=1.4)
     if "angry" in fx:                                        # red pulse
         r = 120 + 10 * abs(osc)
         canvas.create_oval(x - r, y - r * 0.8, x + r, y + r * 1.2, outline="#ff3b3b", width=2)

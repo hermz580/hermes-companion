@@ -142,3 +142,31 @@ def test_every_sheet_move_renders():
         [c[1] for c in S.FORMS]
     for pose in poses:
         assert r.frame(pose, 0.35).getbbox() is not None, pose
+
+
+def test_look_up_and_down_move_the_face():
+    from hermes_companion.renderer.smooth import PILCanvas
+    imgs = {}
+    for vy in (-1.0, 0.0, 1.0):
+        c = PILCanvas(*M.FRAME)
+        M.draw_mask(c, 160, 118, 38, 50, "cute", vy=vy)
+        imgs[vy] = c.img.tobytes()
+    assert imgs[-1.0] != imgs[0.0] != imgs[1.0]
+
+
+def test_hands_are_drawn_over_the_mask_and_the_perch_has_a_window():
+    calls = []
+
+    class Rec:
+        def delete(self, *a):
+            pass
+
+        def __getattr__(self, name):
+            return lambda *a, **k: calls.append((name, k.get("fill"), k.get("outline")))
+    M.draw_masque(Rec(), "idle_bob", 0.2)
+    mask = max(i for i, c in enumerate(calls) if c[1] == M.PORCELAIN)
+    glove = [i for i, c in enumerate(calls) if c[1] == M.GLOVE]
+    assert glove and min(glove) > mask                  # fingers rest over the mask's edge
+    calls.clear()
+    M.draw_masque(Rec(), "window_perch", 0.3)
+    assert ("create_rectangle", "#2d3a58", "#6a7dab") in calls   # the title bar

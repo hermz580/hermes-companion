@@ -35,13 +35,15 @@ class Chain:
 class BehaviorEngine:
     def __init__(self, seed: int | None = None, extravagance: int = 3,
                  clock=time.monotonic, variety: bool = False,
-                 extra_flourishes: dict | None = None) -> None:
+                 extra_flourishes: dict | None = None,
+                 flourish_hints: dict | None = None) -> None:
         self.seed = seed
         self.rng = random.Random(seed)
         # Variety gets its own PRNG so turning it on never shifts the choices
         # the rest of the engine makes from self.rng.
         self.grammar = MoveGrammar(random.Random(f"{seed}:variety"),
-                                   extra=extra_flourishes) if variety else None
+                                   extra=extra_flourishes,
+                                   hints=flourish_hints) if variety else None
         self.extravagance = extravagance
         self.clock = clock
         self.sm = StateMachine()
@@ -97,7 +99,12 @@ class BehaviorEngine:
         combo_tier, combo_count = self._combo_tier(now)
         chain_steps = self._shape_combo_steps(list(steps), state, ev, combo_tier)
         if self.grammar is not None:
-            chain_steps = self.grammar.decorate(chain_steps, state)
+            if ev.kind in (EventKind.SUBAGENT_STARTED, EventKind.SUBAGENT_FINISHED,
+                           EventKind.SUBAGENT_FAILED):
+                hint = "delegation"           # helpers are delegation, whatever the label
+            else:
+                hint = ev.category or "general"
+            chain_steps = self.grammar.decorate(chain_steps, state, hint=hint)
         chain = Chain(name=ev.kind.value, state=state, priority=prio, steps=chain_steps)
 
         # Interrupt check (spec §10): a higher-priority chain replaces the
@@ -207,6 +214,11 @@ class BehaviorEngine:
                 self._idle_fired.add(threshold)
                 if pose == "sleep":
                     self.sm.set(State.SLEEPING)
+                elif self.grammar is not None and self.grammar.extra.get("calm") \
+                        and self.grammar.rng.random() < 0.6:
+                    # A companion with its own calm repertoire (Nyamekra
+                    # meditating, reading, preening) fills quiet time with it.
+                    pose = self.grammar.rng.choice(self.grammar.extra["calm"])
                 self.trace.append({"event": "idle_progression",
                                    "t": round(self.idle_elapsed, 1), "pose": pose})
                 return pose

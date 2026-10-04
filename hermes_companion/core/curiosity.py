@@ -140,6 +140,7 @@ class CuriosityModel:
     recovery_s: float = 45.0         # time to regain full interest
     boredom_rate: float = 0.01       # per second without a reaction
     busy_gap_s: float = 8.0          # min seconds between glances while working
+    own_moves: tuple = ()            # a companion's own in-place curious moves
     rng: random.Random = field(init=False)
 
     def __post_init__(self) -> None:
@@ -183,6 +184,11 @@ class CuriosityModel:
                 return None
         approach, poses = self.rng.choice(options)
         steps = [{"pose": p, "duration_ms": ms, "role": "curiosity"} for p, ms in poses]
+        if self.own_moves and self.rng.random() < 0.45:
+            # The companion answers in its own body language (Nyamekra cocks
+            # its head, its galaxy eyes glow, it caws) instead of a stock pose.
+            steps[-1] = {"pose": self.rng.choice(self.own_moves), "duration_ms": 700,
+                         "role": "curiosity"}
         if busy:
             # A glance: one short pose, no travel, nothing that reads as work.
             steps = [dict(steps[0], duration_ms=min(600, steps[0]["duration_ms"]))]

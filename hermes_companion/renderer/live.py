@@ -163,14 +163,18 @@ class EventTail:
         from hermes_companion.core.attention import AttentionModel
         from hermes_companion.core.stuck import StuckDetector
         seed = int(os.environ.get("HERMES_COMPANION_SEED", "0") or "0")
-        from hermes_companion.animation.characters import extra_flourishes
+        from hermes_companion.animation.characters import traits
+        self.traits = traits(getattr(overlay, "companion", None))
         self.engine = BehaviorEngine(
             seed=seed or None, variety=variety,
-            extra_flourishes=extra_flourishes(getattr(overlay, "companion", None)))
+            extra_flourishes=self.traits["extra_flourishes"],
+            flourish_hints=self.traits["flourish_hints"])
         self.attention = AttentionModel()
         from hermes_companion.core.curiosity import CuriosityModel
         self.sensors = sensors
         self.curiosity = CuriosityModel(seed=seed or None) if sensors is not None else None
+        if self.curiosity is not None:
+            self.curiosity.own_moves = self.traits["curious_moves"]
         self._want_perch = perch
         self.perch = None
         self.stuck = StuckDetector()

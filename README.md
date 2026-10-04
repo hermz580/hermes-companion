@@ -55,6 +55,29 @@ way it travels.
 
 ![Nyamekra's role looks, elemental energies and dynamic poses](docs/nyamekra-roles.png)
 
+**Every symbol means something.** Nyamekra channels the Symbol of Essence
+that fits the work Hermes is really doing:
+
+| Hermes is… | Symbols channelled |
+|---|---|
+| running terminal or dev work | pyramid (strength), sun (creation), spiral (evolution) |
+| on the web | baobab (all knowledge), crow (the messenger), orbital rings (all realms) |
+| working with files or plans | adinkra heart (wisdom), sun, moon (order) |
+| using memory | baobab (roots), infinity (eternity), spiral (cycles) |
+| delegating to helpers | pyramid on the way out, infinity on the return |
+| waiting on you or approved | adinkra heart (patience) |
+| quiet | moon (balance), with meditation, reading and preening |
+
+When it notices you, it answers in its own body language: a head-cock,
+glowing galaxy eyes, a caw. Its speech bubbles keep the same meanings in
+its own voice ("I see the path. On it." / "Done. Every path leads here.").
+
+Proof it works end to end:
+`python -m hermes_companion.scripts.live_e2e nyamekra` drives the real Hermes
+plugin hooks through a whole session (tools, a failure, an approval, a
+helper) and checks that live Nyamekra acts out every event. CI runs it on
+every change.
+
 **Different tasks, different looks, same Nyamekra.** The body never changes.
 Role gear appears only while Hermes is actually doing that kind of work, so
 the look itself tells you what's happening, and a key-tool emblem glows on

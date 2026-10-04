@@ -840,3 +840,42 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
         _bubble(canvas, hcx - 26, hcy - 30, "!", glow)
     elif pose in WONDER:
         _bubble(canvas, hcx - 26, hcy - 30, "?", glow)
+
+
+# ---- making every symbol mean something -----------------------------------
+# Which Symbols of Essence Nyamekra channels for each kind of Hermes work.
+# Each list spans moods so a fitting symbol exists whatever the chain's mood.
+CATEGORY_SYMBOLS: dict[str, tuple[str, ...]] = {
+    "terminal": ("pyramid", "sun", "spiral"),        # strength, creation, evolution
+    "development": ("pyramid", "sun", "spiral"),
+    "web": ("baobab", "crow", "orbit"),              # all knowledge, the messenger, all realms
+    "browser": ("baobab", "crow", "orbit"),
+    "file": ("adinkra", "sun", "moon"),              # wisdom, creation, order/cycles
+    "learning": ("baobab", "ankh", "moon"),
+    "planning": ("adinkra", "infinity", "moon"),
+    "memory": ("baobab", "infinity", "spiral"),      # roots, eternity, cycles
+    "media": ("adinkra", "sun", "moon"),
+    "design": ("adinkra", "sun", "moon"),
+    "delegation": ("pyramid", "infinity", "orbit"),  # strength, omnipresence, realms
+    "general": ("adinkra", "ankh", "moon"),          # wisdom, life, balance
+}
+
+
+def flourish_hints() -> dict[str, tuple[str, ...]]:
+    return {cat: tuple(m for m in NYAMEKRA_MOVES if m.rsplit("_", 1)[-1] in syms)
+            for cat, syms in CATEGORY_SYMBOLS.items()}
+
+
+# In-place moves Nyamekra uses when it notices you.
+CURIOUS_MOVES = ("head_cock", "eye_glow", "caw", "survey_realms", "glyph_weave", "preen")
+
+# Same meanings as everyone else, in the All-Doing Crow's voice.
+VOICE = {
+    "starting": "I see the path. On it.",
+    "reviewing": "Reading what returned…",
+    "needs-you": "Your OK is needed.",
+    "issue": "A tool failed - I'm mending it.",
+    "complete": "Done. Every path leads here.",
+    "paused": "As you wish. Holding.",
+}
+GREETING = "I am Nyamekra. All paths, one being."

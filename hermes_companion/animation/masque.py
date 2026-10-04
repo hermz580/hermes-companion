@@ -73,7 +73,9 @@ FORM_OF_POSE = {
     "design_draft": "scribe", "memory_vault": "vault", "open_portal": "split",
     "channel": "split", "orb_exits": "split", "orb_returns": "split",
     "run_to_user": "lean", "wait": "lean", "attention": "lean", "panic": "lean",
+    "approval_request": "lean",
 }
+MASQUE_MOVES_LEAN = ("approval_request",)
 
 EXPRESSIONS = ("cute", "sad", "confused", "focused", "scary", "evil", "blank")
 
@@ -200,11 +202,33 @@ MASQUE_MOVES: dict[str, tuple[str, frozenset]] = {
     "shrink_back": ("uneasy", frozenset({"shrink", "mask:confused"})),
     "mask_swap_scary": ("uneasy", frozenset({"swap", "mask:scary"})),
 }
+# Movement actions and special moves from the turnaround / actions sheets.
+MASQUE_MOVES.update({
+    "turn_left": ("calm", frozenset({"turn:-1"})),
+    "turn_right": ("calm", frozenset({"turn:1"})),
+    "turn_back": ("calm", frozenset({"back"})),
+    "crouch": ("uneasy", frozenset({"crouch", "mask:confused"})),
+    "stretch": ("bright", frozenset({"stretch", "bloom", "mask:cute"})),
+    "look_up": ("calm", frozenset({"lookup"})),
+    "look_down": ("calm", frozenset({"lookdown"})),
+    "float_walk": ("calm", frozenset({"side", "float"})),
+    "run_trail": ("focused", frozenset({"side", "slide", "mask:focused"})),
+    "jump_leap": ("bright", frozenset({"jump", "mask:cute"})),
+    "follow_cursor": ("focused", frozenset({"follow"})),
+    "react_click": ("focused", frozenset({"click", "mask:confused"})),
+    "celebrate": ("bright", frozenset({"spin", "roses", "mask:cute"})),
+    "curious_peek": ("calm", frozenset({"peek", "slip"})),
+    "wake_up": ("calm", frozenset({"wake"})),
+    "angry": ("uneasy", frozenset({"angry", "recoil", "mask:scary"})),
+    "window_perch": ("calm", frozenset({"perch"})),
+    "enter_crack": ("focused", frozenset({"portal_in"})),
+    "exit_crack": ("bright", frozenset({"portal_out", "mask:cute"})),
+})
 TRAVEL_MOVES = {
-    "ink_slide": ("bright", frozenset({"slide", "mask:focused"})),
+    "ink_slide": ("bright", frozenset({"slide", "side", "mask:focused"})),
     "crack_portal": ("bright", frozenset({"portal"})),
-    "lunge": ("bright", frozenset({"lunge", "mask:cute"})),
-    "hover": ("calm", frozenset({"hover"})),
+    "lunge": ("bright", frozenset({"lunge", "side", "mask:cute"})),
+    "hover": ("calm", frozenset({"hover", "side"})),
 }
 for _n, _s in list(TRAVEL_MOVES.items()):
     TRAVEL_MOVES[_n + "_back"] = _s
@@ -499,11 +523,14 @@ _EYE_SPOTS = [(-62, 92, 8), (62, 96, 8), (-50, 175, 9), (52, 180, 9), (0, 205, 1
               (-120, 250, 6), (120, 255, 6), (0, 40, 6), (-36, 30, 5), (38, 32, 5)]
 
 
-def _mane_strand(mcx, mcy, side, t, k, p, i, form, fx):
+def _mane_strand(mcx, mcy, side, t, k, p, i, form, fx, facing=0.0):
     """One hair-like tendril: from the crown out and down in an S-wave, curling at the tip."""
     a0 = -math.pi / 2 + side * (0.35 + 2.3 * t)              # root angle around the head
     rx, ry = mcx + math.cos(a0) * 34, mcy - 8 + math.sin(a0) * 46
     out = side * (30 + 120 * t) * k                           # how far it fans sideways
+    # Turned side-on, the mane streams behind her: short in front, long behind.
+    out *= 1.0 - 0.6 * facing * side if facing * side > 0 else 1.0 + 0.45 * abs(facing)
+    rx -= facing * 14
     drop = (FLOOR - ry) * (0.75 + 0.25 * ((i * 5) % 7) / 6)
     if form == "crawler":
         out, drop = side * (90 + 60 * t) * k, (FLOOR - ry)
@@ -525,6 +552,36 @@ def _mane_strand(mcx, mcy, side, t, k, p, i, form, fx):
         pts.append((tx + side * 6 + math.cos(a + math.pi) * rr * side, ty - 6 + math.sin(a) * rr - j))
     pts = [(min(max(x, 4), FRAME[0] - 4), min(y, FLOOR)) for x, y in pts]
     return pts, (12 - 4 * t) * k
+
+
+# Generic engine poses that travel: Masque turns side-on (left ones are mirrored).
+SIDE_POSES = frozenset({"walk_to_workspace", "dash_to_workspace", "sprint_to_workspace",
+                        "run_to_workspace", "tip_to_workspace", "return_home", "run_to_user",
+                        "sneak", "leap", "creep"})
+LOOK_AROUND = frozenset({"idle_bob", "wait", "notice", "look_around", "watch", "head_tilt",
+                         "think", "look_at_input", "look_at_user"})
+
+
+def view_of(pose: str, p: float, fx) -> tuple[float, bool]:
+    """(facing, back): facing -1 left .. 0 front .. 1 right; back = seen from behind."""
+    if "back" in fx:
+        return 0.0, True
+    if "spin" in fx:                                         # a full turn: front, side, back, side
+        a = p * 2 * math.pi
+        return math.sin(a), math.cos(a) < -0.2
+    for f in fx:
+        if f.startswith("turn:"):
+            k = float(f[5:])
+            return k * min(1.0, p * 2.5), False
+    if "side" in fx or pose in SIDE_POSES:
+        return 1.0, False
+    if "follow" in fx:
+        return 0.7 * math.sin(p * 2 * math.pi), False
+    if "peek" in fx:
+        return 0.45, False
+    if pose in LOOK_AROUND and p >= 0.6:                     # glance over each shoulder
+        return 0.6 * math.sin((p - 0.6) / 0.4 * 2 * math.pi), False
+    return 0.0, False
 
 
 def expression_for(pose: str, fx, state: MasqueState) -> str:
@@ -564,9 +621,14 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
         form = "split"
     face = expression_for(pose, fx, st)
     colour = CATEGORY_COLOUR.get(st.category, CATEGORY_COLOUR["general"])
-    if "portal" in fx and 0.3 <= p <= 0.7:              # gone through a crack in the world
-        _portal(canvas, CX, 170, p, colour)
+    if "angry" in fx:
+        colour = CATEGORY_COLOUR["failure"]
+    if ("portal" in fx and 0.3 <= p <= 0.7) or ("portal_in" in fx and p >= 0.45) or \
+            ("portal_out" in fx and p <= 0.55):              # gone through a crack in the world
+        _portal(canvas, CX, 170, p if "portal" in fx else (0.5 + abs(p - 0.5)), colour)
         return
+    facing, back = view_of(pose, p, fx)
+    turn = abs(facing)
 
     size = 1.0 + 0.04 * min(4, st.work // 6) + (0.05 * abs(osc) if st.pulsing else 0.0)
     if "shrink" in fx or pose == "sleep":
@@ -574,9 +636,18 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
     lean = form == "lean" or "lunge" in fx
     sway = 6 * osc if ("sway" in fx or "slide" in fx or own is None) else 2 * osc
     hover = -14 - 6 * osc if ("hover" in fx or "float" in fx) else 0
+    if "jump" in fx:
+        hover = -12 * math.sin(p * math.pi)                  # the window itself does the big lift
+    if "crouch" in fx:
+        hover = 18
+        size *= 0.92
+    if "stretch" in fx:
+        hover = -8 - 4 * abs(osc)
     mcx = CX + sway * 0.4
     mcy = 118 + hover + (14 if lean else 0) - (4 * abs(osc) if "bloom" in fx else 0)
     mw, mh = (38, 50) if not lean else (46, 60)
+    if "lookup" in fx or "lookdown" in fx:
+        mh *= 0.9                                            # foreshortened as it tips
 
     # 1. thorn halo
     hx, hy = CX + sway * 0.2, 70 + hover
@@ -610,7 +681,7 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
     for i in range(count):
         side = -1 if i % 2 == 0 else 1
         t = (i // 2) / max(1, (count - 1) // 2)
-        strands.append(_mane_strand(mcx, mcy, side, t, size * spread, p, i, form, fx))
+        strands.append(_mane_strand(mcx, mcy, side, t, size * spread, p, i, form, fx, facing))
     for pts, w0 in strands:                                # rim light so strands read as volume
         _strand(canvas, pts, w0 + 2.4, 4.0, "#3a2d4d")
     for pts, w0 in strands:                                # then thick ink
@@ -622,15 +693,18 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
         canvas.create_oval(tx - 2.2, ty - 2.2, tx + 2.2, ty + 2.2, fill=tint, outline="")
 
     # 3. eyes in the dark
-    eye_count = int(9 * eyes_k + (9 if st.thinking or "alleyes" in fx else 0))
+    eye_count = int(9 * eyes_k + (9 if st.thinking or "alleyes" in fx or back else 0))
+    if "wake" in fx:
+        eye_count = int(eye_count * p) + 1
     blink = 0.5 + 0.5 * math.cos(p * 2 * math.pi * 2)
     for i, (dx, dy, r) in enumerate(_EYE_SPOTS[:min(eye_count, len(_EYE_SPOTS))]):
-        ex, ey = mcx + dx * size * 0.9, dy + hover * 0.5
-        if abs(ex - mcx) < mw + 10 and abs(ey - mcy) < mh + 10:
+        ex, ey = mcx + dx * size * 0.9 * (1 - 0.35 * turn) - facing * 16, dy + hover * 0.5
+        if not back and abs(ex - mcx - facing * mw * 0.5) < mw + 10 and abs(ey - mcy) < mh + 10:
             continue                                         # never behind the mask edge
         opn = (1.0 if st.thinking or "alleyes" in fx else 0.45 + 0.55 * blink) if face != "blank" else 0.0
         opn *= 0.65 + 0.35 * ((i * 7) % 5) / 4
-        look = (osc, 0.0) if "scan" in fx else (0.4 * math.sin(i), 0.0)
+        look = (osc, 0.0) if ("scan" in fx or "follow" in fx) else \
+            (-1.0, -0.6) if "lookup" in fx else (0.4 * math.sin(i) + facing, 0.0)
         canvas.create_oval(ex - r * 1.35, ey - r * 0.95, ex + r * 1.35, ey + r * 0.95,
                            fill="#050307", outline=tint, width=1)
         _eye(canvas, ex, ey, r * 1.15, opn, look=look)
@@ -659,9 +733,11 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
         glyph(canvas, gl, min(max(tip[0], 14), FRAME[0] - 14), max(tip[1], 14), 10, colour)
 
     # 7. hands holding the mask (delicate, gold rings)
-    if "slip" not in fx and form != "lean":
-        for k in (-1, 1):
-            hx_, hy_ = mcx + k * (mw + 4), mcy + mh * 0.3
+    if back:
+        pass                                                 # seen from behind: no hands, no face
+    elif "slip" not in fx and form != "lean":
+        for k in ((-1, 1) if turn < 0.55 else ((1,) if facing > 0 else (-1,))):
+            hx_, hy_ = mcx + facing * mw * 0.5 + k * (mw * (1 - 0.5 * turn) + 4), mcy + mh * 0.3
             canvas.create_polygon(hx_ + k * 16, hy_ + 44, hx_ + k * 8, hy_ - 2, hx_ - k * 2, hy_ - 18,
                                   hx_ - k * 9, hy_ - 10, hx_ - k * 3, hy_ + 8, hx_ - k * 6, hy_ + 40,
                                   fill="#2b2138", outline="#6b5585", smooth=True)
@@ -687,15 +763,79 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
         _true_face(canvas, mcx, mcy, mw, mh)
     if "swap" in fx and 0.4 < p < 0.6:
         face = "blank"
-    if "spin" in fx:
-        mw_eff = mw * max(0.15, abs(math.cos(p * 2 * math.pi)))
+    if "lookup" in fx:
+        my_off -= 6
+    if "lookdown" in fx:
+        my_off += 8
+    if "wake" in fx and p < 0.5:
+        face = "blank"
+    if back:
+        _back_of_head(canvas, mcx, mcy, mw, mh, p, tint)
     else:
-        mw_eff = mw
-    draw_mask(canvas, mcx + mx_off, mcy + my_off, mw_eff, mh, face, cracks=st.cracks, tilt=tilt,
-              teeth=teeth, lace=lace, p=p)
+        mw_eff = mw * (1.0 - 0.5 * turn)
+        mx = mcx + mx_off + facing * mw * 0.5
+        draw_mask(canvas, mx, mcy + my_off, mw_eff, mh, face, cracks=st.cracks,
+                  tilt=tilt + facing * 1.1, teeth=teeth, lace=lace, p=p)
+        if turn > 0.7:                                       # profile: brow and nose ridge
+            sgn = 1 if facing > 0 else -1
+            ex_ = mx + sgn * mw_eff
+            canvas.create_polygon(ex_ - sgn * 2, mcy + my_off - mh * 0.15, ex_ + sgn * 6, mcy + my_off + mh * 0.05,
+                                  ex_ - sgn * 2, mcy + my_off + mh * 0.2, fill=PORCELAIN, outline=GOLD_DK)
 
     # 9. front effects
     _effects(canvas, fx, form, mcx, mcy, mw, mh, p, osc, colour, st, pose)
+    _move_effects(canvas, fx, mcx, mcy, mw, mh, p, osc, colour)
+
+
+def _back_of_head(canvas, x, y, w, h, p, tint):
+    """Seen from behind: the mask's gold ribbon tied over a crown of tendrils."""
+    canvas.create_oval(x - w - 6, y - h - 4, x + w + 6, y + h + 8, fill=INK, outline="#3a2d4d", width=2)
+    for i in range(9):                                       # strands from the crown, down the back
+        a = -math.pi / 2 + (i - 4) * 0.32
+        pts = [(x + math.cos(a) * 8, y - h * 0.6)]
+        for j in range(1, 7):
+            pts.append((x + math.cos(a) * (8 + j * 7) + 3 * math.sin(p * 6 + i + j),
+                        y - h * 0.6 + j * 16))
+        _strand(canvas, pts, 6, 2, INK)
+        flat = [c for q in pts for c in q]
+        canvas.create_line(*flat, fill=tint, width=1.2, smooth=True)
+    for k in (-1, 1):                                        # the ribbon and its bow
+        canvas.create_line(x - w - 4, y - h * 0.15, x + w + 4, y - h * 0.15, fill=GOLD, width=3)
+        canvas.create_polygon(x, y - h * 0.15, x + k * 16, y - h * 0.35, x + k * 18, y,
+                              fill=GOLD, outline=GOLD_DK)
+        canvas.create_line(x + k * 4, y - h * 0.1, x + k * 12, y + h * 0.5 + 4 * math.sin(p * 6),
+                           fill=GOLD_DK, width=2)
+    canvas.create_oval(x - 4, y - h * 0.15 - 4, x + 4, y - h * 0.15 + 4, fill=GOLD_HI, outline=GOLD_DK)
+
+
+def _move_effects(canvas, fx, x, y, w, h, p, osc, colour):
+    """Extra visuals for the movement actions and special moves."""
+    if "click" in fx:                                        # a ripple where you clicked
+        cx_, cy_ = x + w + 70, y + 40
+        for k in range(3):
+            r = 6 + (p * 30 + k * 10) % 30
+            canvas.create_oval(cx_ - r, cy_ - r, cx_ + r, cy_ + r, outline=colour, width=2)
+        _strand(canvas, [(x + w, y + 30), (x + w + 30, y + 20 + 6 * osc), (cx_ - 8, cy_)], 6, 2, INK,
+                sheen=colour)
+    if "follow" in fx:                                       # the cursor she is following
+        cx_, cy_ = x + 120 * math.sin(p * 2 * math.pi), 30
+        canvas.create_polygon(cx_, cy_, cx_, cy_ + 14, cx_ + 4, cy_ + 10, cx_ + 9, cy_ + 10,
+                              fill="#ffffff", outline="#111111")
+    if "perch" in fx:                                        # tendrils gripping a title bar
+        canvas.create_rectangle(20, FLOOR - 10, 300, FLOOR, fill="#2a3550", outline="#5d6f99")
+        for k in (-1, 1):
+            canvas.create_oval(300 - 30 - k * 0, FLOOR - 8, 300 - 24, FLOOR - 2, fill="#d65a5a", outline="")
+        for i in range(6):
+            gx = 70 + i * 36
+            canvas.create_arc(gx - 8, FLOOR - 18, gx + 8, FLOOR + 2, start=0, extent=200, style="arc",
+                              outline=INK, width=5)
+    if "angry" in fx:                                        # red pulse
+        r = 120 + 10 * abs(osc)
+        canvas.create_oval(x - r, y - r * 0.8, x + r, y + r * 1.2, outline="#ff3b3b", width=2)
+    if "stretch" in fx:                                      # reaching up for the UI
+        for k in (-1, 1):
+            _strand(canvas, [(x + k * 30, y + 10), (x + k * 50, y - 40), (x + k * 60, 20 + 4 * osc)], 6, 2,
+                    INK, sheen=colour)
 
 
 def _true_face(canvas, x, y, w, h):

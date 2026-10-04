@@ -171,6 +171,17 @@ She travels by ink-slide, slips through a crack in the world to arrive
 somewhere else, lunges toward you when Hermes needs you, and hovers onto
 your windows. CI drives a real Hermes session through her too.
 
+She turns: front, three-quarter, side profile and back (the mask's gold
+ribbon tied over a crown of tendrils), and a full spin passes through all of
+them. Travel and engine moves play side-on, facing the way she goes.
+
+![Masque turnaround](docs/masque-turnaround.png)
+![Masque movement actions](docs/masque-movement.png)
+![Masque special moves](docs/masque-special.png)
+![Masque body forms](docs/masque-forms.png)
+
+Regenerate these with `python -m hermes_companion.scripts.masque_sheets docs`.
+
 ## Quickstart
 
 ```bash

@@ -110,3 +110,35 @@ def test_travel_and_registry():
     seen = {M.travel({"pose": "x", "duration_ms": 500, "move": {"type": "dash", "dx": 520}},
                      random.Random(i))["pose"] for i in range(40)}
     assert seen == {"ink_slide", "crack_portal"}
+
+
+def test_views_front_side_back():
+    assert M.view_of("idle_bob", 0.2, set()) == (0.0, False)
+    assert M.view_of("turn_back", 0.3, M.MASQUE_MOVES["turn_back"][1]) == (0.0, True)
+    f, back = M.view_of("turn_right", 0.6, M.MASQUE_MOVES["turn_right"][1])
+    assert f == 1.0 and not back
+    f, _ = M.view_of("turn_left", 0.6, M.MASQUE_MOVES["turn_left"][1])
+    assert f == -1.0
+    assert M.view_of("ink_slide", 0.3, M.MASQUE_MOVES["ink_slide"][1])[0] == 1.0
+    assert M.view_of("dash_to_workspace", 0.3, set())[0] == 1.0       # engine travel is side-on
+    spins = {M.view_of("celebrate", t / 20, M.MASQUE_MOVES["celebrate"][1])[1] for t in range(20)}
+    assert spins == {True, False}                                    # a spin passes her back
+
+
+def test_back_view_hides_the_face():
+    from hermes_companion.renderer.smooth import FrameRenderer
+    r = FrameRenderer("masque", glow=False, squash=False)
+    front, back = r.frame("idle_bob", 0.2), r.frame("turn_back", 0.3)
+    # porcelain (near-white) pixels belong to the mask; seen from behind there are almost none
+    white = lambda im: sum(1 for px in im.getdata() if px[3] > 200 and min(px[:3]) > 225)
+    assert white(back) < white(front) * 0.15
+
+
+def test_every_sheet_move_renders():
+    from hermes_companion.renderer.smooth import FrameRenderer
+    from hermes_companion.scripts import masque_sheets as S
+    r = FrameRenderer("masque", glow=False, squash=False)
+    poses = [c[1] for c in S.TURNAROUND + S.SPECIAL] + [c[1] for c in S.MOVEMENT] + \
+        [c[1] for c in S.FORMS]
+    for pose in poses:
+        assert r.frame(pose, 0.35).getbbox() is not None, pose

@@ -11,3 +11,4 @@ hooks:
   - on_session_end
   - subagent_start
   - subagent_stop
+  - pre_llm_call

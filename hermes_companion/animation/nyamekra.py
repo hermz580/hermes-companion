@@ -135,6 +135,15 @@ BODY_MOVES = {
     "interact":        ("focused", (30, 50, 75, 50), 0.2, 0, 0, {"interact"}),
 }
 
+# Expressiveness: own moves are drawn this much larger than their base specs so
+# they read clearly at desktop size (a 200px pet next to full-screen windows).
+ARM_SWING = 22.0       # degrees of arm swing per beat (was 10)
+BOUNCE_GAIN = 2.4      # hop height multiplier
+SWAY_GAIN = 1.8        # side-to-side multiplier
+WING_PULSE = 0.18      # wings open and close a little on every beat
+SYMBOL_SIZE = 19.0     # channelled symbol radius in px (was 10)
+EMBLEM_SCALE = 1.7     # role / tool emblem multiplier
+
 # Poses that travel left: Nyamekra turns to face the way it is going.
 FACE_LEFT = frozenset({"run_to_user", "return_home", "panic", "orb_returns"})
 
@@ -227,7 +236,7 @@ def _symbol(canvas, name, x, y, s, color, p):
     elif name == "adinkra":                                  # Akoma heart
         canvas.create_polygon(x, y + s * 0.9, x - s, y - s * 0.1, x - s * 0.55, y - s * 0.8,
                               x, y - s * 0.35, x + s * 0.55, y - s * 0.8, x + s, y - s * 0.1,
-                              outline=color, fill="", smooth=True)
+                              outline=color, fill="", smooth=True, width=w)
     elif name == "crow":
         canvas.create_polygon(x - s, y, x - s * 0.2, y - s * 0.4, x + s * 0.5, y - s * 0.3,
                               x + s, y - s * 0.5, x + s * 0.6, y, x - s * 0.1, y + s * 0.3,
@@ -330,7 +339,33 @@ _TOOL_ICON = {"automation": "gear", "travel": "arrow", "knowledge": "book",
               "omnipresence": "infinity", "time": "clock"}
 
 
-def _tool_icon(canvas, tool, x, y, color):
+class _Scaled:
+    """Draws onto `canvas` scaled by k around (ox, oy); line widths scale too."""
+
+    def __init__(self, canvas, ox, oy, k):
+        self._c, self._o, self._k = canvas, (ox, oy), k
+
+    def _pts(self, coords):
+        ox, oy = self._o
+        return [(v - (ox if i % 2 == 0 else oy)) * self._k + (ox if i % 2 == 0 else oy)
+                for i, v in enumerate(coords)]
+
+    def _kw(self, kw):
+        if "width" in kw:
+            kw = dict(kw, width=max(1, round(kw["width"] * self._k)))
+        return kw
+
+    def __getattr__(self, name):
+        fn = getattr(self._c, name)
+        if not name.startswith("create_"):
+            return fn
+        return lambda *coords, **kw: fn(*self._pts(coords), **self._kw(kw))
+
+
+def _tool_icon(canvas, tool, x, y, color, k: float = 1.0):
+    if k != 1.0:
+        canvas = _Scaled(canvas, x, y, k)
+        k = 1.0
     kind = _TOOL_ICON[tool]
     if kind == "gear":
         for i in range(8):
@@ -452,10 +487,12 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
 
     if own is not None:
         mood_name, arms, wing, bounce, sway, fx = own
-        arms = tuple(a + osc * (10 if i % 2 == 0 else 6) * (1 if i < 2 else -1)
+        # Big, readable motion: wide arm swings, real hops, a wing pulse.
+        arms = tuple(a + osc * (ARM_SWING if i % 2 == 0 else ARM_SWING * 0.6) * (1 if i < 2 else -1)
                      for i, a in enumerate(arms))
-        dy = -abs(osc) * bounce
-        dx = sway * osc
+        dy = -abs(osc) * bounce * BOUNCE_GAIN
+        dx = sway * osc * SWAY_GAIN
+        wing = min(1.0, max(0.0, wing + WING_PULSE * osc))
         mood = {"bright": "joy", "focused": "work", "uneasy": "fail", "calm": "calm"}[mood_name]
         symbol = next((f.split(":", 1)[1] for f in fx if f.startswith("symbol:")), None)
     else:
@@ -722,9 +759,21 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
 
     # ---- channelled symbol of essence --------------------------------------------------------
     if symbol is not None:
-        sx_, sy_ = hands[1][0], hands[1][1] - 20 - abs(osc) * 4
-        canvas.create_oval(sx_ - 15, sy_ - 15, sx_ + 15, sy_ + 15, outline=glow, width=1)
-        _symbol(canvas, symbol, sx_, sy_, 10 + 1.5 * abs(osc), P["gold_hi"], p)
+        size = SYMBOL_SIZE + 3 * abs(osc)                        # breathes with the beat
+        ring = size + 9
+        sx_ = min(max(hands[1][0], ring + 2), 198 - ring)
+        sy_ = max(hands[1][1] - ring - 10 - abs(osc) * 6, ring + 2)
+        canvas.create_oval(sx_ - ring, sy_ - ring, sx_ + ring, sy_ + ring,
+                           fill=P["robe"], outline=glow, width=3)
+        canvas.create_oval(sx_ - ring + 4, sy_ - ring + 4, sx_ + ring - 4, sy_ + ring - 4,
+                           outline=P["gold_dk"], width=1)
+        for i in range(8):                                       # sparks orbit the symbol
+            a = i * math.pi / 4 + p * 2 * math.pi
+            r0, r1 = ring + 3, ring + 7 + 3 * abs(osc)
+            canvas.create_line(sx_ + math.cos(a) * r0, sy_ + math.sin(a) * r0,
+                               sx_ + math.cos(a) * r1, sy_ + math.sin(a) * r1,
+                               fill=glow if i % 2 else P["gold_hi"], width=2)
+        _symbol(canvas, symbol, sx_, sy_, size, P["gold_hi"], p)
     if "scepter" in fx:                                           # scepter + armillary sphere
         sx0, sy0 = hands[0]
         canvas.create_line(sx0, sy0 + 40, sx0, sy0 - 36, fill=P["gold"], width=3)
@@ -782,8 +831,9 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
     if role is not None:
         _role_gear(canvas, role, cx, top, hcx, hcy, hands, P, p)
         mx, my = cx, top + 64
-        canvas.create_oval(mx - 8, my - 8, mx + 8, my + 8, fill=P["robe"], outline=glow, width=2)
-        _tool_icon(canvas, ROLE_TOOL[role], mx, my, P["gold_hi"])
+        er = 8 * EMBLEM_SCALE
+        canvas.create_oval(mx - er, my - er, mx + er, my + er, fill=P["robe"], outline=glow, width=3)
+        _tool_icon(canvas, ROLE_TOOL[role], mx, my, P["gold_hi"], EMBLEM_SCALE)
 
     # ---- dynamic poses ----------------------------------------------------------------------
     if "land" in fx:
@@ -807,7 +857,7 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
             a = i * math.pi / 3 + math.pi / 6
             pts += [sx + math.cos(a) * 18, sy2 + math.sin(a) * 22]
         canvas.create_line(*pts, pts[0], pts[1], fill=glow, width=3)
-        _tool_icon(canvas, "protection", sx, sy2, P["gold_hi"])
+        _tool_icon(canvas, "protection", sx, sy2, P["gold_hi"], EMBLEM_SCALE)
     if "interact" in fx:
         hx, hy = hands[1]
         canvas.create_rectangle(hx + 4, hy - 26, hx + 34, hy - 6, outline="#22d3ee", width=1)

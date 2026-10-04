@@ -36,7 +36,7 @@ class BehaviorEngine:
     def __init__(self, seed: int | None = None, extravagance: int = 3,
                  clock=time.monotonic, variety: bool = False,
                  extra_flourishes: dict | None = None,
-                 flourish_hints: dict | None = None) -> None:
+                 flourish_hints: dict | None = None, travel=None) -> None:
         self.seed = seed
         self.rng = random.Random(seed)
         # Variety gets its own PRNG so turning it on never shifts the choices
@@ -44,6 +44,9 @@ class BehaviorEngine:
         self.grammar = MoveGrammar(random.Random(f"{seed}:variety"),
                                    extra=extra_flourishes,
                                    hints=flourish_hints) if variety else None
+        # A character's signature way of crossing the screen (see nyamekra.travel).
+        self.travel = travel
+        self._travel_rng = random.Random(f"{seed}:travel")
         self.extravagance = extravagance
         self.clock = clock
         self.sm = StateMachine()
@@ -105,6 +108,8 @@ class BehaviorEngine:
             else:
                 hint = ev.category or "general"
             chain_steps = self.grammar.decorate(chain_steps, state, hint=hint)
+        if self.travel is not None:
+            chain_steps = [self.travel(s, self._travel_rng) for s in chain_steps]
         chain = Chain(name=ev.kind.value, state=state, priority=prio, steps=chain_steps)
 
         # Interrupt check (spec §10): a higher-priority chain replaces the

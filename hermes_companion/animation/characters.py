@@ -66,6 +66,7 @@ COMPANIONS: dict[str, dict] = {
         "curious_moves": nyamekra.CURIOUS_MOVES,
         "voice": nyamekra.VOICE,
         "greeting": nyamekra.GREETING,
+        "travel": nyamekra.travel,
         "desc": "the All-Doing Crow · one form · celestial halo · galaxy eyes · "
                 "gold crown, ankh and neck rings · kente-woven feathered robe · "
                 f"{len(nyamekra.NYAMEKRA_MOVES)} own moves channelling the ten "
@@ -103,7 +104,8 @@ def traits(name: str | None) -> dict:
             "flourish_hints": dict(spec.get("flourish_hints", {})),
             "curious_moves": tuple(spec.get("curious_moves", ())),
             "voice": dict(spec.get("voice", {})),
-            "greeting": spec.get("greeting")}
+            "greeting": spec.get("greeting"),
+            "travel": spec.get("travel")}
 
 
 def draw_companion(canvas, companion: str | None, pose: str,

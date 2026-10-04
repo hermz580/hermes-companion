@@ -62,7 +62,7 @@ class PlaygroundBrain:
         t = traits(getattr(surface, "companion", None))
         self.engine = BehaviorEngine(
             seed=seed, variety=variety, extra_flourishes=t["extra_flourishes"],
-            flourish_hints=t["flourish_hints"])
+            flourish_hints=t["flourish_hints"], travel=t["travel"])
         self.director = director
         self.surface = surface
         self.attention = AttentionModel()

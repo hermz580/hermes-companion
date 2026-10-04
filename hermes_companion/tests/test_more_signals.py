@@ -118,3 +118,52 @@ def test_hands_are_drawn_after_the_head():
     head = max(i for i, (n, f, o) in enumerate(c.calls) if n == "create_oval" and o == P["sheen"])
     talons = [i for i, (n, f, o) in enumerate(c.calls) if n == "create_line" and f == P["talon"]]
     assert talons and min(talons) > head
+
+
+def test_travel_keeps_distance_and_gets_signature_moves():
+    import random
+    from hermes_companion.animation.nyamekra import travel
+    rng = random.Random(1)
+    run = {"pose": "dash_to_workspace", "duration_ms": 480,
+           "move": {"type": "dash", "dx": 520, "dy": 0, "easing": "easeOutCubic"}}
+    seen = {travel(run, rng)["pose"] for _ in range(60)}
+    assert seen == {"wing_dash", "feather_teleport"}
+    home = dict(run, move=dict(run["move"], dx=-520))
+    assert all(travel(home, rng)["pose"].endswith("_back") for _ in range(20))
+    to_user = {"pose": "run_to_user", "duration_ms": 800, "move": {"type": "run", "dx": -320}}
+    assert travel(to_user, rng)["pose"] == "swoop_back"
+    for _ in range(40):
+        out = travel(run, rng)
+        assert out["move"]["dx"] == 520                  # still goes exactly where Hermes sent it
+        if out["pose"] == "feather_teleport":
+            assert out["move"]["easing"] == "teleport" and out["duration_ms"] >= 900
+    still = {"pose": "work", "duration_ms": 900, "move": None}
+    assert travel(still, rng) is still
+
+
+def test_teleport_hides_the_body_midway():
+    from hermes_companion.renderer.smooth import FrameRenderer
+    r = FrameRenderer("nyamekra", None, glow=False, squash=False)
+    full = sum(1 for a in r.frame("feather_teleport", 0.1).getchannel("A").getdata() if a > 128)
+    mid = sum(1 for a in r.frame("feather_teleport", 0.5).getchannel("A").getdata() if a > 128)
+    assert mid < full * 0.25
+
+
+def test_teleport_easing_jumps_at_halfway():
+    from hermes_companion.movement.easing import apply
+    assert apply("teleport", 0.49) == 0.0 and apply("teleport", 0.5) == 1.0
+
+
+def test_live_and_play_engines_use_nyamekra_travel():
+    from hermes_companion.animation.characters import traits
+    from hermes_companion.behavior.behavior_engine import BehaviorEngine
+    from hermes_companion.core.events import EventKind, SemanticEvent
+    t = traits("nyamekra")
+    e = BehaviorEngine(seed=2, variety=True, travel=t["travel"])
+    poses = []
+    for _ in range(6):
+        e._cooldown_until.clear()
+        chain = e.handle(SemanticEvent(EventKind.APPROVAL_REQUIRED))
+        poses += [s["pose"] for s in chain.steps if s.get("move")]
+    assert any(p.startswith(("swoop", "wing_dash", "feather_teleport")) for p in poses)
+    assert traits("samurai")["travel"] is None

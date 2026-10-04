@@ -143,9 +143,11 @@ SWAY_GAIN = 1.8        # side-to-side multiplier
 WING_PULSE = 0.18      # wings open and close a little on every beat
 SYMBOL_SIZE = 19.0     # channelled symbol radius in px (was 10)
 EMBLEM_SCALE = 1.7     # role / tool emblem multiplier
+HEADROOM = 12.0        # px the body may rise before the halo would leave the frame
 
 # Poses that travel left: Nyamekra turns to face the way it is going.
-FACE_LEFT = frozenset({"run_to_user", "return_home", "panic", "orb_returns"})
+FACE_LEFT = frozenset({"run_to_user", "return_home", "panic", "orb_returns",
+                       "wing_dash_back", "feather_teleport_back", "swoop_back", "soar_back"})
 
 
 class _Mirror:
@@ -198,10 +200,24 @@ def _build_moves() -> dict[str, tuple]:
 
 NYAMEKRA_MOVES: dict[str, tuple] = _build_moves()
 
+# ---- signature travel: how Nyamekra crosses the screen -----------------------
+# These replace the plain walk/run of a chain step that moves (see travel()).
+TRAVEL_MOVES = {
+    "wing_dash":        ("bright", (95, 0, 95, 0), 1.0, 1, 0, {"dash"}),
+    "feather_teleport": ("bright", (40, 30, 40, 30), 0.7, 0, 0, {"teleport"}),
+    "swoop":            ("bright", (120, 10, 120, 10), 1.0, 4, 0, {"swoop", "beat"}),
+    "soar":             ("calm", (80, 10, 80, 10), 1.0, 6, 3, {"flight", "beat"}),
+}
+for _name, _spec in list(TRAVEL_MOVES.items()):
+    TRAVEL_MOVES[_name + "_back"] = _spec          # same move, heading left
+NYAMEKRA_MOVES.update(TRAVEL_MOVES)
+
 
 def nyamekra_flourishes() -> dict[str, tuple[str, ...]]:
     out: dict[str, list[str]] = {}
     for name, spec in NYAMEKRA_MOVES.items():
+        if name in TRAVEL_MOVES:
+            continue                                     # only used for real travel
         out.setdefault(spec[0], []).append(name)
     return {k: tuple(v) for k, v in out.items()}
 
@@ -310,7 +326,9 @@ def _wing(canvas, root_x, root_y, side, spread, P, p, beat):
     """A crow wing as a fan of individual feathers; spread 0 folded .. 1 open."""
     flap = math.sin(p * 2 * math.pi * 2) * (0.35 if beat else 0.06)
     # folded: feathers hang down along the body; open: they fan up and out
-    base = math.pi / 2 - side * (0.15 + spread * 1.35 + flap * spread)
+    # open wings rise above the shoulders and reach past the cape so they read
+    base = math.pi / 2 - side * (0.15 + spread * 1.75 + flap * spread)
+    reach = 1.0 + 0.35 * max(0.0, spread - 0.5) / 0.5
     for layer, (fill, length, width, tip) in enumerate((
             (P["feather"], 58, 6.5, P["gold"]),          # primaries
             (P["feather_hi"], 44, 6.0, None),            # secondaries
@@ -319,7 +337,7 @@ def _wing(canvas, root_x, root_y, side, spread, P, p, beat):
         for i in range(n):
             t = i / max(1, n - 1)
             ang = base + side * (t - 0.5) * (0.25 + spread * 0.9)
-            ln = length * (0.75 + 0.35 * t) * (0.7 + 0.3 * spread)
+            ln = length * (0.75 + 0.35 * t) * (0.7 + 0.3 * spread) * reach
             _feather(canvas, root_x, root_y, ang, ln, width, fill, P["gold_dk"] if layer == 0 else fill, tip)
 
 
@@ -343,6 +361,20 @@ def head_look(pose: str, p: float, eyes: str, fx, osc: float) -> float:
     if "symbol" in str(fx) or "cast" in fx or "interact" in fx:
         return 0.8                                       # watches its own hand
     return 1.0
+
+
+def _feather_burst(canvas, x, y, p, P, glow):
+    """Feathers fly apart (p<0.5) and gather again (p>0.5): the teleport."""
+    spread = math.sin(min(max(p, 0.0), 1.0) * math.pi)          # 0 -> 1 -> 0
+    for i in range(14):
+        a = i * 2 * math.pi / 14 + p * 4
+        r = 10 + 70 * spread * (0.6 + 0.4 * ((i * 7) % 5) / 4)
+        fx_, fy_ = x + math.cos(a) * r, y + math.sin(a) * r * 0.8
+        _feather(canvas, fx_, fy_, a + math.pi / 2, 14, 5, P["feather"], P["gold_dk"],
+                 P["gold"] if i % 3 else P["gold_hi"])
+    core = 4 + 10 * spread
+    canvas.create_oval(x - core, y - core, x + core, y + core, outline=glow, width=2)
+    _glow_dot(canvas, x, y, 3 + 3 * spread, P["gold"], P["gold_hi"])
 
 
 def _clear_of_head(x, y, ring, hcx, hcy, head_r=24, frame_w=200):
@@ -604,14 +636,25 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
         dy, dx = prm["bob"], 0.0
         mood = mood_of(pose)
     glow = MOOD_COLORS.get(mood, MOOD_COLORS["calm"])
+    if "teleport" in fx and 0.3 <= p <= 0.7:
+        # between places: nothing but a whirl of feathers and the halo's spark
+        _feather_burst(canvas, 100 + dx, 130 + dy, p, P, glow)
+        return
     if "float" in fx:
         dy -= 8 + 2 * osc
     if "seat" in fx or "crouch" in fx:
         dy += 12
     if "flight" in fx:
-        dy -= 8 + 4 * osc
+        dy -= 4 + 3 * osc
     if "sprint" in fx:
         shear += 10
+    if "dash" in fx:
+        shear += 14                                      # leaning hard into the dash
+        dy -= 6
+    if "swoop" in fx:
+        shear += 10
+        dy -= 18 + 6 * osc                               # off the ground, diving in
+    dy = max(dy, -HEADROOM)                              # never lift the halo out of frame
     expr = EXPRESSIONS[expression_of(pose, mood, own is not None)]
     role = ROLE_OF.get(pose)
 
@@ -949,6 +992,26 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
         for i in range(3):
             canvas.create_line(cx - 20 + i * 20, cy + 52, cx - 26 + i * 20, cy + 64, fill=P["gold_dk"], width=1)
 
+    # ---- signature travel effects ---------------------------------------------------------
+    if "dash" in fx:                                    # wings flung wide, a gold wake behind
+        for i in range(6):
+            y = cy - 50 + i * 14
+            ln = 30 + (i % 3) * 14 + 10 * abs(osc)
+            canvas.create_line(cx - 46 - i * 3, y, cx - 46 - i * 3 - ln, y,
+                               fill=glow if i % 2 else P["gold_hi"], width=3 - (i % 2))
+        for i in range(4):
+            fx_, fy_ = cx - 70 - i * 18 - p * 30, cy - 30 + (i % 2) * 26
+            _feather(canvas, fx_, fy_, math.pi * (0.9 + 0.1 * i), 12, 4,
+                     P["feather"], P["gold_dk"], P["gold"])
+    if "swoop" in fx:                                    # diving at you, trailing light
+        for i in range(5):
+            a = -0.5 + i * 0.25
+            canvas.create_arc(cx - 70 - i * 6, cy - 80, cx + 10 - i * 6, cy + 20,
+                              start=150 + i * 6, extent=50, style="arc",
+                              outline=glow if i % 2 else P["gold_hi"], width=2)
+    if "teleport" in fx:
+        _feather_burst(canvas, cx, cy - 20, p, P, glow)
+
     # ---- shared cues: tools, effects, curiosity -----------------------------------------
     if extra == "zzz":
         for i in range(3):
@@ -1011,3 +1074,38 @@ VOICE = {
     "paused": "As you wish. Holding.",
 }
 GREETING = "I am Nyamekra. All paths, one being."
+
+
+# ---- choosing a travel move for a step that crosses the screen ------------------
+TOWARD_USER = ("run_to_user", "to_user", "panic")
+TELEPORT_MIN_DX = 300
+
+
+def travel(step: dict, rng) -> dict:
+    """Swap a moving step's pose for one of Nyamekra's signature travels.
+
+    Distance, direction and timing are kept exactly, so the chain still goes
+    where the Hermes event sent it; only *how* Nyamekra gets there changes.
+    """
+    move = step.get("move")
+    if not move or not move.get("dx"):
+        return step
+    dx = move["dx"]
+    kind = move.get("type", "")
+    pose = step.get("pose", "")
+    far = abs(dx) >= TELEPORT_MIN_DX
+    if any(k in pose for k in TOWARD_USER):
+        name = "swoop"                                   # flies straight at you
+    elif kind in ("fly", "hop", "leap", "pounce", "drift", "zigzag"):
+        name = rng.choice(("soar", "swoop"))
+    elif far and rng.random() < 0.35:
+        name = "feather_teleport"
+    elif kind in ("dash", "run", "sprint") or far:
+        name = "wing_dash"
+    else:
+        return step                                      # short walks stay walks
+    out = dict(step, pose=name + ("_back" if dx < 0 else ""))
+    if name == "feather_teleport":
+        out["move"] = dict(move, easing="teleport")
+        out["duration_ms"] = max(int(step.get("duration_ms", 0)), 900)
+    return out

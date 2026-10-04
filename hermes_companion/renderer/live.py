@@ -168,7 +168,7 @@ class EventTail:
         self.engine = BehaviorEngine(
             seed=seed or None, variety=variety,
             extra_flourishes=self.traits["extra_flourishes"],
-            flourish_hints=self.traits["flourish_hints"])
+            flourish_hints=self.traits["flourish_hints"], travel=self.traits["travel"])
         self.attention = AttentionModel()
         from hermes_companion.core.curiosity import CuriosityModel
         self.sensors = sensors

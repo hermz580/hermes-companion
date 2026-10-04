@@ -167,3 +167,67 @@ def test_live_and_play_engines_use_nyamekra_travel():
         poses += [s["pose"] for s in chain.steps if s.get("move")]
     assert any(p.startswith(("swoop", "wing_dash", "feather_teleport")) for p in poses)
     assert traits("samurai")["travel"] is None
+
+
+class _Surface:
+    def __init__(self):
+        self.x, self.home_x, self.home_y, self.w, self.h = 500, 500, 800, 200, 220
+        self.lifts, self.poses = [], []
+
+    def set_x(self, x):
+        self.x = x
+
+    def lift(self, dy):
+        self.lifts.append(dy)
+
+    def set_y(self, y):
+        self.home_y = y
+
+    def place_at(self, x, y):
+        self.x, self.home_y = x, y
+
+    def set_pose(self, pose, progress):
+        self.poses.append((pose, progress))
+
+    def set_state(self, s):
+        pass
+
+
+def test_flying_travel_arcs_through_the_air_and_lands():
+    from hermes_companion.animation.director import Director, arc_height
+    from hermes_companion.behavior.behavior_engine import BehaviorEngine, Chain
+    from hermes_companion.core.state import State
+    now = [0.0]
+    surf = _Surface()
+    d = Director(BehaviorEngine(seed=1), surf, clock=lambda: now[0])
+    step = {"pose": "soar", "duration_ms": 1000, "move": {"type": "hop", "dx": 300}}
+    d.start_chain(Chain("t", State.WORKING, 3, [step]))
+    for i in range(12):
+        now[0] = i * 0.1
+        d.step(0.1)
+    assert min(surf.lifts) <= -110                      # high in the air mid-flight
+    assert surf.lifts[-1] == 0                          # and back on the ground after
+    assert arc_height({"pose": "feather_teleport_back",
+                       "move": {"dx": 1, "easing": "teleport"}}) == 0
+    assert arc_height({"pose": "work", "move": {"type": "walk", "dx": 50}}) == 0
+
+
+def test_far_window_hops_become_feather_teleports():
+    from hermes_companion.behavior.perch import PerchDriver, PerchMotion
+    surf = _Surface()
+
+    class Dir:
+        chain = None
+        idle_pose = "idle_bob"
+        idle_progress = None
+        _x = 500
+        _returning = False
+    drv = PerchDriver(surf, Dir(), None, poses={"hop": "soar", "drop": "landing",
+                                                "teleport": "feather_teleport"})
+    m = PerchMotion(500, 800, 1600, 200, 0.0, "teleport")
+    assert m.at(0.2)[:2] == (500, 800) and m.at(0.6)[:2] == (1600, 200)
+    assert drv._pose_for(m) == "feather_teleport"
+    assert drv._pose_for(PerchMotion(900, 800, 300, 400, 0.0, "hop")) == "soar_back"
+    assert drv._pose_for(PerchMotion(300, 300, 300, 800, 0.0, "drop")) == "landing"
+    plain = PerchDriver(surf, Dir(), None)
+    assert plain._pose_for(PerchMotion(0, 0, 10, 0, 0.0, "hop")) == "leap"

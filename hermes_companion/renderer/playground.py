@@ -82,7 +82,8 @@ class PlaygroundBrain:
     def bind(self, director) -> None:
         self.director = director
         if self.want_perch and self.sensors is not None and hasattr(self.surface, "set_y"):
-            self.perch = PerchDriver(self.surface, director, self.sensors, log=self.log)
+            self.perch = PerchDriver(self.surface, director, self.sensors, log=self.log,
+                                     poses=self.traits["perch_poses"])
 
     def _hermes(self, now: float) -> None:
         if not self.demo:

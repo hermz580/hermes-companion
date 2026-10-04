@@ -238,7 +238,16 @@ class TkOverlay:
         # Spec §14: clamp to monitor work area so the pet never travels
         # off-screen (dash from a right-anchored home can exceed screen width).
         self.x, self.home_y = self._clamp(int(x), self.home_y)
-        self._place(self.x, self.home_y)
+        self._place(self.x, self.home_y + getattr(self, "_lift", 0))
+
+    def lift(self, dy: int) -> None:
+        """Rise (negative) or sink above the anchor without moving the anchor."""
+        lift = int(dy)
+        top = getattr(self, "_home_rect", None)
+        if top is not None:
+            lift = max(lift, top[1] - self.home_y)        # never above the screen
+        self._lift = lift
+        self._place(self.x, self.home_y + lift)
 
     def current_x(self) -> int:
         return self.x

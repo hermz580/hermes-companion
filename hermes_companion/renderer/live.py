@@ -508,7 +508,8 @@ class EventTail:
         from hermes_companion.renderer.playground import reaction_chain
         if self._want_perch and self.perch is None and hasattr(self.overlay, "set_y"):
             from hermes_companion.behavior.perch import PerchDriver
-            self.perch = PerchDriver(self.overlay, director, self.sensors)
+            self.perch = PerchDriver(self.overlay, director, self.sensors,
+                                     poses=self.traits["perch_poses"])
         try:
             observations = self.sensors.sample()
         except Exception:

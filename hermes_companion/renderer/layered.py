@@ -122,8 +122,9 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
         self.renderer = FrameRenderer(companion, palette, glow=glow, scale=scale,
                                       reduced_motion=reduced_motion,
                                       high_contrast=high_contrast, artpack=artpack)
-        self.w, self.h = int(FRAME_W * scale), int(FRAME_H * scale)
-        if scale != 1.0:
+        self.w = int(self.renderer.fw * scale)
+        self.h = int(self.renderer.fh * scale)
+        if (self.w, self.h) != (FRAME_W, FRAME_H):
             # keep the feet on the same floor line when the frame grows/shrinks
             self.home_y += FRAME_H - self.h
             self.canvas.configure(width=self.w, height=self.h)

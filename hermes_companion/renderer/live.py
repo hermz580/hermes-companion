@@ -351,6 +351,8 @@ class EventTail:
         signal = self.attention.ingest(ev)
         if hasattr(self.overlay, "set_attention"):
             self.overlay.set_attention(signal.state, signal.label)
+        if self.traits.get("observe"):
+            self.traits["observe"](ev)          # Masque: cracks, colour, tendrils, eyes
         self.stuck.ingest(
             kind=kind.value, tool=tool, category=category,
             session=ev.session_id, task=ev.task_id,

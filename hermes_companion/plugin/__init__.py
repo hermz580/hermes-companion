@@ -229,10 +229,15 @@ def on_pre_approval_request(*, command: str = "", description: str = "",
     try:
         from hermes_companion.core.events import EventKind, SemanticEvent
         engine = _get_engine()
-        ev = SemanticEvent(kind=EventKind.APPROVAL_REQUIRED, session_id=session_key)
+        # Hermes asks for approval when a command matched one of its dangerous
+        # patterns; only the fact that one matched crosses, never which or what.
+        danger = bool(pattern_key or pattern_keys)
+        ev = SemanticEvent(kind=EventKind.APPROVAL_REQUIRED, session_id=session_key,
+                           category="dangerous" if danger else "")
         chain = engine.handle(ev)
         _log_event({
             "event": ev.kind.value,
+            "category": ev.category,
             "surface": surface,          # enum only
             "session_key": session_key,
             "state": chain.state.value if chain else engine.state.value,

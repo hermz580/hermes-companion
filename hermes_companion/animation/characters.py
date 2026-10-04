@@ -13,7 +13,8 @@ Adding a companion = one entry here + a draw function that honors
 """
 from __future__ import annotations
 
-from hermes_companion.animation import animator, astro_boy, herald, nia, nyamekra, samurai
+from hermes_companion.animation import (animator, astro_boy, herald, masque, nia, nyamekra,
+                                        samurai)
 
 # name -> (draw_fn, default_palette, palette_names, description)
 COMPANIONS: dict[str, dict] = {
@@ -73,6 +74,24 @@ COMPANIONS: dict[str, dict] = {
                 f"{len(nyamekra.NYAMEKRA_MOVES)} own moves channelling the ten "
                 "Symbols of Essence",
     },
+    "masque": {
+        "draw": masque.draw_masque,
+        "palettes": list(masque.PALETTES.keys()),
+        "default": masque.DEFAULT_PALETTE,
+        "frame": masque.FRAME,
+        "state_key": masque.state_key,
+        "observe": masque.observe,
+        "extra_flourishes": masque.masque_flourishes(),
+        "flourish_hints": masque.flourish_hints(),
+        "curious_moves": masque.CURIOUS_MOVES,
+        "voice": masque.VOICE,
+        "greeting": masque.GREETING,
+        "travel": masque.travel,
+        "perch_poses": {"hop": "hover", "drop": "hover", "teleport": "crack_portal"},
+        "desc": "the many behind the mask · thorn halo · hair-like tendrils full of eyes · "
+                "porcelain mask with 7 faces that cracks with failures · colour, form, "
+                "tendrils and eyes driven by live Hermes work · eerie | cute | monster",
+    },
 }
 
 DEFAULT_COMPANION = "astro"
@@ -84,7 +103,7 @@ def list_companions() -> list[str]:
 
 def has_pose(pose: str) -> bool:
     """True when some companion draws this pose as its own move."""
-    return pose in nyamekra.NYAMEKRA_MOVES
+    return pose in nyamekra.NYAMEKRA_MOVES or pose in masque.MASQUE_MOVES
 
 
 def get_companion(name: str | None) -> dict:
@@ -112,7 +131,8 @@ def traits(name: str | None) -> dict:
             "voice": dict(spec.get("voice", {})),
             "greeting": spec.get("greeting"),
             "travel": spec.get("travel"),
-            "perch_poses": dict(spec.get("perch_poses", {}))}
+            "perch_poses": dict(spec.get("perch_poses", {})),
+            "observe": spec.get("observe")}
 
 
 def draw_companion(canvas, companion: str | None, pose: str,

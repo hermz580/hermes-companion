@@ -139,6 +139,38 @@ violet = delegating, rose = failure, amber = needs you, gold = success,
 cyan = curious, lavender = resting. "!" means it noticed something you did,
 and "?" means it's wondering about it.
 
+### Masque, the many behind the mask
+
+```
+hermes-companion play --companion masque                    # eerie (default)
+hermes-companion play --companion masque --palette cute     # softer, fewer eyes
+hermes-companion play --companion masque --palette monster  # every eye open, full grin
+```
+
+![Masque: every look is a real Hermes signal](docs/masque.png)
+
+A vast, many-eyed form of hair-like tendrils under a thorn halo, holding a
+porcelain mask in front of herself. The mask is what Hermes shows you; the
+body is the work you don't see. Every part of her is driven by real Hermes
+signals, not only her moves:
+
+| Hermes signal | Masque shows |
+|---|---|
+| tools running at once | one tendril reaching up per tool, holding its glyph |
+| kind of work | tendril sheen and aura: terminal green, web blue, files amber, memory violet, browser cyan, helpers magenta, approval gold, failure red |
+| kind of work | her form: typist (floating keys), lantern (web), library (book), scribe (runes), vault (swallows an orb), cathedral crawler (browser) |
+| thinking (`pre_llm_call`) | eyes open all over her body, sigils circle the mask |
+| a tool failed | sad mask with a tear, red petals fall, and a crack - up to broken, with an eye showing through. Three successes in a row heal one crack |
+| approval needed | a questioning mask and a gold "?" - an evil mask when Hermes flagged the command as dangerous |
+| helpers started | small masked copies bud off, one per helper |
+| a burst of parallel work | the scary mask |
+| long tools (heartbeat) | her body pulses; it grows with the session's work |
+| idle / asleep | cute mask / blank mask |
+
+She travels by ink-slide, slips through a crack in the world to arrive
+somewhere else, lunges toward you when Hermes needs you, and hovers onto
+your windows. CI drives a real Hermes session through her too.
+
 ## Quickstart
 
 ```bash

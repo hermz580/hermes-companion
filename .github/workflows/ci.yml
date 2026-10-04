@@ -62,3 +62,5 @@ jobs:
           echo "$out" | grep -q "PLAY OK" && echo "$out" | grep -q "render=windowed"
       - name: Live end-to-end (real Hermes plugin hooks -> live Nyamekra)
         run: xvfb-run -a python -m hermes_companion.scripts.live_e2e nyamekra
+      - name: Live end-to-end (real Hermes plugin hooks -> live Masque)
+        run: xvfb-run -a python -m hermes_companion.scripts.live_e2e masque

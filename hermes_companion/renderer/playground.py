@@ -98,6 +98,8 @@ class PlaygroundBrain:
             self._next += 1
             ev = SemanticEvent(EventKind(kind), tool=tool, category=classify_tool(tool))
             signal = self.attention.ingest(ev)
+            if self.traits.get("observe"):
+                self.traits["observe"](ev)
             if hasattr(self.surface, "set_attention"):
                 self.surface.set_attention(signal.state, signal.label)
             chain = self.engine.handle(ev)

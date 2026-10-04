@@ -1,0 +1,840 @@
+"""Masque - the many behind the mask (Shegoth variant).
+
+A vast, many-eyed form of hair-like tendrils, crowned with a thorn halo,
+holding a porcelain mask in front of herself with delicate hands. The mask
+is what Hermes shows you; the body is the work you don't see. Every part of
+her is driven by real Hermes signals, not just her moves:
+
+* mask face (7 expressions)     <- what the event means (work, failure, approval...)
+* cracks on the mask            <- failures this session, healed by a success streak
+* tendrils reaching up          <- tools running at once, each holding its tool glyph
+* colour of tendrils + aura     <- the kind of work (terminal green, web blue, ...)
+* eyes opening across the body  <- Hermes thinking (pre_llm_call)
+* body form                     <- typist, lantern, library, scribe, vault,
+                                   cathedral crawler, split selves, leaning close
+* body size and pulse           <- how much work this session has done, heartbeats
+* small masked copies           <- helpers (subagents) running
+
+Layers, back to front (from the sheet): thorn halo, colour aura, hair-like
+tendrils and body, eyes in the dark, roses and jewels, form props, tool
+tendrils, hands, the mask (always on top of the body), front effects.
+
+Spook level is the palette: ``eerie`` (default, lace), ``cute`` (soft, few
+eyes, no teeth) or ``monster`` (many eyes, full grin).
+"""
+from __future__ import annotations
+
+import math
+import random
+import time
+from dataclasses import dataclass, field
+
+FRAME = (320, 300)
+CX, FLOOR = 160, 292
+
+INK = "#0b0910"
+INK_HI = "#2a2235"
+PORCELAIN = "#f4efe9"
+PORCELAIN_SH = "#d9d0c8"
+GOLD = "#d4a54a"
+GOLD_HI = "#f3d48a"
+GOLD_DK = "#8a6526"
+ROSE = "#7a0f24"
+ROSE_HI = "#b3243d"
+EYE_IRIS = "#e8b04a"
+
+# Colour by tool category (from the sheet's legend).
+CATEGORY_COLOUR = {
+    "terminal": "#39ff7a", "development": "#39ff7a", "web": "#3aa0ff",
+    "file": "#ffb547", "learning": "#ffb547", "planning": "#ffb547",
+    "memory": "#b066ff", "browser": "#2ee6e6", "delegation": "#ff4fd8",
+    "media": "#ffb547", "design": "#ffb547", "general": "#9b7bd6",
+    "failure": "#ff3b3b", "approval": "#ffd34d",
+}
+
+# Which tool glyph a tendril holds for each category.
+CATEGORY_GLYPH = {
+    "terminal": "terminal", "development": "terminal", "web": "globe",
+    "browser": "window", "file": "page", "learning": "page", "planning": "page",
+    "media": "page", "design": "page", "memory": "orb", "delegation": "people",
+    "general": "spark",
+}
+
+# Body form for each kind of work.
+CATEGORY_FORM = {
+    "terminal": "typist", "development": "typist", "web": "lantern",
+    "browser": "crawler", "file": "library", "learning": "library",
+    "planning": "scribe", "media": "scribe", "design": "scribe",
+    "memory": "vault", "delegation": "split", "general": None,
+}
+FORM_OF_POSE = {
+    "terminal_work": "typist", "dev_merge": "typist", "web_scan": "lantern",
+    "read": "library", "file_organize": "library", "media_paint": "scribe",
+    "design_draft": "scribe", "memory_vault": "vault", "open_portal": "split",
+    "channel": "split", "orb_exits": "split", "orb_returns": "split",
+    "run_to_user": "lean", "wait": "lean", "attention": "lean", "panic": "lean",
+}
+
+EXPRESSIONS = ("cute", "sad", "confused", "focused", "scary", "evil", "blank")
+
+PALETTES = {
+    #          eyes  teeth  tendrils  lace
+    "eerie":   (1.0, True, 14, True),
+    "cute":    (0.4, False, 10, True),
+    "monster": (1.8, True, 18, False),
+}
+DEFAULT_PALETTE = "eerie"
+
+
+# ---------------------------------------------------------------------------
+# Live state: what Hermes is doing right now (content-free counts only)
+# ---------------------------------------------------------------------------
+@dataclass
+class MasqueState:
+    category: str = "general"
+    cracks: int = 0            # failures not yet healed
+    streak: int = 0            # successes in a row (3 heal one crack)
+    work: int = 0              # tool runs this session -> body size
+    running: int = 0           # tools in flight -> tendrils up
+    helpers: int = 0           # subagents in flight -> small masked copies
+    danger: bool = False       # a destructive command is waiting for approval
+    think_until: float = 0.0
+    beat_until: float = 0.0
+    clock: object = field(default=time.monotonic, repr=False)
+
+    def observe(self, ev) -> None:
+        kind = getattr(ev.kind, "value", str(ev.kind))
+        now = self.clock()
+        cat = ev.category or "general"
+        if kind == "agent.started":
+            self.work, self.running, self.helpers = 0, 0, 0
+        elif kind == "user.prompt_submitted":
+            self.think_until = now + 3.0
+        elif kind == "tool.started":
+            self.running = min(self.running + 1, 6)
+            self.work += 1
+            self.category = cat
+        elif kind == "tool.progress":
+            self.beat_until = now + 1.5
+            self.category = cat
+        elif kind == "tool.finished":
+            self.running = max(0, self.running - 1)
+            self.streak += 1
+            if self.streak >= 3 and self.cracks:
+                self.cracks -= 1
+                self.streak = 0
+        elif kind == "tool.failed":
+            self.running = max(0, self.running - 1)
+            self.cracks = min(self.cracks + 1, 3)
+            self.streak = 0
+            self.category = "failure"
+        elif kind == "approval.required":
+            self.category = "approval"
+            self.danger = cat == "dangerous"
+        elif kind in ("approval.approved", "approval.rejected"):
+            self.danger = False
+            self.category = "general"
+        elif kind == "agent.subagent_spawned":
+            self.helpers = min(self.helpers + 1, 4)
+            self.category = "delegation"
+        elif kind in ("agent.subagent_finished", "agent.subagent_failed"):
+            self.helpers = max(0, self.helpers - 1)
+            if kind.endswith("failed"):
+                self.cracks = min(self.cracks + 1, 3)
+        elif kind in ("agent.idle", "task.complete"):
+            self.running, self.helpers, self.danger = 0, 0, False
+            self.category = "general"
+
+    @property
+    def thinking(self) -> bool:
+        return self.clock() < self.think_until
+
+    @property
+    def pulsing(self) -> bool:
+        return self.clock() < self.beat_until
+
+    def key(self) -> tuple:
+        size = min(4, self.work // 6)
+        return (self.category, self.cracks, size, self.running, self.helpers,
+                self.danger, self.thinking, self.pulsing)
+
+
+STATE = MasqueState()
+
+
+def observe(ev) -> None:
+    STATE.observe(ev)
+
+
+def state_key() -> tuple:
+    return STATE.key()
+
+
+# ---------------------------------------------------------------------------
+# Her own moves: name -> (grammar mood, fx set)
+# ---------------------------------------------------------------------------
+MASQUE_MOVES: dict[str, tuple[str, frozenset]] = {
+    # bright
+    "tendril_bloom": ("bright", frozenset({"bloom", "mask:cute"})),
+    "rose_bloom": ("bright", frozenset({"roses", "mask:cute"})),
+    "mask_twirl": ("bright", frozenset({"swap", "mask:cute"})),
+    "halo_flare": ("bright", frozenset({"halo", "mask:cute"})),
+    "eye_bloom": ("bright", frozenset({"alleyes", "mask:cute"})),
+    "spin_veil": ("bright", frozenset({"spin", "mask:cute"})),
+    # calm
+    "veil_sway": ("calm", frozenset({"sway"})),
+    "coil_rest": ("calm", frozenset({"coil"})),
+    "mask_peek": ("calm", frozenset({"slip"})),
+    "cradle_mask": ("calm", frozenset({"cradle", "mask:cute"})),
+    "lantern_drift": ("calm", frozenset({"lantern"})),
+    # focused
+    "eyes_scan": ("focused", frozenset({"scan", "mask:focused"})),
+    "tendril_type": ("focused", frozenset({"type", "mask:focused"})),
+    "glyph_orbit": ("focused", frozenset({"glyphs", "mask:focused"})),
+    "reach_out": ("focused", frozenset({"reach", "mask:focused"})),
+    "weave_sigil": ("focused", frozenset({"sigil", "mask:focused"})),
+    # uneasy
+    "mask_slip": ("uneasy", frozenset({"slip", "mask:sad"})),
+    "tendrils_recoil": ("uneasy", frozenset({"recoil", "mask:confused"})),
+    "petals_fall": ("uneasy", frozenset({"petals", "mask:sad"})),
+    "shrink_back": ("uneasy", frozenset({"shrink", "mask:confused"})),
+    "mask_swap_scary": ("uneasy", frozenset({"swap", "mask:scary"})),
+}
+TRAVEL_MOVES = {
+    "ink_slide": ("bright", frozenset({"slide", "mask:focused"})),
+    "crack_portal": ("bright", frozenset({"portal"})),
+    "lunge": ("bright", frozenset({"lunge", "mask:cute"})),
+    "hover": ("calm", frozenset({"hover"})),
+}
+for _n, _s in list(TRAVEL_MOVES.items()):
+    TRAVEL_MOVES[_n + "_back"] = _s
+MASQUE_MOVES.update(TRAVEL_MOVES)
+FACE_LEFT = frozenset(n for n in TRAVEL_MOVES if n.endswith("_back")) | \
+    {"run_to_user", "return_home", "panic", "orb_returns"}
+
+
+def masque_flourishes() -> dict[str, tuple[str, ...]]:
+    out: dict[str, list[str]] = {}
+    for name, (mood, _fx) in MASQUE_MOVES.items():
+        if name not in TRAVEL_MOVES:
+            out.setdefault(mood, []).append(name)
+    return {k: tuple(v) for k, v in out.items()}
+
+
+CATEGORY_HINTS = {
+    "terminal": ("tendril_type", "glyph_orbit"), "development": ("tendril_type", "glyph_orbit"),
+    "web": ("lantern_drift", "eyes_scan", "reach_out"), "browser": ("reach_out", "eyes_scan"),
+    "file": ("weave_sigil", "glyph_orbit"), "memory": ("eye_bloom", "halo_flare"),
+    "delegation": ("tendril_bloom", "glyph_orbit"), "general": ("veil_sway", "rose_bloom"),
+}
+
+
+def flourish_hints() -> dict[str, tuple[str, ...]]:
+    return dict(CATEGORY_HINTS)
+
+
+CURIOUS_MOVES = ("mask_peek", "eyes_scan", "reach_out", "eye_bloom", "veil_sway")
+VOICE = {
+    "starting": "So many hands. Let's begin.",
+    "reviewing": "A thousand eyes are reading…",
+    "needs-you": "Your word, before I reach further.",
+    "issue": "That one cracked. Still smiling.",
+    "complete": "Done. The mask never lies about that.",
+    "paused": "Holding still. Watching.",
+}
+GREETING = "I am Masque. The face you see; the many behind it."
+
+
+# ---------------------------------------------------------------------------
+# Drawing helpers
+# ---------------------------------------------------------------------------
+def _mix(a: str, b: str, t: float) -> str:
+    a_, b_ = int(a[1:], 16), int(b[1:], 16)
+    out = 0
+    for sh in (16, 8, 0):
+        ca, cb = (a_ >> sh) & 255, (b_ >> sh) & 255
+        out |= int(ca + (cb - ca) * t) << sh
+    return f"#{out:06x}"
+
+
+def _strand(canvas, pts, w0, w1, fill, sheen=None):
+    """A tapered tendril along pts (thick at the root, fine at the tip)."""
+    n = len(pts) - 1
+    for i in range(n):
+        w = w0 + (w1 - w0) * i / max(1, n - 1)
+        canvas.create_line(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1],
+                           fill=fill, width=max(1.0, w), capstyle="round")
+    if sheen:
+        flat = [c for p in pts[1:-1] for c in p]
+        if len(flat) >= 4:
+            canvas.create_line(*flat, fill=sheen, width=1.2, smooth=True)
+
+
+def _curve(x, y, ang, length, curl, phase, segs=9):
+    pts = [(x, y)]
+    a = ang
+    step = length / segs
+    for i in range(segs):
+        a += curl * (0.6 + 0.4 * math.sin(phase + i * 0.7)) / segs
+        x += math.cos(a) * step
+        y += math.sin(a) * step
+        pts.append((x, y))
+    return pts
+
+
+def _eye(canvas, x, y, r, openness, iris=EYE_IRIS, look=(0.0, 0.0)):
+    if openness <= 0.08:
+        canvas.create_line(x - r, y, x + r, y, fill=INK_HI, width=1.2)
+        return
+    h = r * 0.62 * openness
+    canvas.create_polygon(x - r, y, x - r * 0.4, y - h, x + r * 0.4, y - h, x + r, y,
+                          x + r * 0.4, y + h, x - r * 0.4, y + h,
+                          fill="#f0e6d2", outline=GOLD_DK, smooth=True)
+    ir = min(r * 0.5, h * 0.95)
+    ix, iy = x + look[0] * r * 0.35, y + look[1] * h * 0.3
+    canvas.create_oval(ix - ir, iy - ir, ix + ir, iy + ir, fill=iris, outline="")
+    canvas.create_oval(ix - ir * 0.45, iy - ir * 0.45, ix + ir * 0.45, iy + ir * 0.45,
+                       fill="#140b06", outline="")
+    canvas.create_oval(ix - ir * 0.6, iy - ir * 0.75, ix - ir * 0.2, iy - ir * 0.35,
+                       fill="white", outline="")
+
+
+def _rose(canvas, x, y, r, bloom=1.0):
+    canvas.create_oval(x - r, y - r, x + r, y + r, fill=ROSE, outline="#3a0610")
+    for i in range(5):
+        a = i * 1.2566
+        rr = r * 0.55 * bloom
+        canvas.create_arc(x + math.cos(a) * rr * 0.5 - rr, y + math.sin(a) * rr * 0.5 - rr,
+                          x + math.cos(a) * rr * 0.5 + rr, y + math.sin(a) * rr * 0.5 + rr,
+                          start=math.degrees(a), extent=150, style="arc",
+                          outline=ROSE_HI, width=1.2)
+    canvas.create_oval(x - r * 0.25, y - r * 0.25, x + r * 0.25, y + r * 0.25,
+                       fill="#4d0815", outline="")
+
+
+def glyph(canvas, kind, x, y, s, colour):
+    """The tool a tendril holds, in a small glowing frame."""
+    canvas.create_rectangle(x - s, y - s, x + s, y + s, fill="#07130c" if kind == "terminal"
+                            else "#0a0d18", outline=colour, width=2)
+    if kind == "terminal":
+        canvas.create_line(x - s * 0.6, y - s * 0.3, x - s * 0.15, y, x - s * 0.6, y + s * 0.3,
+                           fill=colour, width=2)
+        canvas.create_line(x, y + s * 0.35, x + s * 0.55, y + s * 0.35, fill=colour, width=2)
+    elif kind == "globe":
+        canvas.create_oval(x - s * 0.7, y - s * 0.7, x + s * 0.7, y + s * 0.7, outline=colour, width=2)
+        canvas.create_oval(x - s * 0.3, y - s * 0.7, x + s * 0.3, y + s * 0.7, outline=colour, width=1)
+        canvas.create_line(x - s * 0.7, y, x + s * 0.7, y, fill=colour, width=1)
+    elif kind == "page":
+        canvas.create_rectangle(x - s * 0.5, y - s * 0.7, x + s * 0.5, y + s * 0.7, outline=colour, width=2)
+        for i in range(3):
+            canvas.create_line(x - s * 0.3, y - s * 0.3 + i * s * 0.3, x + s * 0.3,
+                               y - s * 0.3 + i * s * 0.3, fill=colour, width=1)
+    elif kind == "orb":
+        canvas.create_oval(x - s * 0.7, y - s * 0.7, x + s * 0.7, y + s * 0.7, outline=colour, width=2)
+        canvas.create_oval(x - s * 0.3, y - s * 0.3, x + s * 0.3, y + s * 0.3, fill=colour, outline="")
+    elif kind == "window":
+        canvas.create_rectangle(x - s * 0.7, y - s * 0.55, x + s * 0.7, y + s * 0.55, outline=colour, width=2)
+        canvas.create_line(x - s * 0.7, y - s * 0.25, x + s * 0.7, y - s * 0.25, fill=colour, width=1)
+    elif kind == "people":
+        for dx in (-0.3, 0.3):
+            canvas.create_oval(x + s * dx - s * 0.2, y - s * 0.5, x + s * dx + s * 0.2, y - s * 0.1,
+                               outline=colour, width=2)
+            canvas.create_arc(x + s * dx - s * 0.32, y - s * 0.05, x + s * dx + s * 0.32, y + s * 0.6,
+                              start=0, extent=180, style="arc", outline=colour, width=2)
+    elif kind == "warning":
+        canvas.create_polygon(x, y - s * 0.7, x + s * 0.7, y + s * 0.55, x - s * 0.7, y + s * 0.55,
+                              fill="", outline=colour)
+        canvas.create_line(x, y - s * 0.25, x, y + s * 0.15, fill=colour, width=2)
+    else:                                                          # spark
+        for i in range(4):
+            a = i * math.pi / 4
+            canvas.create_line(x - math.cos(a) * s * 0.7, y - math.sin(a) * s * 0.7,
+                               x + math.cos(a) * s * 0.7, y + math.sin(a) * s * 0.7,
+                               fill=colour, width=2)
+
+
+# ---------------------------------------------------------------------------
+# The mask: 7 faces, cracks, slipping
+# ---------------------------------------------------------------------------
+def _mask_outline(x, y, w, h):
+    pts = []
+    for i in range(24):
+        a = i / 24 * 2 * math.pi
+        # an egg: wider brow, narrow chin
+        rx = w * (1.0 - 0.18 * max(0.0, math.sin(a)))
+        pts += [x + math.cos(a) * rx, y + math.sin(a) * h]
+    return pts
+
+
+def draw_mask(canvas, x, y, w, h, face, cracks=0, tilt=0.0, teeth=True, lace=True, p=0.0):
+    """The porcelain mask. (x, y) is its centre; w/h half-sizes."""
+    sx = math.sin(tilt) * w * 0.25                      # slip/turn shifts the features
+    canvas.create_polygon(*_mask_outline(x + 2, y + 3, w, h), fill="#1a1520", outline="",
+                          smooth=True)
+    canvas.create_polygon(*_mask_outline(x, y, w, h), fill=PORCELAIN, outline=GOLD_DK, smooth=True)
+    canvas.create_polygon(*_mask_outline(x + w * 0.12, y + h * 0.05, w * 0.82, h * 0.9),
+                          fill="#fbf8f4", outline="", smooth=True)
+    # gold filigree on the brow, a gem at the centre
+    for k in (-1, 1):
+        canvas.create_arc(x + k * w * 0.35 - w * 0.35, y - h * 0.95, x + k * w * 0.35 + w * 0.35,
+                          y - h * 0.35, start=200 if k < 0 else -40, extent=120, style="arc",
+                          outline=GOLD, width=1.5)
+        canvas.create_arc(x + k * w * 0.55 - w * 0.2, y - h * 0.75, x + k * w * 0.55 + w * 0.2,
+                          y - h * 0.35, start=90, extent=180 * k, style="arc", outline=GOLD, width=1)
+    canvas.create_polygon(x, y - h * 0.82, x + 4, y - h * 0.72, x, y - h * 0.62, x - 4, y - h * 0.72,
+                          fill=GOLD_HI, outline=GOLD_DK)
+    if lace:
+        for i in range(7):
+            a = math.pi * (0.15 + 0.7 * i / 6)
+            canvas.create_oval(x - math.cos(a) * w * 0.95 - 1.2, y + math.sin(a) * h * 0.98 - 1.2,
+                               x - math.cos(a) * w * 0.95 + 1.2, y + math.sin(a) * h * 0.98 + 1.2,
+                               fill=GOLD, outline="")
+
+    ex, ey, er = w * 0.38, y - h * 0.08, w * 0.24          # eye spacing / height / size
+    mx, my = x + sx, y + h * 0.42                           # mouth centre
+    L, R = (x - ex + sx, ey), (x + ex + sx, ey)
+
+    def lids(shape):
+        for (cx, cy), k in ((L, -1), (R, 1)):
+            if shape == "smile":                            # ^ ^
+                canvas.create_arc(cx - er, cy - er * 0.4, cx + er, cy + er * 1.2, start=20, extent=140,
+                                  style="arc", outline=INK, width=2.5)
+                canvas.create_line(cx + k * er * 0.95, cy, cx + k * er * 1.25, cy - er * 0.25,
+                                   fill=INK, width=1.2)
+            elif shape == "sad":
+                canvas.create_arc(cx - er, cy - er * 0.2, cx + er, cy + er * 0.9, start=200, extent=140,
+                                  style="arc", outline=INK, width=2.5)
+                canvas.create_line(cx - k * er * 0.9, cy - er * 0.9, cx + k * er * 0.6, cy - er * 0.55,
+                                   fill=INK_HI, width=1.5)
+            elif shape == "almond":
+                canvas.create_polygon(cx - er, cy, cx - er * 0.3, cy - er * 0.45, cx + er * 0.5, cy - er * 0.35,
+                                      cx + er, cy + er * 0.05, cx + er * 0.2, cy + er * 0.4, cx - er * 0.5, cy + er * 0.35,
+                                      fill="#0d0a10", outline=GOLD_DK, smooth=True)
+            elif shape == "slit":
+                canvas.create_polygon(cx - er * 1.1, cy - k * 0 - er * 0.1 * (-k), cx + er, cy - er * 0.5 * k * (-1),
+                                      cx + er * 0.6, cy + er * 0.2, cx - er * 0.8, cy + er * 0.15,
+                                      fill="#0d0a10", outline="", smooth=True)
+            elif shape == "hollow":
+                canvas.create_oval(cx - er * 0.9, cy - er * 0.7, cx + er * 0.9, cy + er * 0.8,
+                                   fill="#050307", outline="")
+                for j in range(2):                          # dripping ink
+                    dx = cx - er * 0.4 + j * er * 0.8
+                    canvas.create_line(dx, cy + er * 0.6, dx, cy + er * (1.6 + 0.6 * j + 0.3 * math.sin(p * 6)),
+                                       fill="#050307", width=2, capstyle="round")
+
+    if face == "cute":
+        lids("smile")
+        for c in (L, R):
+            canvas.create_oval(c[0] - er * 0.7, c[1] + er * 0.9, c[0] + er * 0.7, c[1] + er * 1.5,
+                               fill="#f4b3b8", outline="")
+        canvas.create_arc(mx - w * 0.3, my - h * 0.28, mx + w * 0.3, my + h * 0.12, start=200, extent=140,
+                          style="arc", outline=INK, width=2.5)
+    elif face == "sad":
+        lids("sad")
+        canvas.create_line(L[0] + er * 0.4, L[1] + er * 0.5, L[0] + er * 0.4, L[1] + er * 1.6,
+                           fill="#9fc5e8", width=2, capstyle="round")      # a tear
+        canvas.create_arc(mx - w * 0.22, my - h * 0.02, mx + w * 0.22, my + h * 0.22, start=20, extent=140,
+                          style="arc", outline=INK, width=2)
+    elif face == "confused":
+        lids("almond")
+        canvas.create_line(L[0] - er, L[1] - er * 0.9, L[0] + er, L[1] - er * 1.2, fill=INK_HI, width=1.8)
+        canvas.create_line(R[0] - er, R[1] - er * 0.7, R[0] + er, R[1] - er * 0.5, fill=INK_HI, width=1.8)
+        canvas.create_line(mx - w * 0.18, my + h * 0.06, mx, my, mx + w * 0.18, my + h * 0.08,
+                           fill=INK, width=2, smooth=True)
+    elif face == "focused":
+        lids("almond")
+        for c, k in ((L, 1), (R, -1)):
+            canvas.create_line(c[0] - er * 1.1, c[1] - er * 0.6 - k * er * 0.1, c[0] + er * 1.1,
+                               c[1] - er * 0.6 + k * er * 0.25, fill=INK_HI, width=1.8)
+        canvas.create_line(mx - w * 0.14, my + h * 0.04, mx + w * 0.14, my + h * 0.04, fill=INK, width=2)
+    elif face == "scary":
+        lids("hollow")
+        canvas.create_arc(mx - w * 0.4, my - h * 0.32, mx + w * 0.4, my + h * 0.2, start=195, extent=150,
+                          style="chord", fill="#050307", outline="")
+        if teeth:
+            for i in range(7):
+                tx = mx - w * 0.3 + i * w * 0.1
+                canvas.create_polygon(tx - 3, my - h * 0.02, tx + 3, my - h * 0.02, tx, my + h * 0.1,
+                                      fill=PORCELAIN, outline="")
+    elif face == "evil":
+        lids("slit")
+        for c in (L, R):
+            canvas.create_oval(c[0] - 2.2, c[1] - 1.5, c[0] + 2.2, c[1] + 2.5, fill="#ff2a2a", outline="")
+        canvas.create_polygon(mx - w * 0.45, my - h * 0.15, mx, my + h * 0.05, mx + w * 0.45, my - h * 0.15,
+                              mx + w * 0.3, my + h * 0.12, mx, my + h * 0.2, mx - w * 0.3, my + h * 0.12,
+                              fill="#050307", outline="", smooth=True)
+        if teeth:
+            for i in range(9):
+                tx = mx - w * 0.36 + i * w * 0.09
+                ty = my - h * 0.08 + abs(i - 4) * -h * 0.012
+                canvas.create_polygon(tx - 2.5, ty, tx + 2.5, ty, tx, ty + h * 0.11, fill=PORCELAIN, outline="")
+    # blank: no features at all
+
+    # damage: crack -> worse -> broken
+    if cracks >= 1:
+        canvas.create_line(x + w * 0.15, y - h, x + w * 0.05, y - h * 0.6, x + w * 0.25, y - h * 0.35,
+                           x + w * 0.1, y, fill="#3a2f2a", width=1.5)
+    if cracks >= 2:
+        canvas.create_line(x - w * 0.8, y + h * 0.2, x - w * 0.45, y + h * 0.1, x - w * 0.3, y + h * 0.45,
+                           x - w * 0.05, y + h * 0.6, fill="#3a2f2a", width=1.5)
+        canvas.create_line(x + w * 0.25, y - h * 0.35, x + w * 0.6, y - h * 0.2, fill="#3a2f2a", width=1.2)
+    if cracks >= 3:                                            # a piece is missing
+        canvas.create_polygon(x + w * 0.1, y - h * 0.55, x + w * 0.62, y - h * 0.45, x + w * 0.5, y + h * 0.05,
+                              x + w * 0.12, y - h * 0.1, fill="#050307", outline="#3a2f2a")
+        _eye(canvas, x + w * 0.35, y - h * 0.25, w * 0.13, 1.0)
+        for j in range(3):
+            dx = x + w * (0.18 + 0.12 * j)
+            canvas.create_line(dx, y - h * 0.05, dx, y + h * (0.2 + 0.12 * j), fill="#050307", width=2,
+                               capstyle="round")
+
+
+# ---------------------------------------------------------------------------
+# The whole creature
+# ---------------------------------------------------------------------------
+# Hand-placed so they sit in the mane like the sheet: framing the mask, down the body.
+_EYE_SPOTS = [(-62, 92, 8), (62, 96, 8), (-50, 175, 9), (52, 180, 9), (0, 205, 10),
+              (-88, 140, 7), (90, 145, 7), (-30, 240, 8), (34, 245, 8), (-72, 60, 6),
+              (74, 62, 6), (-100, 210, 7), (102, 215, 7), (0, 262, 7), (-58, 270, 6),
+              (60, 268, 6), (-110, 105, 6), (112, 110, 6), (-20, 150, 6), (24, 152, 6),
+              (-120, 250, 6), (120, 255, 6), (0, 40, 6), (-36, 30, 5), (38, 32, 5)]
+
+
+def _mane_strand(mcx, mcy, side, t, k, p, i, form, fx):
+    """One hair-like tendril: from the crown out and down in an S-wave, curling at the tip."""
+    a0 = -math.pi / 2 + side * (0.35 + 2.3 * t)              # root angle around the head
+    rx, ry = mcx + math.cos(a0) * 34, mcy - 8 + math.sin(a0) * 46
+    out = side * (30 + 120 * t) * k                           # how far it fans sideways
+    drop = (FLOOR - ry) * (0.75 + 0.25 * ((i * 5) % 7) / 6)
+    if form == "crawler":
+        out, drop = side * (90 + 60 * t) * k, (FLOOR - ry)
+    if "recoil" in fx or "coil" in fx:
+        drop *= 0.55
+    wave = (6 + 10 * t) * (1 if i % 3 else -1)
+    phase = p * 2 * math.pi + i * 0.9
+    pts = []
+    n = 12
+    for j in range(n + 1):
+        s_ = j / n
+        x = rx + out * math.sin(s_ * math.pi * 0.55) + wave * math.sin(s_ * 5 + phase)
+        y = ry + drop * (s_ ** 1.15)
+        pts.append((x, y))
+    tx, ty = pts[-1]                                          # curl the tip
+    for j in range(1, 5):
+        a = j * 1.2 * (1 if side > 0 else -1)
+        rr = 9 - j * 1.6
+        pts.append((tx + side * 6 + math.cos(a + math.pi) * rr * side, ty - 6 + math.sin(a) * rr - j))
+    pts = [(min(max(x, 4), FRAME[0] - 4), min(y, FLOOR)) for x, y in pts]
+    return pts, (12 - 4 * t) * k
+
+
+def expression_for(pose: str, fx, state: MasqueState) -> str:
+    for f in fx:
+        if f.startswith("mask:"):
+            return f[5:]
+    from hermes_companion.animation.herald import mood_of
+    mood = mood_of(pose)
+    if pose in ("sleep",) or mood == "rest":
+        return "blank"
+    if mood == "fail" or state.category == "failure":
+        return "sad"
+    if mood == "approve" or state.category == "approval":
+        return "evil" if state.danger else "confused"
+    if mood in ("work", "delegate"):
+        return "scary" if state.running >= 3 or state.helpers >= 3 else "focused"
+    if mood == "curious":
+        return "confused"
+    return "cute"
+
+
+def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = None) -> None:
+    eyes_k, teeth, n_tendrils, lace = PALETTES.get(palette or DEFAULT_PALETTE, PALETTES[DEFAULT_PALETTE])
+    st = STATE
+    canvas.delete("all")
+    if pose in FACE_LEFT:
+        from hermes_companion.animation.nyamekra import _Mirror
+        canvas = _Mirror(canvas, FRAME[0])
+    p = progress % 1.0
+    osc = math.sin(p * 2 * math.pi)
+    own = MASQUE_MOVES.get(pose)
+    fx = set(own[1]) if own else set()
+    form = FORM_OF_POSE.get(pose)
+    if form is None and own is None and st.running and pose not in ("idle_bob", "sleep"):
+        form = CATEGORY_FORM.get(st.category)
+    if st.helpers and form is None:
+        form = "split"
+    face = expression_for(pose, fx, st)
+    colour = CATEGORY_COLOUR.get(st.category, CATEGORY_COLOUR["general"])
+    if "portal" in fx and 0.3 <= p <= 0.7:              # gone through a crack in the world
+        _portal(canvas, CX, 170, p, colour)
+        return
+
+    size = 1.0 + 0.04 * min(4, st.work // 6) + (0.05 * abs(osc) if st.pulsing else 0.0)
+    if "shrink" in fx or pose == "sleep":
+        size *= 0.85
+    lean = form == "lean" or "lunge" in fx
+    sway = 6 * osc if ("sway" in fx or "slide" in fx or own is None) else 2 * osc
+    hover = -14 - 6 * osc if ("hover" in fx or "float" in fx) else 0
+    mcx = CX + sway * 0.4
+    mcy = 118 + hover + (14 if lean else 0) - (4 * abs(osc) if "bloom" in fx else 0)
+    mw, mh = (38, 50) if not lean else (46, 60)
+
+    # 1. thorn halo
+    hx, hy = CX + sway * 0.2, 70 + hover
+    spin = p * (2 * math.pi if "halo" in fx else 0.6)
+    canvas.create_oval(hx - 62, hy - 62, hx + 62, hy + 62, outline=GOLD_DK, width=2)
+    canvas.create_oval(hx - 54, hy - 54, hx + 54, hy + 54, outline=GOLD, width=1)
+    for i in range(18):
+        a = spin + i * math.pi / 9
+        if math.sin(a) > 0.55:
+            continue                                         # the head hides the lower thorns
+        r0, r1 = 58, 70 + (6 if i % 3 == 0 else 0)
+        canvas.create_polygon(hx + math.cos(a - 0.06) * r0, hy + math.sin(a - 0.06) * r0,
+                              hx + math.cos(a) * r1, hy + math.sin(a) * r1,
+                              hx + math.cos(a + 0.06) * r0, hy + math.sin(a + 0.06) * r0,
+                              fill=GOLD if i % 2 else GOLD_DK, outline="")
+    for k in (-1, 1):                                        # dangling gold charms
+        canvas.create_line(hx + k * 56, hy + 10, hx + k * 58, hy + 40, fill=GOLD_DK, width=1)
+        canvas.create_polygon(hx + k * 58, hy + 40, hx + k * 62, hy + 47, hx + k * 58, hy + 54,
+                              hx + k * 54, hy + 47, fill=GOLD, outline="")
+
+    # 2. the mane: a dark mass of hair-like tendrils pouring to the floor
+    tint = _mix("#3b2a55", colour, 0.55)
+    spread = 1.0 + (0.35 if "bloom" in fx else 0.0) - (0.3 if ("coil" in fx or "recoil" in fx) else 0.0)
+    for k in range(7):                                     # soft volume behind the strands
+        t = k / 6
+        rx = (40 + 70 * t) * size * spread
+        cy_ = mcy - 20 + 150 * t
+        canvas.create_oval(mcx - rx, cy_ - 46, mcx + rx, cy_ + 46, fill=INK, outline="")
+    count = n_tendrils + 2 * st.running
+    strands = []
+    for i in range(count):
+        side = -1 if i % 2 == 0 else 1
+        t = (i // 2) / max(1, (count - 1) // 2)
+        strands.append(_mane_strand(mcx, mcy, side, t, size * spread, p, i, form, fx))
+    for pts, w0 in strands:                                # rim light so strands read as volume
+        _strand(canvas, pts, w0 + 2.4, 4.0, "#3a2d4d")
+    for pts, w0 in strands:                                # then thick ink
+        _strand(canvas, pts, w0, 2.5, INK)
+    for pts, w0 in strands:                                # sheen catches the colour of the work
+        flat = [c for q in pts[1:-2] for c in q]
+        canvas.create_line(*flat, fill=tint, width=1.6, smooth=True)
+        tx, ty = pts[-1]
+        canvas.create_oval(tx - 2.2, ty - 2.2, tx + 2.2, ty + 2.2, fill=tint, outline="")
+
+    # 3. eyes in the dark
+    eye_count = int(9 * eyes_k + (9 if st.thinking or "alleyes" in fx else 0))
+    blink = 0.5 + 0.5 * math.cos(p * 2 * math.pi * 2)
+    for i, (dx, dy, r) in enumerate(_EYE_SPOTS[:min(eye_count, len(_EYE_SPOTS))]):
+        ex, ey = mcx + dx * size * 0.9, dy + hover * 0.5
+        if abs(ex - mcx) < mw + 10 and abs(ey - mcy) < mh + 10:
+            continue                                         # never behind the mask edge
+        opn = (1.0 if st.thinking or "alleyes" in fx else 0.45 + 0.55 * blink) if face != "blank" else 0.0
+        opn *= 0.65 + 0.35 * ((i * 7) % 5) / 4
+        look = (osc, 0.0) if "scan" in fx else (0.4 * math.sin(i), 0.0)
+        canvas.create_oval(ex - r * 1.35, ey - r * 0.95, ex + r * 1.35, ey + r * 0.95,
+                           fill="#050307", outline=tint, width=1)
+        _eye(canvas, ex, ey, r * 1.15, opn, look=look)
+
+    # 4. roses + jewels
+    for (dx, dy, r) in ((-58, 70, 7), (54, 58, 6), (-70, 150, 6), (66, 165, 7), (-30, 210, 5)):
+        _rose(canvas, mcx + dx * size, dy + hover * 0.5, r * (1.3 if "roses" in fx else 1.0),
+              bloom=1.2 if "roses" in fx else 1.0)
+    canvas.create_line(mcx - 30, mcy + mh + 6, mcx, mcy + mh + 16, mcx + 30, mcy + mh + 6,
+                       fill=GOLD, width=1.5, smooth=True)
+    canvas.create_oval(mcx - 4, mcy + mh + 12, mcx + 4, mcy + mh + 20, fill=GOLD_HI, outline=GOLD_DK)
+
+    # 5. form props
+    _form(canvas, form, fx, mcx, mcy, mw, mh, p, osc, colour, st)
+
+    # 6. tool tendrils: one reaching up per tool in flight, holding its glyph
+    gl = CATEGORY_GLYPH.get(st.category, "spark") if st.category not in ("failure", "approval") \
+        else ("warning" if st.category == "failure" else "spark")
+    for j in range(st.running):
+        side = -1 if j % 2 == 0 else 1
+        rx, ry = mcx + side * (34 + 10 * j), mcy + 10
+        tip = (rx + side * (40 + 14 * j) + 6 * osc, 40 + 18 * j - 8 * abs(osc))
+        pts = [(rx, ry)] + [((rx * (1 - t) + tip[0] * t) + side * 18 * math.sin(t * math.pi),
+                             ry * (1 - t) + tip[1] * t) for t in (0.25, 0.5, 0.75, 1.0)]
+        _strand(canvas, pts, 7, 3, INK, sheen=colour)
+        glyph(canvas, gl, min(max(tip[0], 14), FRAME[0] - 14), max(tip[1], 14), 10, colour)
+
+    # 7. hands holding the mask (delicate, gold rings)
+    if "slip" not in fx and form != "lean":
+        for k in (-1, 1):
+            hx_, hy_ = mcx + k * (mw + 4), mcy + mh * 0.3
+            canvas.create_polygon(hx_ + k * 16, hy_ + 44, hx_ + k * 8, hy_ - 2, hx_ - k * 2, hy_ - 18,
+                                  hx_ - k * 9, hy_ - 10, hx_ - k * 3, hy_ + 8, hx_ - k * 6, hy_ + 40,
+                                  fill="#2b2138", outline="#6b5585", smooth=True)
+            for f in range(3):
+                fx0, fy0 = hx_ - k * 1, hy_ - 12 + f * 8
+                fx1, fy1 = hx_ - k * (14 + 2 * f), hy_ - 18 + f * 9
+                canvas.create_line(fx0, fy0, fx1, fy1, fill="#6b5585", width=5, capstyle="round")
+                canvas.create_line(fx0, fy0, fx1, fy1, fill="#2b2138", width=3.2, capstyle="round")
+                canvas.create_oval(fx1 - 1.6, fy1 - 1.6, fx1 + 1.6, fy1 + 1.6, fill=GOLD, outline="")
+            canvas.create_line(hx_ + k * 8, hy_ + 18, hx_ + k * 2, hy_ + 22, fill=GOLD, width=2)  # bracelet
+            canvas.create_oval(hx_ - k * 6 - 2, hy_ - 3, hx_ - k * 6 + 2, hy_ + 1, fill=GOLD, outline="")
+    elif form == "lean":                                      # hands together, hopeful
+        for k in (-1, 1):
+            canvas.create_line(mcx + k * 40, mcy + mh + 30, mcx + k * 8, mcy + mh + 8,
+                               fill=INK, width=8, capstyle="round")
+        _rose(canvas, mcx, mcy + mh + 8, 7)
+
+    # 8. the mask - always on top of the body
+    tilt, mx_off, my_off = 0.0, 0.0, 0.0
+    if "slip" in fx:
+        tilt = 0.5 * max(0.0, math.sin(p * math.pi))
+        mx_off, my_off = 26 * tilt / 0.5, 6 * tilt
+        _true_face(canvas, mcx, mcy, mw, mh)
+    if "swap" in fx and 0.4 < p < 0.6:
+        face = "blank"
+    if "spin" in fx:
+        mw_eff = mw * max(0.15, abs(math.cos(p * 2 * math.pi)))
+    else:
+        mw_eff = mw
+    draw_mask(canvas, mcx + mx_off, mcy + my_off, mw_eff, mh, face, cracks=st.cracks, tilt=tilt,
+              teeth=teeth, lace=lace, p=p)
+
+    # 9. front effects
+    _effects(canvas, fx, form, mcx, mcy, mw, mh, p, osc, colour, st, pose)
+
+
+def _true_face(canvas, x, y, w, h):
+    """What the mask hides: a cluster of eyes in the dark."""
+    canvas.create_oval(x - w, y - h, x + w, y + h, fill="#050307", outline="")
+    for i, (dx, dy, r) in enumerate(((-14, -18, 7), (12, -22, 6), (0, 0, 10), (-18, 16, 6), (16, 14, 7),
+                                     (0, 30, 5), (-26, -2, 5), (26, -4, 5))):
+        _eye(canvas, x + dx, y + dy, r, 1.0, look=(0.3 * math.sin(i), 0.0))
+
+
+def _portal(canvas, x, y, p, colour):
+    """The crack she slips through between two places."""
+    spread = math.sin(min(max(p, 0.0), 1.0) * math.pi)
+    for i in range(10):
+        a = i * 0.628 + p * 3
+        r = 20 + 50 * spread
+        canvas.create_line(x, y, x + math.cos(a) * r, y + math.sin(a) * r * 1.3, fill=INK, width=4,
+                           capstyle="round")
+    canvas.create_polygon(x - 4, y - 60 * spread, x + 6, y - 20, x - 3, y + 10, x + 5, y + 60 * spread,
+                          x - 6, y + 20, x + 3, y - 10, fill=colour, outline="")
+    _eye(canvas, x, y, 9 * spread + 2, 1.0)
+
+
+def _form(canvas, form, fx, x, y, w, h, p, osc, colour, st):
+    if form == "typist" or "type" in fx:                      # floating keys + screens
+        for i in range(5):
+            kx, ky = x - 60 + i * 30, 228 + (4 * math.sin(p * 12 + i) if i % 2 else 0)
+            canvas.create_rectangle(kx - 9, ky - 5, kx + 9, ky + 5, fill="#07130c", outline=colour)
+            canvas.create_line(kx, y + h, kx, ky - 6, fill=INK, width=4, capstyle="round")
+        for k in (-1, 1):
+            glyph(canvas, "terminal", x + k * 95, 150, 14, colour)
+    elif form == "lantern" or "lantern" in fx:                # one tendril carries a light
+        lx, ly = x + 100 + 6 * osc, 120 + 10 * math.sin(p * 4)
+        _strand(canvas, [(x + 30, y + 30), (x + 60, y - 10), (lx - 10, ly - 30), (lx, ly - 12)], 6, 2, INK)
+        canvas.create_oval(lx - 12, ly - 12, lx + 12, ly + 12, fill=colour, outline=GOLD_HI, width=2)
+        glyph(canvas, "globe", lx, ly, 8, "#ffffff")
+    elif form == "library":                                    # tendrils with books
+        bx, by = x, 236
+        canvas.create_polygon(bx - 50, by, bx, by + 8, bx + 50, by, bx + 50, by + 24, bx, by + 30, bx - 50, by + 24,
+                              fill="#efe3c8", outline=GOLD_DK)
+        canvas.create_line(bx, by + 8, bx, by + 30, fill=GOLD_DK, width=2)
+        for i in range(3):
+            canvas.create_line(bx - 40, by + 8 + i * 5, bx - 8, by + 12 + i * 5, fill="#7a6a50", width=1)
+        for k in (-1, 1):
+            glyph(canvas, "page", x + k * (85 + 8 * osc), 120, 11, colour)
+    elif form == "scribe":                                     # quill tendril carving runes
+        qx, qy = x + 70, 200 + 6 * osc
+        _strand(canvas, [(x + 30, y + 40), (x + 50, 180), (qx, qy)], 6, 2, INK)
+        canvas.create_line(qx, qy, qx + 20, qy - 28, fill=GOLD_HI, width=3)
+        for i in range(4):
+            canvas.create_text(x - 70 + i * 22, 250 - 8 * math.sin(p * 6 + i), text="ᚱᛟᚾᛖ"[i],
+                               fill=colour, font=("Segoe UI", 11, "bold"))
+    elif form == "vault":                                      # swallows a glowing orb
+        oy = y + h + 28 - 20 * p
+        canvas.create_oval(x - 16, oy - 16, x + 16, oy + 16, fill=colour, outline=GOLD_HI, width=2)
+        canvas.create_oval(x - 26, oy - 26, x + 26, oy + 26, outline=colour, width=1)
+    elif form == "crawler":                                    # gothic arches behind the legs
+        for k in (-1, 1):
+            ax = x + k * 110
+            canvas.create_arc(ax - 18, 150, ax + 18, 230, start=0, extent=180, style="arc", outline=colour, width=2)
+            canvas.create_line(ax - 18, 190, ax - 18, 285, fill=colour, width=2)
+            canvas.create_line(ax + 18, 190, ax + 18, 285, fill=colour, width=2)
+    elif form == "split":                                      # small masked copies, one per helper
+        n = max(1, st.helpers)
+        for i in range(n):
+            bx = x + (-1) ** i * (70 + 26 * (i // 2))
+            by = 248 - 6 * abs(math.sin(p * 2 * math.pi + i))
+            canvas.create_oval(bx - 16, by - 16, bx + 16, by + 18, fill=INK, outline=colour, width=2)
+            for k in (-1, 1):
+                canvas.create_line(bx + k * 10, by + 14, bx + k * 18, by + 26 + 3 * osc, fill=INK, width=3)
+            canvas.create_oval(bx - 9, by - 11, bx + 9, by + 9, fill=PORCELAIN, outline=GOLD_DK)
+            canvas.create_arc(bx - 5, by - 6, bx - 1, by - 1, start=20, extent=140, style="arc", outline=INK, width=1)
+            canvas.create_arc(bx + 1, by - 6, bx + 5, by - 1, start=20, extent=140, style="arc", outline=INK, width=1)
+            canvas.create_arc(bx - 4, by - 2, bx + 4, by + 5, start=200, extent=140, style="arc", outline=INK, width=1)
+            canvas.create_oval(bx - 3, by - 22, bx + 3, by - 16, outline=GOLD, width=1)   # tiny halo
+
+
+def _effects(canvas, fx, form, x, y, w, h, p, osc, colour, st, pose):
+    if st.category == "failure" or "petals" in fx:            # red pulse, petals fall
+        for i in range(6):
+            px = x - 70 + i * 28 + 8 * math.sin(p * 6 + i)
+            py = 60 + ((p * 200 + i * 37) % 200)
+            canvas.create_polygon(px, py, px + 5, py + 3, px + 2, py + 8, px - 3, py + 4,
+                                  fill=ROSE_HI, outline="")
+    if st.category == "approval" or form == "lean":            # the question sigil
+        qx, qy = x + w + 22, y - h - 6
+        canvas.create_oval(qx - 12, qy - 12, qx + 12, qy + 12, outline="#ffd34d", width=2)
+        canvas.create_text(qx, qy, text="?", fill="#ffd34d", font=("Segoe UI", 12, "bold"))
+    if st.thinking:                                            # sigils swirl while thinking
+        for i in range(5):
+            a = p * 2 * math.pi + i * 1.2566
+            canvas.create_oval(x + math.cos(a) * (w + 30) - 3, y - 10 + math.sin(a) * 26 - 3,
+                               x + math.cos(a) * (w + 30) + 3, y - 10 + math.sin(a) * 26 + 3,
+                               fill=colour, outline="")
+    if "glyphs" in fx or "sigil" in fx:
+        for i in range(4):
+            a = p * 2 * math.pi + i * math.pi / 2
+            glyph(canvas, ("terminal", "globe", "page", "orb")[i],
+                  x + math.cos(a) * (w + 40), y + math.sin(a) * 40, 8, colour)
+    if "reach" in fx:
+        _strand(canvas, [(x + w, y + 20), (x + w + 40, y - 10 + 10 * osc), (x + w + 80, y - 30),
+                         (min(x + w + 110, 312), y - 40)], 7, 2, INK, sheen=colour)
+    if "slide" in fx or "lunge" in fx:                         # ink trailing behind
+        for i in range(5):
+            yy = 170 + i * 20
+            canvas.create_line(x - 90 - i * 4, yy, x - 140 - i * 6 - 10 * abs(osc), yy + 4,
+                               fill=INK, width=6 - i, capstyle="round")
+    if pose == "sleep":
+        for i in range(3):
+            canvas.create_text(x + w + 14 + i * 9, y - h - i * 12 - p * 6, text="z",
+                               fill="#9b7bd6", font=("Segoe UI", 9 + i * 3, "bold"))
+
+
+# ---------------------------------------------------------------------------
+# Travel (the same contract as Nyamekra's)
+# ---------------------------------------------------------------------------
+TOWARD_USER = ("run_to_user", "to_user", "panic")
+
+
+def travel(step: dict, rng) -> dict:
+    move = step.get("move")
+    if not move or not move.get("dx"):
+        return step
+    dx = move["dx"]
+    kind = move.get("type", "")
+    pose = step.get("pose", "")
+    far = abs(dx) >= 300
+    if any(k in pose for k in TOWARD_USER):
+        name = "lunge"
+    elif kind in ("fly", "hop", "leap", "pounce", "drift", "zigzag"):
+        name = "hover"
+    elif far and rng.random() < 0.4:
+        name = "crack_portal"
+    elif kind in ("dash", "run", "sprint", "walk", "creep") or far:
+        name = "ink_slide"
+    else:
+        return step
+    out = dict(step, pose=name + ("_back" if dx < 0 else ""))
+    if name == "crack_portal":
+        out["move"] = dict(move, easing="teleport")
+        out["duration_ms"] = max(int(step.get("duration_ms", 0)), 900)
+    return out

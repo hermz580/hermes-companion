@@ -178,7 +178,12 @@ class FrameRenderer:
                  reduced_motion: bool = False, high_contrast: bool = False,
                  artpack: str | None = None):
         from hermes_companion.animation.characters import COMPANIONS
-        self.draw = COMPANIONS[companion]["draw"]
+        spec = COMPANIONS[companion]
+        self.draw = spec["draw"]
+        # A companion may need a bigger stage (Masque is 320x300) and may carry
+        # live state (cracks, colour, tendrils) that must be part of the cache key.
+        self.fw, self.fh = spec.get("frame", (FRAME_W, FRAME_H))
+        self._state_key = spec.get("state_key")
         self.companion, self.palette = companion, palette
         self.glow, self.scale = glow, scale
         # Reduced motion: no squash/stretch and far fewer animation phases, so
@@ -196,18 +201,18 @@ class FrameRenderer:
 
     def frame(self, pose: str, progress: float) -> Image.Image:
         step = int((progress % 1.0) * self.steps)
-        key = (pose, step)
+        key = (pose, step, self._state_key() if self._state_key else None)
         hit = self._cache.get(key)
         if hit is not None:
             self._cache.move_to_end(key)
             return hit
         p = step / self.steps
-        out_w, out_h = int(FRAME_W * self.scale), int(FRAME_H * self.scale)
+        out_w, out_h = int(self.fw * self.scale), int(self.fh * self.scale)
         art = self.artpack.frame(pose, p, (out_w, out_h)) if self.artpack else None
         if art is not None:
             img = art
         else:
-            canvas = PILCanvas()
+            canvas = PILCanvas(self.fw, self.fh)
             self.draw(canvas, pose, p, palette=self.palette)
             img = canvas.img.resize((out_w, out_h), Image.LANCZOS)
         if self.squash:

@@ -80,3 +80,41 @@ def test_symbol_badge_covers_more_of_the_frame():
     bbox = ImageChops.difference(plain, sym).getbbox()
     assert bbox is not None
     assert (bbox[2] - bbox[0]) >= 50 and (bbox[3] - bbox[1]) >= 50
+
+
+def test_head_turns_left_front_and_right():
+    from hermes_companion.animation.nyamekra import head_look
+    assert head_look("idle_bob", 0.2, "", set(), 0.0) == 1.0
+    assert head_look("idle_bob", 0.775, "", set(), 0.0) == pytest.approx(-1.0)
+    assert abs(head_look("idle_bob", 0.66, "", set(), 0.0)) < 0.45     # facing you
+    assert head_look("anything", 0.0, "left", set(), 0.0) == -1.0
+    assert head_look("survey_realms", 0.0, "", {"scan"}, -0.7) == -0.7
+
+
+def test_symbol_badge_never_covers_the_face():
+    import math
+    from hermes_companion.animation.nyamekra import _clear_of_head
+    for hx in range(60, 140, 5):
+        x, y = _clear_of_head(hx, 40, 28, 100, 45)
+        assert math.hypot(x - 100, y - 45) >= 28 + 24 or not (30 <= x <= 170)
+        assert 28 <= x <= 170
+
+
+def test_hands_are_drawn_after_the_head():
+    from hermes_companion.animation.nyamekra import draw_nyamekra
+
+    class Rec:
+        def __init__(self):
+            self.calls = []
+
+        def delete(self, *a):
+            pass
+
+        def __getattr__(self, name):
+            return lambda *a, **k: self.calls.append((name, k.get("fill"), k.get("outline")))
+    from hermes_companion.animation.nyamekra import _BODY as P
+    c = Rec()
+    draw_nyamekra(c, "raise_sun", 0.25)
+    head = max(i for i, (n, f, o) in enumerate(c.calls) if n == "create_oval" and o == P["sheen"])
+    talons = [i for i, (n, f, o) in enumerate(c.calls) if n == "create_line" and f == P["talon"]]
+    assert talons and min(talons) > head

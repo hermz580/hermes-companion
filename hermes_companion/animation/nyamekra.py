@@ -323,6 +323,106 @@ def _wing(canvas, root_x, root_y, side, spread, P, p, beat):
             _feather(canvas, root_x, root_y, ang, ln, width, fill, P["gold_dk"] if layer == 0 else fill, tip)
 
 
+LOOK_AROUND = frozenset({"idle_bob", "wait", "notice", "head_tilt", "look_at_input",
+                         "survey_realms", "think", "lean_work", "work"})
+
+
+def head_look(pose: str, p: float, eyes: str, fx, osc: float) -> float:
+    """Where the head points: -1 full left, 0 facing you, 1 full right."""
+    if eyes == "left":
+        return -1.0
+    if eyes == "right":
+        return 1.0
+    if "scan" in fx:
+        return osc                                       # sweeps side to side
+    if pose in LOOK_AROUND:
+        # mostly profile, then a glance at you and over the other shoulder
+        if p < 0.55:
+            return 1.0
+        return math.cos((p - 0.55) / 0.45 * 2 * math.pi)
+    if "symbol" in str(fx) or "cast" in fx or "interact" in fx:
+        return 0.8                                       # watches its own hand
+    return 1.0
+
+
+def _clear_of_head(x, y, ring, hcx, hcy, head_r=24, frame_w=200):
+    """Slide a badge sideways so it never covers the face."""
+    need = ring + head_r
+    if math.hypot(x - hcx, y - hcy) >= need:
+        return x, y
+    side = 1 if x >= hcx else -1
+    nx = hcx + side * need
+    if nx + ring > frame_w - 2 or nx - ring < 2:          # no room: try the other side
+        nx = hcx - side * need
+    nx = min(max(nx, ring + 2), frame_w - 2 - ring)
+    return nx, y
+
+
+def _hand(canvas, side, ex, ey, hx, hy, P, glow):
+    """Gold gauntlet, bangles and a clearly visible taloned hand."""
+    gx0, gy0 = ex + (hx - ex) * 0.4, ey + (hy - ey) * 0.4
+    canvas.create_line(gx0, gy0, hx, hy, fill=P["gold_dk"], width=10, capstyle="round")
+    canvas.create_line(gx0, gy0, hx, hy, fill=P["gold"], width=7, capstyle="round")
+    for k in (0.5, 0.68, 0.86):
+        bx, by = ex + (hx - ex) * k, ey + (hy - ey) * k
+        canvas.create_oval(bx - 5, by - 2.2, bx + 5, by + 2.2, outline=P["gold_dk"], width=1)
+    dx, dy = hx - ex, hy - ey
+    n = math.hypot(dx, dy) or 1.0
+    ux, uy = dx / n, dy / n                       # points down the forearm
+    canvas.create_oval(hx - 5.5, hy - 5.5, hx + 5.5, hy + 5.5, fill=P["talon"],
+                       outline=P["gold_hi"], width=2)
+    for t in (-1, 0, 1):                          # three talons fanned along the arm
+        a = math.atan2(uy, ux) + t * 0.5
+        mx, my = hx + math.cos(a) * 9, hy + math.sin(a) * 9
+        canvas.create_line(hx, hy, mx, my, fill=P["talon"], width=3, capstyle="round")
+        canvas.create_line(mx, my, mx + math.cos(a + 0.4 * side) * 3.5,
+                           my + math.sin(a + 0.4 * side) * 3.5, fill=P["gold_hi"], width=2)
+    canvas.create_oval(hx - 1.6, hy - 1.6, hx + 1.6, hy + 1.6, fill=glow, outline="")
+
+
+def _profile_beak(canvas, bx0, by0, blen, tip, f, open_, P):
+    canvas.create_polygon(bx0 - 2 * f, by0 - 8, bx0 + blen * 0.45 * f, by0 - 6, tip, by0 + 2 - open_ * 0.3,
+                          bx0, by0 + 1, fill=P["beak"], outline=P["gold"], smooth=True)
+    canvas.create_line(bx0 + 2 * f, by0 - 5, tip - 4 * f, by0 + 1, fill=P["beak_hi"], width=1)
+    canvas.create_polygon(bx0, by0 + 2 + open_, tip - 6 * f, by0 + 4 + open_ * 0.6, bx0, by0 + 7,
+                          fill=P["beak"], outline=P["gold"])
+    canvas.create_line(bx0 + 4 * f, by0 - 5, bx0 + 4 * f, by0 + 5 + open_, fill=P["gold"], width=2)
+
+
+def _eye(canvas, ex0, ey0, eyes, fx, expr, glow, gaze, p, P, small=False):
+    k = 0.8 if small else 1.0
+    if eyes == "closed":
+        canvas.create_arc(ex0 - 5 * k, ey0 - 3, ex0 + 5 * k, ey0 + 3, start=200, extent=140,
+                          style="arc", width=2, outline=P["gold"])
+        return
+    if eyes == "xeyes":
+        canvas.create_line(ex0 - 4, ey0 - 4, ex0 + 4, ey0 + 4, width=2, fill=P["gold"])
+        canvas.create_line(ex0 - 4, ey0 + 4, ex0 + 4, ey0 - 4, width=2, fill=P["gold"])
+        return
+    r = (7.5 if eyes == "wide" or "eye" in fx else 6.5) * expr[1] * k
+    canvas.create_oval(ex0 - r, ey0 - r, ex0 + r, ey0 + r, fill="#1b1033", outline=P["gold"], width=1)
+    canvas.create_oval(ex0 - r * 0.7, ey0 - r * 0.7, ex0 + r * 0.7, ey0 + r * 0.7, fill=P["violet"],
+                       outline="")
+    gx, gy = gaze
+    canvas.create_oval(ex0 - 2.2 + gx, ey0 - 2.2 + gy, ex0 + 2.2 + gx, ey0 + 2.2 + gy,
+                       fill=glow, outline="")
+    for i in range(4):                                       # stars in the eye
+        a = p * 3 + i * 1.57
+        canvas.create_oval(ex0 + math.cos(a) * r * 0.55 - 0.6, ey0 + math.sin(a) * r * 0.55 - 0.6,
+                           ex0 + math.cos(a) * r * 0.55 + 0.6, ey0 + math.sin(a) * r * 0.55 + 0.6,
+                           fill=P["gold_hi"], outline="")
+    if "eye" in fx:
+        canvas.create_oval(ex0 - r - 3, ey0 - r - 3, ex0 + r + 3, ey0 + r + 3, outline=glow, width=2)
+    if expr[2] > 0:                                          # upper lid: calm, wise, sad
+        lid = ey0 - r + 2 * r * expr[2]
+        canvas.create_polygon(ex0 - r - 1, ey0 - r - 1, ex0 + r + 1, ey0 - r - 1,
+                              ex0 + r + 1, lid, ex0 - r - 1, lid, fill=P["feather"], outline="")
+        canvas.create_line(ex0 - r, lid, ex0 + r, lid, fill=P["gold_dk"], width=1)
+    if expr[4]:                                              # sparkle: curious, joyful, wise
+        canvas.create_oval(ex0 + r * 0.3, ey0 - r * 0.6, ex0 + r * 0.3 + 2.2, ey0 - r * 0.6 + 2.2,
+                           fill="white", outline="")
+
+
 def expression_of(pose: str, mood: str, own: bool) -> str:
     if pose in ("defense_shield", "attention", "panic"):
         return "fierce"
@@ -648,21 +748,13 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
     # ---- arms: feathered sleeves, gold bangles, talons --------------------------------
     sy = top + 9
     hands = []
+    forearms = []          # gauntlets + talons are drawn last, on top of everything
     for side, (sh, el) in ((-1, arms[0:2]), (1, arms[2:4])):
         up = sh > 100
         ex, ey, hx2, hy2 = _limb(canvas, cx + side * 16, sy, min(sh, 100) if not up else 180 - sh,
                                  el, 18, 17, side, 9, P["feather"], flip_up=up)
         canvas.create_line(cx + side * 16, sy, ex, ey, fill=P["sheen"], width=2)
-        gx0, gy0 = ex + (hx2 - ex) * 0.4, ey + (hy2 - ey) * 0.4
-        canvas.create_line(gx0, gy0, hx2, hy2, fill=P["gold"], width=8, capstyle="round")
-        for k in (0.5, 0.68, 0.86):
-            bx, by = ex + (hx2 - ex) * k, ey + (hy2 - ey) * k
-            canvas.create_oval(bx - 4.5, by - 2, bx + 4.5, by + 2, outline=P["gold_dk"], width=1)
-        _glow_dot(canvas, ex + (hx2 - ex) * 0.6, ey + (hy2 - ey) * 0.6, 1.6, P["gold_hi"], P["gold_hi"])
-        for t in (-1, 0, 1):                                      # talon fingers
-            canvas.create_line(hx2, hy2, hx2 + t * 4 + side * 2, hy2 + 6, fill=P["talon"], width=2)
-            canvas.create_line(hx2 + t * 4 + side * 2, hy2 + 6, hx2 + t * 4 + side * 3, hy2 + 8,
-                               fill=P["gold"], width=1)
+        forearms.append((side, ex, ey, hx2, hy2))
         hands.append((hx2, hy2))
 
     # world-orb above the raised hand, or juggled
@@ -685,68 +777,53 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
         canvas.create_oval(mx - 2.6, my - 2.6, mx + 2.6, my + 2.6, fill=P["gold"], outline=P["gold_dk"])
 
     # ---- crow head ---------------------------------------------------------------------------
+    look = head_look(pose, p, eyes, fx, osc)
+    if pose in FACE_LEFT:
+        look = abs(look)                   # the whole body is mirrored already: lead with the beak
+    face = 1 if look >= 0 else -1
+    turn = abs(look)                       # 0 = facing you, 1 = full profile
     cock = 6 if "cock" in fx else 0
     hcx, hcy = cx + shear * 0.4 + cock * 0.5, top - 26 + (2 if "preen" in fx else 0)
     for i in range(7):                                            # ruffled crest
         a = math.pi * (1.1 + 0.8 * i / 6)
         ruff = 3 if "ruffle" in fx else 0
         r = 19 + (i % 2) * 4 + ruff * abs(osc)
-        canvas.create_polygon(hcx + math.cos(a) * 12, hcy + math.sin(a) * 12,
-                              hcx + math.cos(a + 0.15) * r, hcy + math.sin(a + 0.15) * r,
-                              hcx + math.cos(a + 0.3) * 12, hcy + math.sin(a + 0.3) * 12,
+        canvas.create_polygon(hcx + face * math.cos(a) * 12, hcy + math.sin(a) * 12,
+                              hcx + face * math.cos(a + 0.15) * r, hcy + math.sin(a + 0.15) * r,
+                              hcx + face * math.cos(a + 0.3) * 12, hcy + math.sin(a + 0.3) * 12,
                               fill=P["feather"], outline="")
     canvas.create_oval(hcx - 19, hcy - 18, hcx + 19, hcy + 19, fill=P["feather"], outline=P["sheen"])
     canvas.create_arc(hcx - 13, hcy - 14, hcx + 9, hcy + 8, start=95, extent=100, style="arc",
                       outline=P["sheen"], width=3)
     canvas.create_arc(hcx - 10, hcy - 4, hcx + 12, hcy + 16, start=200, extent=90, style="arc",
                       outline=P["violet"], width=2)
-    # beak (open when cawing), gold-banded
-    face = 1
+    # beak (open when cawing), gold-banded; shortens as the head turns toward you
     open_ = 5 if "caw" in fx and osc > 0 else max(expr[3], 3 if eyes == "wide" else 0)
-    bx0, by0 = hcx + 12 * face, hcy + 2
-    tip = bx0 + 27 * face
-    canvas.create_polygon(bx0 - 2, by0 - 8, bx0 + 12, by0 - 6, tip, by0 + 2 - open_ * 0.3,
-                          bx0, by0 + 1, fill=P["beak"], outline=P["gold"], smooth=True)
-    canvas.create_line(bx0 + 2, by0 - 5, tip - 4, by0 + 1, fill=P["beak_hi"], width=1)
-    canvas.create_polygon(bx0, by0 + 2 + open_, tip - 6, by0 + 4 + open_ * 0.6, bx0, by0 + 7,
-                          fill=P["beak"], outline=P["gold"])
-    canvas.create_line(bx0 + 4, by0 - 5, bx0 + 4, by0 + 5 + open_, fill=P["gold"], width=2)
-    # galaxy eye: tinted by mood, pupil follows the gaze
-    ex0, ey0 = hcx + 5, hcy - 5
-    if eyes == "closed":
-        canvas.create_arc(ex0 - 5, ey0 - 3, ex0 + 5, ey0 + 3, start=200, extent=140,
-                          style="arc", width=2, outline=P["gold"])
-    elif eyes == "xeyes":
-        canvas.create_line(ex0 - 4, ey0 - 4, ex0 + 4, ey0 + 4, width=2, fill=P["gold"])
-        canvas.create_line(ex0 - 4, ey0 + 4, ex0 + 4, ey0 - 4, width=2, fill=P["gold"])
+    blen = 10 + 17 * turn
+    bx0, by0 = hcx + (4 + 8 * turn) * face, hcy + 2 + 3 * (1 - turn)
+    tip = bx0 + blen * face
+    f = face
+    if turn <= 0.45:                       # facing you: a centred beak pointing down
+        bx, by = hcx, hcy + 1
+        canvas.create_polygon(bx - 6, by - 4, bx + 6, by - 4, bx + 1.5 * look * 6, by + 14 + open_,
+                              fill=P["beak"], outline=P["gold"], smooth=True)
+        canvas.create_line(bx - 5, by - 2, bx + 5, by - 2, fill=P["gold"], width=2)
+        canvas.create_line(bx, by - 3, bx + look * 4, by + 10, fill=P["beak_hi"], width=1)
     else:
-        r = (7.5 if eyes == "wide" or "eye" in fx else 6.5) * expr[1]
-        canvas.create_oval(ex0 - r, ey0 - r, ex0 + r, ey0 + r, fill="#1b1033", outline=P["gold"], width=1)
-        canvas.create_oval(ex0 - r * 0.7, ey0 - r * 0.7, ex0 + r * 0.7, ey0 + r * 0.7, fill=P["violet"],
-                           outline="")
-        gx = {"left": -2, "right": 2}.get(eyes, 0)
-        gy = {"up": -2, "down": 2}.get(eyes, 0)
-        canvas.create_oval(ex0 - 2.2 + gx, ey0 - 2.2 + gy, ex0 + 2.2 + gx, ey0 + 2.2 + gy,
-                           fill=glow, outline="")
-        for i in range(4):                                       # stars in the eye
-            a = p * 3 + i * 1.57
-            canvas.create_oval(ex0 + math.cos(a) * r * 0.55 - 0.6, ey0 + math.sin(a) * r * 0.55 - 0.6,
-                               ex0 + math.cos(a) * r * 0.55 + 0.6, ey0 + math.sin(a) * r * 0.55 + 0.6,
-                               fill=P["gold_hi"], outline="")
-        if "eye" in fx:
-            canvas.create_oval(ex0 - r - 3, ey0 - r - 3, ex0 + r + 3, ey0 + r + 3, outline=glow, width=2)
-        if expr[2] > 0:                                          # upper lid: calm, wise, sad
-            lid = ey0 - r + 2 * r * expr[2]
-            canvas.create_polygon(ex0 - r - 1, ey0 - r - 1, ex0 + r + 1, ey0 - r - 1,
-                                  ex0 + r + 1, lid, ex0 - r - 1, lid,
-                                  fill=P["feather"], outline="")
-            canvas.create_line(ex0 - r, lid, ex0 + r, lid, fill=P["gold_dk"], width=1)
-        if expr[4]:                                              # sparkle: curious, joyful, wise
-            canvas.create_oval(ex0 + r * 0.3, ey0 - r * 0.6, ex0 + r * 0.3 + 2.2, ey0 - r * 0.6 + 2.2,
-                               fill="white", outline="")
+        _profile_beak(canvas, bx0, by0, blen, tip, f, open_, P)
+    # galaxy eyes: one in profile, two as the head turns to face you
+    ey0 = hcy - 5
+    gaze = (3.0 * look, {"up": -2, "down": 2}.get(eyes, 0))
+    if turn > 0.45:
+        eye_xs = [hcx + 5 * face]
+    else:
+        eye_xs = [hcx - 8, hcx + 8]
+    for ex0 in eye_xs:
+        _eye(canvas, ex0, ey0, eyes, fx, expr, glow, gaze, p, P, small=len(eye_xs) > 1)
     tilt = expr[0]
-    canvas.create_line(ex0 - 8, ey0 - 9 - tilt, ex0 + 7, ey0 - 9 + tilt,
-                       fill=P["feather_hi"], width=3)
+    for ex0 in eye_xs:
+        canvas.create_line(ex0 - 8, ey0 - 9 - tilt * face, ex0 + 7, ey0 - 9 + tilt * face,
+                           fill=P["feather_hi"], width=3)
     # crown with sun-orb
     ctop = hcy - 15
     canvas.create_polygon(hcx - 13, ctop, hcx - 15, ctop - 11, hcx - 8, ctop - 6, hcx - 5, ctop - 16,
@@ -757,12 +834,17 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
     canvas.create_line(hcx - 12, ctop - 1, hcx + 12, ctop - 1, fill=P["gold_hi"], width=1)
     _glow_dot(canvas, hcx, ctop - 17, 3.5, P["gold"], P["gold_hi"])
 
+    # ---- hands: always on top of the head, robe and collar ------------------------------
+    for side, ex, ey, hx2, hy2 in forearms:
+        _hand(canvas, side, ex, ey, hx2, hy2, P, glow)
+
     # ---- channelled symbol of essence --------------------------------------------------------
     if symbol is not None:
         size = SYMBOL_SIZE + 3 * abs(osc)                        # breathes with the beat
         ring = size + 9
         sx_ = min(max(hands[1][0], ring + 2), 198 - ring)
         sy_ = max(hands[1][1] - ring - 10 - abs(osc) * 6, ring + 2)
+        sx_, sy_ = _clear_of_head(sx_, sy_, ring, hcx, hcy)
         canvas.create_oval(sx_ - ring, sy_ - ring, sx_ + ring, sy_ + ring,
                            fill=P["robe"], outline=glow, width=3)
         canvas.create_oval(sx_ - ring + 4, sy_ - ring + 4, sx_ + ring - 4, sy_ + ring - 4,

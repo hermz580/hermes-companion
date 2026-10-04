@@ -101,17 +101,22 @@ class PerchMotion:
     x1: float
     y1: float
     start: float
-    style: str = "hop"           # "hop" | "drop"
+    style: str = "hop"           # "hop" | "drop" | "teleport"
 
     @property
     def duration(self) -> float:
         dist = math.hypot(self.x1 - self.x0, self.y1 - self.y0)
+        if self.style == "teleport":
+            return 0.9
         if self.style == "drop":
             return max(0.25, math.sqrt(max(1.0, abs(self.y1 - self.y0)) / 900.0) * 1.4)
         return min(1.1, max(0.45, dist / 900.0))
 
     def at(self, now: float) -> tuple[int, int, float]:
         t = min(1.0, max(0.0, (now - self.start) / self.duration))
+        if self.style == "teleport":                       # gone, then there
+            x, y = (self.x0, self.y0) if t < 0.5 else (self.x1, self.y1)
+            return int(round(x)), int(round(y)), t
         if self.style == "drop":
             ease = t * t                                   # accelerate like gravity
             x = self.x0 + (self.x1 - self.x0) * t
@@ -130,6 +135,12 @@ class PerchMotion:
 QUIET_STATES = frozenset({"quiet", "complete"})
 
 
+def _faced(pose: str, going_left: bool) -> str:
+    from hermes_companion.animation.characters import has_pose
+    back = pose + "_back"
+    return back if going_left and has_pose(back) else pose
+
+
 class PerchDriver:
     """Applies PerchPlanner decisions to a surface + Director each tick.
 
@@ -137,8 +148,15 @@ class PerchDriver:
     and ``set_y``; the Director keeps ownership of x while a chain plays.
     """
 
-    def __init__(self, surface, director, sensors, *, log=print) -> None:
+    DEFAULT_POSES = {"hop": "leap", "drop": "jump"}
+    TELEPORT_PX = 700          # farther than this, a character that can teleports
+
+    def __init__(self, surface, director, sensors, *, log=print,
+                 poses: dict | None = None) -> None:
         self.surface, self.director, self.sensors = surface, director, sensors
+        # A character's own way of getting between windows, e.g. Nyamekra:
+        # {"hop": "soar", "drop": "landing", "teleport": "feather_teleport"}
+        self.poses = dict(self.DEFAULT_POSES, **(poses or {}))
         self.planner = PerchPlanner(surface.w, surface.h, floor_y=surface.home_y,
                                     feet_y=int(FEET_Y * surface.h / 220))
         self.applied: Anchor | None = None
@@ -174,13 +192,21 @@ class PerchDriver:
             else:
                 style = "drop" if anchor.kind == "floor" and anchor.y > self.surface.home_y + 20 \
                     else "hop"
+                far = math.hypot(anchor.x - self.surface.x, anchor.y - self.surface.home_y)
+                if "teleport" in self.poses and far > self.TELEPORT_PX:
+                    style = "teleport"
                 self.motion = PerchMotion(self.surface.x, self.surface.home_y,
                                           anchor.x, anchor.y, now, style)
                 self.log(f"PERCH {style} -> {anchor.kind} ({anchor.reason})")
         if self.motion is not None:
             x, y, _t = self.motion.at(now)
-            self.director.idle_pose = "leap" if self.motion.style == "hop" else "jump"
+            self.director.idle_pose = self._pose_for(self.motion)
+            self.director.idle_progress = min(_t, 0.999)
             self._apply(x, y)
             if self.motion.done(now):
                 self.motion = None
                 self.director.idle_pose = "idle_bob"
+                self.director.idle_progress = None
+
+    def _pose_for(self, motion: "PerchMotion") -> str:
+        return _faced(self.poses.get(motion.style, "leap"), motion.x1 < motion.x0)

@@ -205,7 +205,7 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
             self.canvas.itemconfigure(self._image_item, image=self._photo)
 
     # -- voice: speech bubbles + opt-in chimes -------------------------------
-    def attach_voice(self, *, bubbles: bool = True, sound: bool = False):
+    def attach_voice(self, *, bubbles: bool = True, sound: bool = False, lines=None):
         from hermes_companion.renderer.voice import BubbleWindow, Chimes, Voice
         self._bubble_text = None
         self._bubble_window = None
@@ -218,7 +218,7 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
                 self._bubble_window = None
         if not bubbles:
             show = lambda _text: None   # noqa: E731
-        self.voice = Voice(show, Chimes() if sound else None)
+        self.voice = Voice(show, Chimes() if sound else None, lines=lines)
         return self.voice
 
     def _show_bubble_inline(self, text) -> None:

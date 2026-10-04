@@ -62,6 +62,12 @@ COMPANIONS: dict[str, dict] = {
         "palettes": list(nyamekra.NYAMEKRA_PALETTES.keys()),
         "default": nyamekra.NYAMEKRA_DEFAULT_PALETTE,
         "extra_flourishes": nyamekra.nyamekra_flourishes(),
+        "flourish_hints": nyamekra.flourish_hints(),
+        "curious_moves": nyamekra.CURIOUS_MOVES,
+        "voice": nyamekra.VOICE,
+        "greeting": nyamekra.GREETING,
+        "travel": nyamekra.travel,
+        "perch_poses": {"hop": "soar", "drop": "landing", "teleport": "feather_teleport"},
         "desc": "the All-Doing Crow · one form · celestial halo · galaxy eyes · "
                 "gold crown, ankh and neck rings · kente-woven feathered robe · "
                 f"{len(nyamekra.NYAMEKRA_MOVES)} own moves channelling the ten "
@@ -74,6 +80,11 @@ DEFAULT_COMPANION = "astro"
 
 def list_companions() -> list[str]:
     return list(COMPANIONS.keys())
+
+
+def has_pose(pose: str) -> bool:
+    """True when some companion draws this pose as its own move."""
+    return pose in nyamekra.NYAMEKRA_MOVES
 
 
 def get_companion(name: str | None) -> dict:
@@ -90,6 +101,18 @@ def extra_flourishes(name: str | None) -> dict[str, tuple[str, ...]]:
     if not name or name not in COMPANIONS:
         return {}
     return dict(COMPANIONS[name].get("extra_flourishes", {}))
+
+
+def traits(name: str | None) -> dict:
+    """Everything a companion brings beyond its drawing (all optional)."""
+    spec = COMPANIONS.get(name or "", {})
+    return {"extra_flourishes": dict(spec.get("extra_flourishes", {})),
+            "flourish_hints": dict(spec.get("flourish_hints", {})),
+            "curious_moves": tuple(spec.get("curious_moves", ())),
+            "voice": dict(spec.get("voice", {})),
+            "greeting": spec.get("greeting"),
+            "travel": spec.get("travel"),
+            "perch_poses": dict(spec.get("perch_poses", {}))}
 
 
 def draw_companion(canvas, companion: str | None, pose: str,

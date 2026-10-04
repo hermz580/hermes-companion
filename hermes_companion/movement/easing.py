@@ -83,7 +83,13 @@ def ease_out_elastic(t: float) -> float:
     return 2 ** (-10 * t) * math.sin((t * 10 - 0.75) * c4) + 1
 
 
+def teleport(t: float) -> float:
+    """Stay put, then be there: the jump happens at the halfway point."""
+    return 0.0 if t < 0.5 else 1.0
+
+
 EASING = {
+    "teleport": teleport,
     "easeInQuad": ease_in_quad,
     "easeOutQuad": ease_out_quad,
     "easeInOutCubic": ease_in_out_cubic,

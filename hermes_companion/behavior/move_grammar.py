@@ -83,16 +83,24 @@ class MoveGrammar:
     """Decorates signature steps; remembers recent flourishes to avoid repeats."""
 
     def __init__(self, rng: random.Random, memory: int = 6,
-                 extra: dict[str, tuple[str, ...]] | None = None) -> None:
+                 extra: dict[str, tuple[str, ...]] | None = None,
+                 hints: dict[str, tuple[str, ...]] | None = None) -> None:
         self.rng = rng
         self.recent: deque[str] = deque(maxlen=memory)
+        self.extra = dict(extra or {})
+        # category -> preferred flourishes (e.g. Nyamekra channels the pyramid
+        # for terminal work); used only when they fit the chain's mood.
+        self.hints = dict(hints or {})
         # A companion may bring its own body-language moves (Nia's dances).
         # They join the shared pool for the same mood only.
         self.pools = {m: tuple(p) + tuple((extra or {}).get(m, ()))
                       for m, p in FLOURISH_POSES.items()}
 
-    def _pick_flourish(self, mood: str) -> dict:
+    def _pick_flourish(self, mood: str, hint: str | None = None) -> dict:
         pool = [p for p in self.pools[mood] if p not in self.recent]
+        preferred = [p for p in self.hints.get(hint or "", ()) if p in (pool or self.pools[mood])]
+        if preferred and self.rng.random() < 0.75:
+            pool = preferred
         pose = self.rng.choice(pool or self.pools[mood])
         self.recent.append(pose)
         return {"pose": pose, "duration_ms": self.rng.choice(FLOURISH_MS),
@@ -110,7 +118,7 @@ class MoveGrammar:
         out["duration_ms"] = max(180, int(round(float(move.get("duration_ms", 0)) * tempo)))
         return out
 
-    def decorate(self, steps: list[dict], state: State) -> list[dict]:
+    def decorate(self, steps: list[dict], state: State, hint: str | None = None) -> list[dict]:
         signature = [dict(s, role="signature") for s in steps]
         if not signature or state in NO_FLOURISH_STATES:
             return signature
@@ -118,9 +126,9 @@ class MoveGrammar:
         for step in signature:
             if step.get("move"):
                 step["move"] = self._vary_move(step["move"])
-        openers = [self._pick_flourish(mood)
+        openers = [self._pick_flourish(mood, hint)
                    for _ in range(self.rng.choice((0, 1, 1, 2)))]
-        closers = [self._pick_flourish(mood)
+        closers = [self._pick_flourish(mood, hint)
                    for _ in range(self.rng.choice((0, 0, 1)))]
         return openers + signature + closers
 

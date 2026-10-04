@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
 import time
 from typing import Any
 
@@ -87,6 +88,61 @@ def _get_engine() -> Any:
 
 
 # ---------------------------------------------------------------------------
+# Heartbeat: a long tool keeps the companion visibly busy (tool.progress)
+# ---------------------------------------------------------------------------
+HEARTBEAT_S = float(os.environ.get("HERMES_COMPANION_HEARTBEAT_S", "4") or "4")
+HEARTBEAT_MAX = 30                     # stop after ~2 minutes of beats
+_BEATS: dict[str, threading.Event] = {}
+_BEATS_LOCK = threading.Lock()
+
+
+def _beat_key(tool_call_id: str, tool_name: str, session_id: str) -> str:
+    return tool_call_id or f"{session_id}:{tool_name}"
+
+
+def _start_heartbeat(key: str, tool_name: str, session_id: str, task_id: str) -> None:
+    if HEARTBEAT_S <= 0:
+        return
+    stop = threading.Event()
+    with _BEATS_LOCK:
+        old = _BEATS.pop(key, None)
+        if old is not None:
+            old.set()
+        _BEATS[key] = stop
+
+    def run() -> None:
+        from hermes_companion.core.events import EventKind, SemanticEvent, classify_tool
+        started = time.monotonic()
+        for _ in range(HEARTBEAT_MAX):
+            if stop.wait(HEARTBEAT_S):
+                return
+            try:
+                ev = SemanticEvent(kind=EventKind.TOOL_PROGRESS, tool=tool_name,
+                                   category=classify_tool(tool_name),
+                                   session_id=session_id, task_id=task_id)
+                chain = _get_engine().handle(ev)
+                _log_event({"event": ev.kind.value, "tool": tool_name, "category": ev.category,
+                            "elapsed_ms": int((time.monotonic() - started) * 1000),
+                            "session_id": session_id, "task_id": task_id,
+                            "state": chain.state.value if chain else _get_engine().state.value,
+                            "steps": chain.poses if chain else []})
+            except Exception:
+                log.debug("companion heartbeat failed", exc_info=True)
+        with _BEATS_LOCK:
+            if _BEATS.get(key) is stop:
+                del _BEATS[key]
+
+    threading.Thread(target=run, daemon=True, name="companion-heartbeat").start()
+
+
+def _stop_heartbeat(key: str) -> None:
+    with _BEATS_LOCK:
+        stop = _BEATS.pop(key, None)
+    if stop is not None:
+        stop.set()
+
+
+# ---------------------------------------------------------------------------
 # Tool hooks (spec §6.1)
 # ---------------------------------------------------------------------------
 def on_pre_tool_call(*, tool_name: str = "", args: Any = None, task_id: str = "",
@@ -115,6 +171,8 @@ def on_pre_tool_call(*, tool_name: str = "", args: Any = None, task_id: str = ""
             "state": chain.state.value if chain else engine.state.value,
             "steps": chain.poses if chain else [],
         })
+        _start_heartbeat(_beat_key(tool_call_id, tool_name, session_id),
+                         tool_name, session_id, task_id)
     except Exception:
         log.debug("companion on_pre_tool_call failed", exc_info=True)
 
@@ -128,6 +186,7 @@ def on_post_tool_call(*, tool_name: str = "", args: Any = None, result: Any = No
     """tool.finished / tool.failed / tool.blocked — status enum only, never
     result content (spec §5.2)."""
     try:
+        _stop_heartbeat(_beat_key(tool_call_id, tool_name, session_id))
         from hermes_companion.core.events import EventKind, SemanticEvent
         from hermes_companion.core.events import classify_tool
         engine = _get_engine()
@@ -270,6 +329,39 @@ def on_subagent_stop(*, parent_session_id: Any = None, parent_turn_id: str = "",
 
 
 # ---------------------------------------------------------------------------
+# Thinking: Hermes is about to call the model (pre_llm_call)
+# ---------------------------------------------------------------------------
+THINK_GAP_S = 3.0                      # one "thinking" per burst of model calls
+_last_think: dict[str, float] = {}
+
+
+def on_pre_llm_call(*, session_id: Any = "", task_id: Any = "", **_: Any) -> None:
+    """user.prompt_submitted — the companion shows Hermes thinking.
+
+    ``user_message`` and every other kwarg are swallowed unread. Returns None so
+    nothing is ever injected into the model's context by this plugin.
+    """
+    try:
+        sid = str(session_id or "")
+        now = time.monotonic()
+        if now - _last_think.get(sid, -THINK_GAP_S) < THINK_GAP_S:
+            _last_think[sid] = now
+            return None
+        _last_think[sid] = now
+        from hermes_companion.core.events import EventKind, SemanticEvent
+        engine = _get_engine()
+        ev = SemanticEvent(kind=EventKind.PROMPT_SUBMITTED, session_id=sid,
+                           task_id=str(task_id or ""))
+        chain = engine.handle(ev)
+        _log_event({"event": ev.kind.value, "session_id": sid, "task_id": str(task_id or ""),
+                    "state": chain.state.value if chain else engine.state.value,
+                    "steps": chain.poses if chain else []})
+    except Exception:
+        log.debug("companion on_pre_llm_call failed", exc_info=True)
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Registration (spec §2 / §6 — the bus IS the hook system)
 # ---------------------------------------------------------------------------
 def register(ctx) -> None:
@@ -281,3 +373,4 @@ def register(ctx) -> None:
     ctx.register_hook("on_session_end", on_session_end)
     ctx.register_hook("subagent_start", on_subagent_start)
     ctx.register_hook("subagent_stop", on_subagent_stop)
+    ctx.register_hook("pre_llm_call", on_pre_llm_call)

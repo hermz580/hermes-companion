@@ -53,7 +53,10 @@ class Voice:
     """Decides what to say and when; renders through `show` and `play`."""
 
     def __init__(self, show, play=None, clock=time.monotonic,
-                 hold_s: float = 3.5, quiet_curiosity_s: float = 25.0) -> None:
+                 hold_s: float = 3.5, quiet_curiosity_s: float = 25.0,
+                 lines: dict | None = None) -> None:
+        # A companion may phrase states its own way; meanings never change.
+        self.say_map = dict(SAY, **{k: v for k, v in (lines or {}).items() if k in SAY})
         self.show, self.play, self.clock = show, play, clock
         self.hold_s, self.quiet_curiosity_s = hold_s, quiet_curiosity_s
         self._last_text = None
@@ -72,7 +75,7 @@ class Voice:
         if state == self._last_state and state not in ("working", "delegating"):
             return
         self._last_state = state
-        template = SAY.get(state)
+        template = self.say_map.get(state)
         if template:
             text = template.format(label=label)[:48]
             if text != self._last_text:

@@ -388,7 +388,10 @@ print(json.dumps(mons))
     if args.companion is not None:
         overlay.bind_engine(tail.engine)
         if hasattr(overlay, "attach_voice"):
-            overlay.attach_voice(bubbles=not args.no_bubbles, sound=args.sound)
+            overlay.attach_voice(bubbles=not args.no_bubbles, sound=args.sound,
+                                 lines=tail.traits["voice"])
+            if tail.traits["greeting"]:
+                overlay.root.after(1500, lambda: overlay.voice.greet(tail.traits["greeting"]))
     overlay.on_ready = lambda: (
         print(f"LIVE READY pet={slug} scale={scale:g}", flush=True),
         print(f"FOLLOWING ACTIVE SESSION" if follow_mode

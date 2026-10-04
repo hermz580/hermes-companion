@@ -135,8 +135,19 @@ BODY_MOVES = {
     "interact":        ("focused", (30, 50, 75, 50), 0.2, 0, 0, {"interact"}),
 }
 
+# Expressiveness: own moves are drawn this much larger than their base specs so
+# they read clearly at desktop size (a 200px pet next to full-screen windows).
+ARM_SWING = 22.0       # degrees of arm swing per beat (was 10)
+BOUNCE_GAIN = 2.4      # hop height multiplier
+SWAY_GAIN = 1.8        # side-to-side multiplier
+WING_PULSE = 0.18      # wings open and close a little on every beat
+SYMBOL_SIZE = 19.0     # channelled symbol radius in px (was 10)
+EMBLEM_SCALE = 1.7     # role / tool emblem multiplier
+HEADROOM = 12.0        # px the body may rise before the halo would leave the frame
+
 # Poses that travel left: Nyamekra turns to face the way it is going.
-FACE_LEFT = frozenset({"run_to_user", "return_home", "panic", "orb_returns"})
+FACE_LEFT = frozenset({"run_to_user", "return_home", "panic", "orb_returns",
+                       "wing_dash_back", "feather_teleport_back", "swoop_back", "soar_back"})
 
 
 class _Mirror:
@@ -189,10 +200,24 @@ def _build_moves() -> dict[str, tuple]:
 
 NYAMEKRA_MOVES: dict[str, tuple] = _build_moves()
 
+# ---- signature travel: how Nyamekra crosses the screen -----------------------
+# These replace the plain walk/run of a chain step that moves (see travel()).
+TRAVEL_MOVES = {
+    "wing_dash":        ("bright", (95, 0, 95, 0), 1.0, 1, 0, {"dash"}),
+    "feather_teleport": ("bright", (40, 30, 40, 30), 0.7, 0, 0, {"teleport"}),
+    "swoop":            ("bright", (120, 10, 120, 10), 1.0, 4, 0, {"swoop", "beat"}),
+    "soar":             ("calm", (80, 10, 80, 10), 1.0, 6, 3, {"flight", "beat"}),
+}
+for _name, _spec in list(TRAVEL_MOVES.items()):
+    TRAVEL_MOVES[_name + "_back"] = _spec          # same move, heading left
+NYAMEKRA_MOVES.update(TRAVEL_MOVES)
+
 
 def nyamekra_flourishes() -> dict[str, tuple[str, ...]]:
     out: dict[str, list[str]] = {}
     for name, spec in NYAMEKRA_MOVES.items():
+        if name in TRAVEL_MOVES:
+            continue                                     # only used for real travel
         out.setdefault(spec[0], []).append(name)
     return {k: tuple(v) for k, v in out.items()}
 
@@ -227,7 +252,7 @@ def _symbol(canvas, name, x, y, s, color, p):
     elif name == "adinkra":                                  # Akoma heart
         canvas.create_polygon(x, y + s * 0.9, x - s, y - s * 0.1, x - s * 0.55, y - s * 0.8,
                               x, y - s * 0.35, x + s * 0.55, y - s * 0.8, x + s, y - s * 0.1,
-                              outline=color, fill="", smooth=True)
+                              outline=color, fill="", smooth=True, width=w)
     elif name == "crow":
         canvas.create_polygon(x - s, y, x - s * 0.2, y - s * 0.4, x + s * 0.5, y - s * 0.3,
                               x + s, y - s * 0.5, x + s * 0.6, y, x - s * 0.1, y + s * 0.3,
@@ -301,7 +326,9 @@ def _wing(canvas, root_x, root_y, side, spread, P, p, beat):
     """A crow wing as a fan of individual feathers; spread 0 folded .. 1 open."""
     flap = math.sin(p * 2 * math.pi * 2) * (0.35 if beat else 0.06)
     # folded: feathers hang down along the body; open: they fan up and out
-    base = math.pi / 2 - side * (0.15 + spread * 1.35 + flap * spread)
+    # open wings rise above the shoulders and reach past the cape so they read
+    base = math.pi / 2 - side * (0.15 + spread * 1.75 + flap * spread)
+    reach = 1.0 + 0.35 * max(0.0, spread - 0.5) / 0.5
     for layer, (fill, length, width, tip) in enumerate((
             (P["feather"], 58, 6.5, P["gold"]),          # primaries
             (P["feather_hi"], 44, 6.0, None),            # secondaries
@@ -310,8 +337,122 @@ def _wing(canvas, root_x, root_y, side, spread, P, p, beat):
         for i in range(n):
             t = i / max(1, n - 1)
             ang = base + side * (t - 0.5) * (0.25 + spread * 0.9)
-            ln = length * (0.75 + 0.35 * t) * (0.7 + 0.3 * spread)
+            ln = length * (0.75 + 0.35 * t) * (0.7 + 0.3 * spread) * reach
             _feather(canvas, root_x, root_y, ang, ln, width, fill, P["gold_dk"] if layer == 0 else fill, tip)
+
+
+LOOK_AROUND = frozenset({"idle_bob", "wait", "notice", "head_tilt", "look_at_input",
+                         "survey_realms", "think", "lean_work", "work"})
+
+
+def head_look(pose: str, p: float, eyes: str, fx, osc: float) -> float:
+    """Where the head points: -1 full left, 0 facing you, 1 full right."""
+    if eyes == "left":
+        return -1.0
+    if eyes == "right":
+        return 1.0
+    if "scan" in fx:
+        return osc                                       # sweeps side to side
+    if pose in LOOK_AROUND:
+        # mostly profile, then a glance at you and over the other shoulder
+        if p < 0.55:
+            return 1.0
+        return math.cos((p - 0.55) / 0.45 * 2 * math.pi)
+    if "symbol" in str(fx) or "cast" in fx or "interact" in fx:
+        return 0.8                                       # watches its own hand
+    return 1.0
+
+
+def _feather_burst(canvas, x, y, p, P, glow):
+    """Feathers fly apart (p<0.5) and gather again (p>0.5): the teleport."""
+    spread = math.sin(min(max(p, 0.0), 1.0) * math.pi)          # 0 -> 1 -> 0
+    for i in range(14):
+        a = i * 2 * math.pi / 14 + p * 4
+        r = 10 + 70 * spread * (0.6 + 0.4 * ((i * 7) % 5) / 4)
+        fx_, fy_ = x + math.cos(a) * r, y + math.sin(a) * r * 0.8
+        _feather(canvas, fx_, fy_, a + math.pi / 2, 14, 5, P["feather"], P["gold_dk"],
+                 P["gold"] if i % 3 else P["gold_hi"])
+    core = 4 + 10 * spread
+    canvas.create_oval(x - core, y - core, x + core, y + core, outline=glow, width=2)
+    _glow_dot(canvas, x, y, 3 + 3 * spread, P["gold"], P["gold_hi"])
+
+
+def _clear_of_head(x, y, ring, hcx, hcy, head_r=24, frame_w=200):
+    """Slide a badge sideways so it never covers the face."""
+    need = ring + head_r
+    if math.hypot(x - hcx, y - hcy) >= need:
+        return x, y
+    side = 1 if x >= hcx else -1
+    nx = hcx + side * need
+    if nx + ring > frame_w - 2 or nx - ring < 2:          # no room: try the other side
+        nx = hcx - side * need
+    nx = min(max(nx, ring + 2), frame_w - 2 - ring)
+    return nx, y
+
+
+def _hand(canvas, side, ex, ey, hx, hy, P, glow):
+    """Gold gauntlet, bangles and a clearly visible taloned hand."""
+    gx0, gy0 = ex + (hx - ex) * 0.4, ey + (hy - ey) * 0.4
+    canvas.create_line(gx0, gy0, hx, hy, fill=P["gold_dk"], width=10, capstyle="round")
+    canvas.create_line(gx0, gy0, hx, hy, fill=P["gold"], width=7, capstyle="round")
+    for k in (0.5, 0.68, 0.86):
+        bx, by = ex + (hx - ex) * k, ey + (hy - ey) * k
+        canvas.create_oval(bx - 5, by - 2.2, bx + 5, by + 2.2, outline=P["gold_dk"], width=1)
+    dx, dy = hx - ex, hy - ey
+    n = math.hypot(dx, dy) or 1.0
+    ux, uy = dx / n, dy / n                       # points down the forearm
+    canvas.create_oval(hx - 5.5, hy - 5.5, hx + 5.5, hy + 5.5, fill=P["talon"],
+                       outline=P["gold_hi"], width=2)
+    for t in (-1, 0, 1):                          # three talons fanned along the arm
+        a = math.atan2(uy, ux) + t * 0.5
+        mx, my = hx + math.cos(a) * 9, hy + math.sin(a) * 9
+        canvas.create_line(hx, hy, mx, my, fill=P["talon"], width=3, capstyle="round")
+        canvas.create_line(mx, my, mx + math.cos(a + 0.4 * side) * 3.5,
+                           my + math.sin(a + 0.4 * side) * 3.5, fill=P["gold_hi"], width=2)
+    canvas.create_oval(hx - 1.6, hy - 1.6, hx + 1.6, hy + 1.6, fill=glow, outline="")
+
+
+def _profile_beak(canvas, bx0, by0, blen, tip, f, open_, P):
+    canvas.create_polygon(bx0 - 2 * f, by0 - 8, bx0 + blen * 0.45 * f, by0 - 6, tip, by0 + 2 - open_ * 0.3,
+                          bx0, by0 + 1, fill=P["beak"], outline=P["gold"], smooth=True)
+    canvas.create_line(bx0 + 2 * f, by0 - 5, tip - 4 * f, by0 + 1, fill=P["beak_hi"], width=1)
+    canvas.create_polygon(bx0, by0 + 2 + open_, tip - 6 * f, by0 + 4 + open_ * 0.6, bx0, by0 + 7,
+                          fill=P["beak"], outline=P["gold"])
+    canvas.create_line(bx0 + 4 * f, by0 - 5, bx0 + 4 * f, by0 + 5 + open_, fill=P["gold"], width=2)
+
+
+def _eye(canvas, ex0, ey0, eyes, fx, expr, glow, gaze, p, P, small=False):
+    k = 0.8 if small else 1.0
+    if eyes == "closed":
+        canvas.create_arc(ex0 - 5 * k, ey0 - 3, ex0 + 5 * k, ey0 + 3, start=200, extent=140,
+                          style="arc", width=2, outline=P["gold"])
+        return
+    if eyes == "xeyes":
+        canvas.create_line(ex0 - 4, ey0 - 4, ex0 + 4, ey0 + 4, width=2, fill=P["gold"])
+        canvas.create_line(ex0 - 4, ey0 + 4, ex0 + 4, ey0 - 4, width=2, fill=P["gold"])
+        return
+    r = (7.5 if eyes == "wide" or "eye" in fx else 6.5) * expr[1] * k
+    canvas.create_oval(ex0 - r, ey0 - r, ex0 + r, ey0 + r, fill="#1b1033", outline=P["gold"], width=1)
+    canvas.create_oval(ex0 - r * 0.7, ey0 - r * 0.7, ex0 + r * 0.7, ey0 + r * 0.7, fill=P["violet"],
+                       outline="")
+    gx, gy = gaze
+    canvas.create_oval(ex0 - 2.2 + gx, ey0 - 2.2 + gy, ex0 + 2.2 + gx, ey0 + 2.2 + gy,
+                       fill=glow, outline="")
+    for i in range(4):                                       # stars in the eye
+        a = p * 3 + i * 1.57
+        canvas.create_oval(ex0 + math.cos(a) * r * 0.55 - 0.6, ey0 + math.sin(a) * r * 0.55 - 0.6,
+                           ex0 + math.cos(a) * r * 0.55 + 0.6, ey0 + math.sin(a) * r * 0.55 + 0.6,
+                           fill=P["gold_hi"], outline="")
+    if "eye" in fx:
+        canvas.create_oval(ex0 - r - 3, ey0 - r - 3, ex0 + r + 3, ey0 + r + 3, outline=glow, width=2)
+    if expr[2] > 0:                                          # upper lid: calm, wise, sad
+        lid = ey0 - r + 2 * r * expr[2]
+        canvas.create_polygon(ex0 - r - 1, ey0 - r - 1, ex0 + r + 1, ey0 - r - 1,
+                              ex0 + r + 1, lid, ex0 - r - 1, lid, fill=P["feather"], outline="")
+        canvas.create_line(ex0 - r, lid, ex0 + r, lid, fill=P["gold_dk"], width=1)
+    if expr[4]:                                              # sparkle: curious, joyful, wise
+        canvas.create_oval(ex0 + r * 0.3, ey0 - r * 0.6, ex0 + r * 0.3 + 2.2, ey0 - r * 0.6 + 2.2,
+                           fill="white", outline="")
 
 
 def expression_of(pose: str, mood: str, own: bool) -> str:
@@ -330,7 +471,33 @@ _TOOL_ICON = {"automation": "gear", "travel": "arrow", "knowledge": "book",
               "omnipresence": "infinity", "time": "clock"}
 
 
-def _tool_icon(canvas, tool, x, y, color):
+class _Scaled:
+    """Draws onto `canvas` scaled by k around (ox, oy); line widths scale too."""
+
+    def __init__(self, canvas, ox, oy, k):
+        self._c, self._o, self._k = canvas, (ox, oy), k
+
+    def _pts(self, coords):
+        ox, oy = self._o
+        return [(v - (ox if i % 2 == 0 else oy)) * self._k + (ox if i % 2 == 0 else oy)
+                for i, v in enumerate(coords)]
+
+    def _kw(self, kw):
+        if "width" in kw:
+            kw = dict(kw, width=max(1, round(kw["width"] * self._k)))
+        return kw
+
+    def __getattr__(self, name):
+        fn = getattr(self._c, name)
+        if not name.startswith("create_"):
+            return fn
+        return lambda *coords, **kw: fn(*self._pts(coords), **self._kw(kw))
+
+
+def _tool_icon(canvas, tool, x, y, color, k: float = 1.0):
+    if k != 1.0:
+        canvas = _Scaled(canvas, x, y, k)
+        k = 1.0
     kind = _TOOL_ICON[tool]
     if kind == "gear":
         for i in range(8):
@@ -452,10 +619,12 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
 
     if own is not None:
         mood_name, arms, wing, bounce, sway, fx = own
-        arms = tuple(a + osc * (10 if i % 2 == 0 else 6) * (1 if i < 2 else -1)
+        # Big, readable motion: wide arm swings, real hops, a wing pulse.
+        arms = tuple(a + osc * (ARM_SWING if i % 2 == 0 else ARM_SWING * 0.6) * (1 if i < 2 else -1)
                      for i, a in enumerate(arms))
-        dy = -abs(osc) * bounce
-        dx = sway * osc
+        dy = -abs(osc) * bounce * BOUNCE_GAIN
+        dx = sway * osc * SWAY_GAIN
+        wing = min(1.0, max(0.0, wing + WING_PULSE * osc))
         mood = {"bright": "joy", "focused": "work", "uneasy": "fail", "calm": "calm"}[mood_name]
         symbol = next((f.split(":", 1)[1] for f in fx if f.startswith("symbol:")), None)
     else:
@@ -467,14 +636,25 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
         dy, dx = prm["bob"], 0.0
         mood = mood_of(pose)
     glow = MOOD_COLORS.get(mood, MOOD_COLORS["calm"])
+    if "teleport" in fx and 0.3 <= p <= 0.7:
+        # between places: nothing but a whirl of feathers and the halo's spark
+        _feather_burst(canvas, 100 + dx, 130 + dy, p, P, glow)
+        return
     if "float" in fx:
         dy -= 8 + 2 * osc
     if "seat" in fx or "crouch" in fx:
         dy += 12
     if "flight" in fx:
-        dy -= 8 + 4 * osc
+        dy -= 4 + 3 * osc
     if "sprint" in fx:
         shear += 10
+    if "dash" in fx:
+        shear += 14                                      # leaning hard into the dash
+        dy -= 6
+    if "swoop" in fx:
+        shear += 10
+        dy -= 18 + 6 * osc                               # off the ground, diving in
+    dy = max(dy, -HEADROOM)                              # never lift the halo out of frame
     expr = EXPRESSIONS[expression_of(pose, mood, own is not None)]
     role = ROLE_OF.get(pose)
 
@@ -611,21 +791,13 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
     # ---- arms: feathered sleeves, gold bangles, talons --------------------------------
     sy = top + 9
     hands = []
+    forearms = []          # gauntlets + talons are drawn last, on top of everything
     for side, (sh, el) in ((-1, arms[0:2]), (1, arms[2:4])):
         up = sh > 100
         ex, ey, hx2, hy2 = _limb(canvas, cx + side * 16, sy, min(sh, 100) if not up else 180 - sh,
                                  el, 18, 17, side, 9, P["feather"], flip_up=up)
         canvas.create_line(cx + side * 16, sy, ex, ey, fill=P["sheen"], width=2)
-        gx0, gy0 = ex + (hx2 - ex) * 0.4, ey + (hy2 - ey) * 0.4
-        canvas.create_line(gx0, gy0, hx2, hy2, fill=P["gold"], width=8, capstyle="round")
-        for k in (0.5, 0.68, 0.86):
-            bx, by = ex + (hx2 - ex) * k, ey + (hy2 - ey) * k
-            canvas.create_oval(bx - 4.5, by - 2, bx + 4.5, by + 2, outline=P["gold_dk"], width=1)
-        _glow_dot(canvas, ex + (hx2 - ex) * 0.6, ey + (hy2 - ey) * 0.6, 1.6, P["gold_hi"], P["gold_hi"])
-        for t in (-1, 0, 1):                                      # talon fingers
-            canvas.create_line(hx2, hy2, hx2 + t * 4 + side * 2, hy2 + 6, fill=P["talon"], width=2)
-            canvas.create_line(hx2 + t * 4 + side * 2, hy2 + 6, hx2 + t * 4 + side * 3, hy2 + 8,
-                               fill=P["gold"], width=1)
+        forearms.append((side, ex, ey, hx2, hy2))
         hands.append((hx2, hy2))
 
     # world-orb above the raised hand, or juggled
@@ -648,68 +820,53 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
         canvas.create_oval(mx - 2.6, my - 2.6, mx + 2.6, my + 2.6, fill=P["gold"], outline=P["gold_dk"])
 
     # ---- crow head ---------------------------------------------------------------------------
+    look = head_look(pose, p, eyes, fx, osc)
+    if pose in FACE_LEFT:
+        look = abs(look)                   # the whole body is mirrored already: lead with the beak
+    face = 1 if look >= 0 else -1
+    turn = abs(look)                       # 0 = facing you, 1 = full profile
     cock = 6 if "cock" in fx else 0
     hcx, hcy = cx + shear * 0.4 + cock * 0.5, top - 26 + (2 if "preen" in fx else 0)
     for i in range(7):                                            # ruffled crest
         a = math.pi * (1.1 + 0.8 * i / 6)
         ruff = 3 if "ruffle" in fx else 0
         r = 19 + (i % 2) * 4 + ruff * abs(osc)
-        canvas.create_polygon(hcx + math.cos(a) * 12, hcy + math.sin(a) * 12,
-                              hcx + math.cos(a + 0.15) * r, hcy + math.sin(a + 0.15) * r,
-                              hcx + math.cos(a + 0.3) * 12, hcy + math.sin(a + 0.3) * 12,
+        canvas.create_polygon(hcx + face * math.cos(a) * 12, hcy + math.sin(a) * 12,
+                              hcx + face * math.cos(a + 0.15) * r, hcy + math.sin(a + 0.15) * r,
+                              hcx + face * math.cos(a + 0.3) * 12, hcy + math.sin(a + 0.3) * 12,
                               fill=P["feather"], outline="")
     canvas.create_oval(hcx - 19, hcy - 18, hcx + 19, hcy + 19, fill=P["feather"], outline=P["sheen"])
     canvas.create_arc(hcx - 13, hcy - 14, hcx + 9, hcy + 8, start=95, extent=100, style="arc",
                       outline=P["sheen"], width=3)
     canvas.create_arc(hcx - 10, hcy - 4, hcx + 12, hcy + 16, start=200, extent=90, style="arc",
                       outline=P["violet"], width=2)
-    # beak (open when cawing), gold-banded
-    face = 1
+    # beak (open when cawing), gold-banded; shortens as the head turns toward you
     open_ = 5 if "caw" in fx and osc > 0 else max(expr[3], 3 if eyes == "wide" else 0)
-    bx0, by0 = hcx + 12 * face, hcy + 2
-    tip = bx0 + 27 * face
-    canvas.create_polygon(bx0 - 2, by0 - 8, bx0 + 12, by0 - 6, tip, by0 + 2 - open_ * 0.3,
-                          bx0, by0 + 1, fill=P["beak"], outline=P["gold"], smooth=True)
-    canvas.create_line(bx0 + 2, by0 - 5, tip - 4, by0 + 1, fill=P["beak_hi"], width=1)
-    canvas.create_polygon(bx0, by0 + 2 + open_, tip - 6, by0 + 4 + open_ * 0.6, bx0, by0 + 7,
-                          fill=P["beak"], outline=P["gold"])
-    canvas.create_line(bx0 + 4, by0 - 5, bx0 + 4, by0 + 5 + open_, fill=P["gold"], width=2)
-    # galaxy eye: tinted by mood, pupil follows the gaze
-    ex0, ey0 = hcx + 5, hcy - 5
-    if eyes == "closed":
-        canvas.create_arc(ex0 - 5, ey0 - 3, ex0 + 5, ey0 + 3, start=200, extent=140,
-                          style="arc", width=2, outline=P["gold"])
-    elif eyes == "xeyes":
-        canvas.create_line(ex0 - 4, ey0 - 4, ex0 + 4, ey0 + 4, width=2, fill=P["gold"])
-        canvas.create_line(ex0 - 4, ey0 + 4, ex0 + 4, ey0 - 4, width=2, fill=P["gold"])
+    blen = 10 + 17 * turn
+    bx0, by0 = hcx + (4 + 8 * turn) * face, hcy + 2 + 3 * (1 - turn)
+    tip = bx0 + blen * face
+    f = face
+    if turn <= 0.45:                       # facing you: a centred beak pointing down
+        bx, by = hcx, hcy + 1
+        canvas.create_polygon(bx - 6, by - 4, bx + 6, by - 4, bx + 1.5 * look * 6, by + 14 + open_,
+                              fill=P["beak"], outline=P["gold"], smooth=True)
+        canvas.create_line(bx - 5, by - 2, bx + 5, by - 2, fill=P["gold"], width=2)
+        canvas.create_line(bx, by - 3, bx + look * 4, by + 10, fill=P["beak_hi"], width=1)
     else:
-        r = (7.5 if eyes == "wide" or "eye" in fx else 6.5) * expr[1]
-        canvas.create_oval(ex0 - r, ey0 - r, ex0 + r, ey0 + r, fill="#1b1033", outline=P["gold"], width=1)
-        canvas.create_oval(ex0 - r * 0.7, ey0 - r * 0.7, ex0 + r * 0.7, ey0 + r * 0.7, fill=P["violet"],
-                           outline="")
-        gx = {"left": -2, "right": 2}.get(eyes, 0)
-        gy = {"up": -2, "down": 2}.get(eyes, 0)
-        canvas.create_oval(ex0 - 2.2 + gx, ey0 - 2.2 + gy, ex0 + 2.2 + gx, ey0 + 2.2 + gy,
-                           fill=glow, outline="")
-        for i in range(4):                                       # stars in the eye
-            a = p * 3 + i * 1.57
-            canvas.create_oval(ex0 + math.cos(a) * r * 0.55 - 0.6, ey0 + math.sin(a) * r * 0.55 - 0.6,
-                               ex0 + math.cos(a) * r * 0.55 + 0.6, ey0 + math.sin(a) * r * 0.55 + 0.6,
-                               fill=P["gold_hi"], outline="")
-        if "eye" in fx:
-            canvas.create_oval(ex0 - r - 3, ey0 - r - 3, ex0 + r + 3, ey0 + r + 3, outline=glow, width=2)
-        if expr[2] > 0:                                          # upper lid: calm, wise, sad
-            lid = ey0 - r + 2 * r * expr[2]
-            canvas.create_polygon(ex0 - r - 1, ey0 - r - 1, ex0 + r + 1, ey0 - r - 1,
-                                  ex0 + r + 1, lid, ex0 - r - 1, lid,
-                                  fill=P["feather"], outline="")
-            canvas.create_line(ex0 - r, lid, ex0 + r, lid, fill=P["gold_dk"], width=1)
-        if expr[4]:                                              # sparkle: curious, joyful, wise
-            canvas.create_oval(ex0 + r * 0.3, ey0 - r * 0.6, ex0 + r * 0.3 + 2.2, ey0 - r * 0.6 + 2.2,
-                               fill="white", outline="")
+        _profile_beak(canvas, bx0, by0, blen, tip, f, open_, P)
+    # galaxy eyes: one in profile, two as the head turns to face you
+    ey0 = hcy - 5
+    gaze = (3.0 * look, {"up": -2, "down": 2}.get(eyes, 0))
+    if turn > 0.45:
+        eye_xs = [hcx + 5 * face]
+    else:
+        eye_xs = [hcx - 8, hcx + 8]
+    for ex0 in eye_xs:
+        _eye(canvas, ex0, ey0, eyes, fx, expr, glow, gaze, p, P, small=len(eye_xs) > 1)
     tilt = expr[0]
-    canvas.create_line(ex0 - 8, ey0 - 9 - tilt, ex0 + 7, ey0 - 9 + tilt,
-                       fill=P["feather_hi"], width=3)
+    for ex0 in eye_xs:
+        canvas.create_line(ex0 - 8, ey0 - 9 - tilt * face, ex0 + 7, ey0 - 9 + tilt * face,
+                           fill=P["feather_hi"], width=3)
     # crown with sun-orb
     ctop = hcy - 15
     canvas.create_polygon(hcx - 13, ctop, hcx - 15, ctop - 11, hcx - 8, ctop - 6, hcx - 5, ctop - 16,
@@ -720,11 +877,28 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
     canvas.create_line(hcx - 12, ctop - 1, hcx + 12, ctop - 1, fill=P["gold_hi"], width=1)
     _glow_dot(canvas, hcx, ctop - 17, 3.5, P["gold"], P["gold_hi"])
 
+    # ---- hands: always on top of the head, robe and collar ------------------------------
+    for side, ex, ey, hx2, hy2 in forearms:
+        _hand(canvas, side, ex, ey, hx2, hy2, P, glow)
+
     # ---- channelled symbol of essence --------------------------------------------------------
     if symbol is not None:
-        sx_, sy_ = hands[1][0], hands[1][1] - 20 - abs(osc) * 4
-        canvas.create_oval(sx_ - 15, sy_ - 15, sx_ + 15, sy_ + 15, outline=glow, width=1)
-        _symbol(canvas, symbol, sx_, sy_, 10 + 1.5 * abs(osc), P["gold_hi"], p)
+        size = SYMBOL_SIZE + 3 * abs(osc)                        # breathes with the beat
+        ring = size + 9
+        sx_ = min(max(hands[1][0], ring + 2), 198 - ring)
+        sy_ = max(hands[1][1] - ring - 10 - abs(osc) * 6, ring + 2)
+        sx_, sy_ = _clear_of_head(sx_, sy_, ring, hcx, hcy)
+        canvas.create_oval(sx_ - ring, sy_ - ring, sx_ + ring, sy_ + ring,
+                           fill=P["robe"], outline=glow, width=3)
+        canvas.create_oval(sx_ - ring + 4, sy_ - ring + 4, sx_ + ring - 4, sy_ + ring - 4,
+                           outline=P["gold_dk"], width=1)
+        for i in range(8):                                       # sparks orbit the symbol
+            a = i * math.pi / 4 + p * 2 * math.pi
+            r0, r1 = ring + 3, ring + 7 + 3 * abs(osc)
+            canvas.create_line(sx_ + math.cos(a) * r0, sy_ + math.sin(a) * r0,
+                               sx_ + math.cos(a) * r1, sy_ + math.sin(a) * r1,
+                               fill=glow if i % 2 else P["gold_hi"], width=2)
+        _symbol(canvas, symbol, sx_, sy_, size, P["gold_hi"], p)
     if "scepter" in fx:                                           # scepter + armillary sphere
         sx0, sy0 = hands[0]
         canvas.create_line(sx0, sy0 + 40, sx0, sy0 - 36, fill=P["gold"], width=3)
@@ -782,8 +956,9 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
     if role is not None:
         _role_gear(canvas, role, cx, top, hcx, hcy, hands, P, p)
         mx, my = cx, top + 64
-        canvas.create_oval(mx - 8, my - 8, mx + 8, my + 8, fill=P["robe"], outline=glow, width=2)
-        _tool_icon(canvas, ROLE_TOOL[role], mx, my, P["gold_hi"])
+        er = 8 * EMBLEM_SCALE
+        canvas.create_oval(mx - er, my - er, mx + er, my + er, fill=P["robe"], outline=glow, width=3)
+        _tool_icon(canvas, ROLE_TOOL[role], mx, my, P["gold_hi"], EMBLEM_SCALE)
 
     # ---- dynamic poses ----------------------------------------------------------------------
     if "land" in fx:
@@ -807,7 +982,7 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
             a = i * math.pi / 3 + math.pi / 6
             pts += [sx + math.cos(a) * 18, sy2 + math.sin(a) * 22]
         canvas.create_line(*pts, pts[0], pts[1], fill=glow, width=3)
-        _tool_icon(canvas, "protection", sx, sy2, P["gold_hi"])
+        _tool_icon(canvas, "protection", sx, sy2, P["gold_hi"], EMBLEM_SCALE)
     if "interact" in fx:
         hx, hy = hands[1]
         canvas.create_rectangle(hx + 4, hy - 26, hx + 34, hy - 6, outline="#22d3ee", width=1)
@@ -816,6 +991,26 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
     if "flight" in fx:
         for i in range(3):
             canvas.create_line(cx - 20 + i * 20, cy + 52, cx - 26 + i * 20, cy + 64, fill=P["gold_dk"], width=1)
+
+    # ---- signature travel effects ---------------------------------------------------------
+    if "dash" in fx:                                    # wings flung wide, a gold wake behind
+        for i in range(6):
+            y = cy - 50 + i * 14
+            ln = 30 + (i % 3) * 14 + 10 * abs(osc)
+            canvas.create_line(cx - 46 - i * 3, y, cx - 46 - i * 3 - ln, y,
+                               fill=glow if i % 2 else P["gold_hi"], width=3 - (i % 2))
+        for i in range(4):
+            fx_, fy_ = cx - 70 - i * 18 - p * 30, cy - 30 + (i % 2) * 26
+            _feather(canvas, fx_, fy_, math.pi * (0.9 + 0.1 * i), 12, 4,
+                     P["feather"], P["gold_dk"], P["gold"])
+    if "swoop" in fx:                                    # diving at you, trailing light
+        for i in range(5):
+            a = -0.5 + i * 0.25
+            canvas.create_arc(cx - 70 - i * 6, cy - 80, cx + 10 - i * 6, cy + 20,
+                              start=150 + i * 6, extent=50, style="arc",
+                              outline=glow if i % 2 else P["gold_hi"], width=2)
+    if "teleport" in fx:
+        _feather_burst(canvas, cx, cy - 20, p, P, glow)
 
     # ---- shared cues: tools, effects, curiosity -----------------------------------------
     if extra == "zzz":
@@ -840,3 +1035,77 @@ def draw_nyamekra(canvas, pose: str, progress: float = 0.0, palette: str | None 
         _bubble(canvas, hcx - 26, hcy - 30, "!", glow)
     elif pose in WONDER:
         _bubble(canvas, hcx - 26, hcy - 30, "?", glow)
+
+
+# ---- making every symbol mean something -----------------------------------
+# Which Symbols of Essence Nyamekra channels for each kind of Hermes work.
+# Each list spans moods so a fitting symbol exists whatever the chain's mood.
+CATEGORY_SYMBOLS: dict[str, tuple[str, ...]] = {
+    "terminal": ("pyramid", "sun", "spiral"),        # strength, creation, evolution
+    "development": ("pyramid", "sun", "spiral"),
+    "web": ("baobab", "crow", "orbit"),              # all knowledge, the messenger, all realms
+    "browser": ("baobab", "crow", "orbit"),
+    "file": ("adinkra", "sun", "moon"),              # wisdom, creation, order/cycles
+    "learning": ("baobab", "ankh", "moon"),
+    "planning": ("adinkra", "infinity", "moon"),
+    "memory": ("baobab", "infinity", "spiral"),      # roots, eternity, cycles
+    "media": ("adinkra", "sun", "moon"),
+    "design": ("adinkra", "sun", "moon"),
+    "delegation": ("pyramid", "infinity", "orbit"),  # strength, omnipresence, realms
+    "general": ("adinkra", "ankh", "moon"),          # wisdom, life, balance
+}
+
+
+def flourish_hints() -> dict[str, tuple[str, ...]]:
+    return {cat: tuple(m for m in NYAMEKRA_MOVES if m.rsplit("_", 1)[-1] in syms)
+            for cat, syms in CATEGORY_SYMBOLS.items()}
+
+
+# In-place moves Nyamekra uses when it notices you.
+CURIOUS_MOVES = ("head_cock", "eye_glow", "caw", "survey_realms", "glyph_weave", "preen")
+
+# Same meanings as everyone else, in the All-Doing Crow's voice.
+VOICE = {
+    "starting": "I see the path. On it.",
+    "reviewing": "Reading what returned…",
+    "needs-you": "Your OK is needed.",
+    "issue": "A tool failed - I'm mending it.",
+    "complete": "Done. Every path leads here.",
+    "paused": "As you wish. Holding.",
+}
+GREETING = "I am Nyamekra. All paths, one being."
+
+
+# ---- choosing a travel move for a step that crosses the screen ------------------
+TOWARD_USER = ("run_to_user", "to_user", "panic")
+TELEPORT_MIN_DX = 300
+
+
+def travel(step: dict, rng) -> dict:
+    """Swap a moving step's pose for one of Nyamekra's signature travels.
+
+    Distance, direction and timing are kept exactly, so the chain still goes
+    where the Hermes event sent it; only *how* Nyamekra gets there changes.
+    """
+    move = step.get("move")
+    if not move or not move.get("dx"):
+        return step
+    dx = move["dx"]
+    kind = move.get("type", "")
+    pose = step.get("pose", "")
+    far = abs(dx) >= TELEPORT_MIN_DX
+    if any(k in pose for k in TOWARD_USER):
+        name = "swoop"                                   # flies straight at you
+    elif kind in ("fly", "hop", "leap", "pounce", "drift", "zigzag"):
+        name = rng.choice(("soar", "swoop"))
+    elif far and rng.random() < 0.35:
+        name = "feather_teleport"
+    elif kind in ("dash", "run", "sprint") or far:
+        name = "wing_dash"
+    else:
+        return step                                      # short walks stay walks
+    out = dict(step, pose=name + ("_back" if dx < 0 else ""))
+    if name == "feather_teleport":
+        out["move"] = dict(move, easing="teleport")
+        out["duration_ms"] = max(int(step.get("duration_ms", 0)), 900)
+    return out

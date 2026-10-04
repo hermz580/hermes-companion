@@ -58,14 +58,17 @@ class PlaygroundBrain:
     def __init__(self, director, surface, *, sensors=None, seed: int = 7,
                  variety: bool = True, demo: bool = True, start: float = 0.0,
                  perch: bool = False, log=print) -> None:
-        from hermes_companion.animation.characters import extra_flourishes
+        from hermes_companion.animation.characters import traits
+        t = traits(getattr(surface, "companion", None))
         self.engine = BehaviorEngine(
-            seed=seed, variety=variety,
-            extra_flourishes=extra_flourishes(getattr(surface, "companion", None)))
+            seed=seed, variety=variety, extra_flourishes=t["extra_flourishes"],
+            flourish_hints=t["flourish_hints"], travel=t["travel"])
         self.director = director
         self.surface = surface
         self.attention = AttentionModel()
         self.curiosity = CuriosityModel(seed=seed)
+        self.curiosity.own_moves = t["curious_moves"]
+        self.traits = t
         self.sensors = sensors
         self.demo = demo
         self.start = start
@@ -79,7 +82,8 @@ class PlaygroundBrain:
     def bind(self, director) -> None:
         self.director = director
         if self.want_perch and self.sensors is not None and hasattr(self.surface, "set_y"):
-            self.perch = PerchDriver(self.surface, director, self.sensors, log=self.log)
+            self.perch = PerchDriver(self.surface, director, self.sensors, log=self.log,
+                                     poses=self.traits["perch_poses"])
 
     def _hermes(self, now: float) -> None:
         if not self.demo:
@@ -176,12 +180,12 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
         except Exception as exc:          # a tray problem must never stop the pet
             print(f"tray unavailable: {exc}", flush=True)
     if hasattr(overlay, "attach_voice"):
-        overlay.attach_voice(bubbles=bubbles, sound=sound)
+        overlay.attach_voice(bubbles=bubbles, sound=sound, lines=brain.traits["voice"])
     if memory:
         from hermes_companion.core.personality import Personality
         brain.personality = Personality.load()
         brain.curiosity.threshold += brain.personality.curiosity_bias()
-        greeting = brain.personality.start()
+        greeting = brain.personality.start() or brain.traits["greeting"]
         if greeting and getattr(overlay, "voice", None) is not None:
             overlay.root.after(1500, lambda: overlay.voice.greet(greeting))
         print(f"memory: {brain.personality.summary()}", flush=True)

@@ -13,12 +13,30 @@ Interruption semantics (§10.1/§10.2):
 """
 from __future__ import annotations
 
+import math
 import time
 
 from hermes_companion.behavior.behavior_engine import BehaviorEngine, Chain
 from hermes_companion.behavior.priorities import NON_INTERRUPTIBLE_STEPS
 from hermes_companion.core.state import State
 from hermes_companion.movement import easing
+
+
+# How high a travel step rises mid-flight (px). Flying travels arc through the
+# air; ground travels stay on the floor. Teleports jump, they never arc.
+ARC_BY_POSE = {"soar": 120, "swoop": 90, "wing_dash": 26, "feather_teleport": 0}
+ARC_BY_TYPE = {"fly": 120, "leap": 100, "pounce": 90, "hop": 60, "bounce": 50,
+               "pop": 80, "drift": 40, "zigzag": 30}
+
+
+def arc_height(step: dict) -> int:
+    move = step.get("move") or {}
+    if move.get("easing") == "teleport":
+        return 0
+    pose = str(step.get("pose", "")).removesuffix("_back")
+    if pose in ARC_BY_POSE:
+        return ARC_BY_POSE[pose]
+    return ARC_BY_TYPE.get(move.get("type", ""), 0)
 
 
 class Director:
@@ -38,6 +56,7 @@ class Director:
         self._move_start = 0
         self._step_first = True
         self.idle_pose = "idle_bob"
+        self.idle_progress: float | None = None   # set while perch travel plays
         # Return-to-anchor phase. A chain ends wherever its last move stopped,
         # so without this the pet parks where it finished and never comes back
         # (observed: a left-running chain left it pinned at the screen edge, and
@@ -104,6 +123,8 @@ class Director:
             self.surface.set_pose(step["pose"], min(t_ms / max(duration, 1), 1.0))
 
         if t_ms >= duration:
+            if step.get("move") and getattr(self.surface, "lift", None) is not None:
+                self.surface.lift(0)                    # every travel lands
             self.step_i += 1
             self.step_start = self.clock()
             self._step_first = True
@@ -123,6 +144,9 @@ class Director:
         eased = easing.apply(move.get("easing", "easeOutCubic"), t)
         self._x = self._move_start + move["dx"] * eased
         self.surface.set_x(int(self._x))
+        lift = getattr(self.surface, "lift", None)
+        if lift is not None:
+            lift(int(-arc_height(step) * math.sin(math.pi * t)))
         self.surface.set_pose(step["pose"], t)
 
     # -- return to anchor ---------------------------------------------------
@@ -177,4 +201,6 @@ class Director:
             self.idle_pose = pose
         if self.engine.state == State.SLEEPING:
             self.idle_pose = "sleep"
-        self.surface.set_pose(self.idle_pose, time.monotonic() % 2.0)
+        progress = self.idle_progress if self.idle_progress is not None \
+            else time.monotonic() % 2.0
+        self.surface.set_pose(self.idle_pose, progress)

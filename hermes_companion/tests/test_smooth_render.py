@@ -17,7 +17,7 @@ def test_every_companion_renders_smoothly(companion):
     r = FrameRenderer(companion)
     for pose in POSES:
         img = r.frame(pose, 0.4)
-        assert img.size == (FRAME_W, FRAME_H) and img.mode == "RGBA"
+        assert img.size == (r.fw, r.fh) and img.mode == "RGBA"
         alpha = img.getchannel("A")
         lo, hi = alpha.getextrema()
         assert hi == 255

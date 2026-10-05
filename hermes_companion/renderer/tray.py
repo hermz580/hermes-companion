@@ -16,6 +16,7 @@ from hermes_companion.core import settings as S
 ENERGIES = {
     "nyamekra": ("cosmic", "earth", "fire", "water", "air", "shadow", "light",
                  "neon", "natural", "robotic"),
+    "masque": ("eerie", "cute", "monster"),
     "nia": ("kente", "indigo", "ochre", "emerald", "royal"),
     "herald": ("olympus", "midnight", "ember", "verdant", "nebula"),
 }

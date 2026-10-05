@@ -24,7 +24,7 @@ DEFAULTS: dict = {
     "high_contrast": False,
     "with": [],
 }
-COMPANIONS = ("nyamekra", "nia", "herald", "samurai", "astro")
+COMPANIONS = ("nyamekra", "masque", "nia", "herald", "samurai", "astro")
 SIZES = ("tiny", "standard", "large")
 NOTICE = ("off", "ambient", "full")
 

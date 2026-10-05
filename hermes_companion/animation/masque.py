@@ -616,7 +616,7 @@ def draw_mask(canvas, x, y, w, h, face, cracks=0, tilt=0.0, teeth=True, lace=Tru
 # The whole creature
 # ---------------------------------------------------------------------------
 # Hand-placed so they sit in the mane like the sheet: framing the mask, down the body.
-_EYE_SPOTS = [(-62, 92, 8), (62, 96, 8), (-50, 175, 9), (52, 180, 9), (0, 205, 10),
+_EYE_SPOTS = [(-62, 92, 8), (62, 96, 8), (-50, 175, 9), (52, 180, 9), (0, 236, 10),
               (-88, 140, 7), (90, 145, 7), (-30, 240, 8), (34, 245, 8), (-72, 60, 6),
               (74, 62, 6), (-100, 210, 7), (102, 215, 7), (0, 262, 7), (-58, 270, 6),
               (60, 268, 6), (-110, 105, 6), (112, 110, 6), (-20, 150, 6), (24, 152, 6),
@@ -793,11 +793,16 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
     # 2. the mane: a dark mass of hair-like tendrils pouring to the floor
     tint = _mix("#3b2a55", colour, 0.55)
     spread = 1.0 + (0.35 if "bloom" in fx else 0.0) - (0.3 if ("coil" in fx or "recoil" in fx) else 0.0)
+    if "perch" not in fx:                                  # a soft shadow pooling on the floor
+        sw = 120 * size * spread
+        canvas.create_oval(mcx - sw, FLOOR - 7, mcx + sw, FLOOR + 5, fill="#0d0a12", outline="")
     for k in range(7):                                     # soft volume behind the strands
         t = k / 6
         rx = (40 + 70 * t) * size * spread
         cy_ = mcy - 20 + 150 * t
         canvas.create_oval(mcx - rx, cy_ - 46, mcx + rx, cy_ + 46, fill=INK, outline="")
+    if lace and not back:                                  # lace veil over the body, under the strands
+        _veil(canvas, mcx, mcy, mw, size, p)
     count = n_tendrils + 2 * st.running
     strands = []
     for i in range(count):
@@ -808,6 +813,17 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
         _strand(canvas, pts, w0 + 2.4, 4.0, "#3a2d4d")
     for pts, w0 in strands:                                # then thick ink
         _strand(canvas, pts, w0, 2.5, INK)
+    _starfield(canvas, mcx, mcy, size, p, tint)              # the void inside her twinkles
+    for i, (pts, w0) in enumerate(strands):                  # fine wisps peel off each tendril
+        for j in (4, 8):
+            if j < len(pts) - 1:
+                (x0, y0), (x1, y1) = pts[j], pts[j + 1]
+                side = 1 if (i + j) % 2 else -1
+                ang = math.atan2(y1 - y0, x1 - x0) + side * 0.7
+                ln = 9 + 4 * math.sin(p * 6 + i + j)
+                canvas.create_line(x0, y0, x0 + math.cos(ang) * ln * 0.6 + side * 2,
+                                   y0 + math.sin(ang) * ln * 0.6, x0 + math.cos(ang - side * 0.5) * ln,
+                                   y0 + math.sin(ang - side * 0.5) * ln, fill=INK, width=1.6, smooth=True)
     # sheen catches the colour of the work - several kinds of tools at once braid their colours
     kinds = list(dict.fromkeys(st.tools)) if len(set(st.tools)) > 1 else []
     tints = [_mix("#3b2a55", CATEGORY_COLOUR.get(c, colour), 0.6) for c in kinds] or [tint]
@@ -866,6 +882,8 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
               bloom=1.2 if "roses" in fx else 1.0)
     canvas.create_line(mcx - 30, mcy + mh + 6, mcx, mcy + mh + 16, mcx + 30, mcy + mh + 6,
                        fill=GOLD, width=1.5, smooth=True)
+    if not back:
+        _bodice(canvas, mcx, mcy + mh + 30)
     canvas.create_oval(mcx - 4, mcy + mh + 12, mcx + 4, mcy + mh + 20, fill=GOLD_HI, outline=GOLD_DK)
 
     # 5. form props
@@ -1011,6 +1029,60 @@ def _window(canvas, top):
         canvas.create_oval(bx - 5, top + 6, bx + 5, top + 16, fill=col, outline="")
     for i in range(3):                                        # lines of text in the window
         canvas.create_line(20, top + 34 + i * 12, 150 - i * 30, top + 34 + i * 12, fill="#3c4a6e", width=3)
+
+
+def _veil(canvas, x, y, mw, size, p):
+    """A lace veil from the crown, scalloped at the hem (the sheet's optional drapery)."""
+    top, hem = y - 52, y + 70
+    half_top, half_hem = mw + 10, (mw + 46) * size
+    sway = 3 * math.sin(p * 2 * math.pi)
+    canvas.create_polygon(x - half_top, top, x + half_top, top, x + half_hem + sway, hem,
+                          x - half_hem + sway, hem, fill="#1a1325", outline="", smooth=True)
+    n = 9
+    for i in range(n):                                       # scalloped hem
+        t0 = i / n
+        sx = x - half_hem + sway + 2 * half_hem * t0
+        w = 2 * half_hem / n
+        canvas.create_arc(sx, hem - w * 0.5, sx + w, hem + w * 0.5, start=180, extent=180, style="arc",
+                          outline="#5d4a78", width=1.2)
+        canvas.create_oval(sx + w / 2 - 1.2, hem + w * 0.42 - 1.2, sx + w / 2 + 1.2, hem + w * 0.42 + 1.2,
+                           fill="#cbbfe0", outline="")
+    for r_ in range(3):                                      # lace pattern: rows of tiny rosettes
+        yy = top + 30 + r_ * 26
+        span = half_top + (half_hem - half_top) * (yy - top) / (hem - top)
+        for k in range(-3, 4):
+            xx = x + k * span / 3.6 + sway * (yy - top) / (hem - top)
+            canvas.create_oval(xx - 3, yy - 3, xx + 3, yy + 3, outline="#4a3b62", width=0.8)
+            canvas.create_oval(xx - 0.8, yy - 0.8, xx + 0.8, yy + 0.8, fill="#6d5a8c", outline="")
+
+
+_STARS = [((i * 37) % 200 - 100, 80 + (i * 53) % 190, 0.6 + (i % 3) * 0.4) for i in range(46)]
+
+
+def _starfield(canvas, x, y, size, p, tint):
+    """Tiny stars glinting in the dark of her body; a few twinkle each beat."""
+    for i, (dx, dy, r) in enumerate(_STARS):
+        sx, sy = x + dx * size * 0.95, dy + (y - 118)
+        if abs(dx) < 34 and dy < 175:                        # keep the mask area clean
+            continue
+        tw = 0.5 + 0.5 * math.sin(p * 2 * math.pi * 2 + i)
+        rr = r * (0.6 + 0.8 * tw)
+        col = "#e9dcff" if i % 4 else tint
+        canvas.create_oval(sx - rr, sy - rr, sx + rr, sy + rr, fill=col, outline="")
+        if i % 7 == 0 and tw > 0.8:                          # a four-point glint
+            canvas.create_line(sx - 4, sy, sx + 4, sy, fill=col, width=0.8)
+            canvas.create_line(sx, sy - 4, sx, sy + 4, fill=col, width=0.8)
+
+
+def _bodice(canvas, x, y):
+    """Gold filigree on the bodice: mirrored curls around a teardrop gem."""
+    for k in (-1, 1):
+        for i, (dx, dy, r) in enumerate(((10, 0, 7), (22, 6, 5), (32, 14, 4))):
+            cx_, cy_ = x + k * dx, y + dy
+            canvas.create_arc(cx_ - r, cy_ - r, cx_ + r, cy_ + r, start=90 if k > 0 else -90,
+                              extent=270 * k, style="arc", outline=GOLD, width=1.2)
+        canvas.create_line(x + k * 4, y - 6, x + k * 36, y + 20, fill=GOLD_DK, width=1, smooth=True)
+    canvas.create_polygon(x, y - 8, x + 5, y + 2, x, y + 10, x - 5, y + 2, fill="#7a3fd1", outline=GOLD_HI)
 
 
 def _move_effects(canvas, fx, x, y, w, h, p, osc, colour):

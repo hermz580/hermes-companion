@@ -256,6 +256,7 @@ MASQUE_MOVES.update({
     "wake_up": ("calm", frozenset({"wake"})),
     "angry": ("uneasy", frozenset({"angry", "recoil", "mask:scary"})),
     "window_perch": ("calm", frozenset({"perch"})),
+    "land": ("calm", frozenset({"land", "crouch", "mask:cute"})),
     "enter_crack": ("focused", frozenset({"portal_in"})),
     "exit_crack": ("bright", frozenset({"portal_out", "mask:cute"})),
 })
@@ -636,7 +637,7 @@ def _mane_strand(mcx, mcy, side, t, k, p, i, form, fx, facing=0.0):
         out, drop = side * (90 + 60 * t) * k, (FLOOR - ry)
     if "recoil" in fx or "coil" in fx:
         drop *= 0.55
-    wave = (6 + 10 * t) * (1 if i % 3 else -1)
+    wave = (8 + 14 * t) * (1 if i % 3 else -1)
     phase = p * 2 * math.pi + i * 0.9
     pts = []
     n = 12
@@ -796,6 +797,11 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
     if "perch" not in fx:                                  # a soft shadow pooling on the floor
         sw = 120 * size * spread
         canvas.create_oval(mcx - sw, FLOOR - 7, mcx + sw, FLOOR + 5, fill="#0d0a12", outline="")
+        if st.category != "general" or st.running:         # the work glows on the floor around her
+            for k_ in range(3):
+                g = sw * (0.8 + 0.12 * k_) + 6 * osc
+                canvas.create_oval(mcx - g, FLOOR - 9 - k_ * 2, mcx + g, FLOOR + 7 + k_ * 2,
+                                   outline=_mix(colour, "#120f17", 0.3 + 0.25 * k_), width=1.5)
     for k in range(7):                                     # soft volume behind the strands
         t = k / 6
         rx = (40 + 70 * t) * size * spread
@@ -833,6 +839,9 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
         canvas.create_line(*flat, fill=tn, width=1.6, smooth=True)
         tx, ty = pts[-1]
         canvas.create_oval(tx - 2.2, ty - 2.2, tx + 2.2, ty + 2.2, fill=tn, outline="")
+        gloss = [c for q in pts[1:max(3, len(pts) // 2)] for c in (q[0] - 1.6, q[1])]
+        if len(gloss) >= 4:                                   # a wet, glossy highlight
+            canvas.create_line(*gloss, fill="#9d86c9", width=0.9, smooth=True)
 
     # 3. eyes in the dark
     eye_count = int(9 * eyes_k + (9 if st.thinking or "alleyes" in fx or back else 0))
@@ -843,7 +852,9 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
         ex, ey = mcx + dx * size * 0.9 * (1 - 0.35 * turn) - facing * 16, dy + hover * 0.5
         if not back and abs(ex - mcx - facing * mw * 0.5) < mw + 10 and abs(ey - mcy) < mh + 10:
             continue                                         # never behind the mask edge
-        opn = (1.0 if st.thinking or "alleyes" in fx else 0.45 + 0.55 * blink) if face != "blank" else 0.0
+        own_blink = math.sin(p * 2 * math.pi + i * 1.7) > 0.92  # each eye blinks on its own beat
+        opn = (1.0 if st.thinking or "alleyes" in fx else (0.1 if own_blink else 0.55 + 0.45 * blink)) \
+            if face != "blank" else 0.0
         opn *= 0.65 + 0.35 * ((i * 7) % 5) / 4
         look = (osc, 0.0) if ("scan" in fx or "follow" in fx) else \
             (-1.0, -0.6) if "lookup" in fx else (0.4 * math.sin(i) + facing, 0.0)
@@ -953,6 +964,13 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
         _strand(canvas, [(mcx + 30, mcy + 40), (mcx + mw + 20, mcy + 20), (ox - 10, oy + 26)], 7, 3,
                 INK, sheen=colour)
         draw_mask(canvas, ox, oy, mw * 0.55, mh * 0.55, "blank", lace=False, p=p)
+    if not back:
+        _emote(canvas, face, mcx + facing * mw * 0.5, mcy, mw, mh, p)
+    cat_now = st.tools[-1] if st.tools else st.category
+    if not back and (st.running or st.category in ("failure", "approval")) and "rest" not in fx:
+        _charm(canvas, cat_now, mcx, mcy + mh + 58, p, CATEGORY_COLOUR.get(cat_now, colour))
+    if "land" in fx:
+        _splash(canvas, mcx, FLOOR, p, tint)
     if "rest" in fx and not back:                            # the small smile keeps a rose
         _rose(canvas, mcx, mcy + mh + 12, 9)
 
@@ -1124,16 +1142,135 @@ def _true_face(canvas, x, y, w, h):
 
 
 def _portal(canvas, x, y, p, colour):
-    """The crack she slips through between two places."""
+    """The crack she slips through: a jagged violet tear with light spilling out."""
     spread = math.sin(min(max(p, 0.0), 1.0) * math.pi)
-    for i in range(10):
-        a = i * 0.628 + p * 3
-        r = 20 + 50 * spread
-        canvas.create_line(x, y, x + math.cos(a) * r, y + math.sin(a) * r * 1.3, fill=INK, width=4,
-                           capstyle="round")
-    canvas.create_polygon(x - 4, y - 60 * spread, x + 6, y - 20, x - 3, y + 10, x + 5, y + 60 * spread,
-                          x - 6, y + 20, x + 3, y - 10, fill=colour, outline="")
-    _eye(canvas, x, y, 9 * spread + 2, 1.0)
+    h = 30 + 110 * spread
+    pts_l, pts_r = [], []
+    for j in range(9):
+        t = j / 8
+        yy = y - h + 2 * h * t
+        jag = (6 + 10 * spread) * (1 if j % 2 else -0.6) * math.sin(t * math.pi)
+        pts_l.append((x - 4 - jag - 8 * spread * math.sin(t * math.pi), yy))
+        pts_r.append((x + 4 + jag * 0.7 + 8 * spread * math.sin(t * math.pi), yy))
+    for k, col in ((1.8, "#3b1d6e"), (1.0, colour), (0.45, "#f2e8ff")):
+        poly = [(x + (px - x) * k, py) for px, py in pts_l] + \
+               [(x + (px - x) * k, py) for px, py in pts_r[::-1]]
+        canvas.create_polygon(*[c for q in poly for c in q], fill=col, outline="")
+    for i in range(10):                                       # shards flung out of the crack
+        a = i * 0.628 + p * 4
+        r = 30 + 60 * spread
+        sx, sy = x + math.cos(a) * r, y + math.sin(a) * r * 1.2
+        canvas.create_polygon(sx, sy - 4, sx + 3, sy, sx, sy + 4, sx - 3, sy, fill=colour, outline="")
+    _eye(canvas, x, y, 6 + 6 * spread, 1.0)
+
+
+def _ghost(canvas, x, y, p, colour):
+    """A small masked helper: a soft ghost with a wavy hem and a tiny halo."""
+    pts = [(x - 15, y + 4), (x - 15, y - 6)]
+    for j in range(9):                                         # rounded head
+        a = math.pi + j * math.pi / 8
+        pts.append((x + math.cos(a) * 15, y - 6 + math.sin(a) * 15))
+    pts.append((x + 15, y + 4))
+    for j in range(7):                                         # wavy hem
+        t = j / 6
+        pts.append((x + 15 - 30 * t, y + 16 + 4 * math.sin(t * 9 + p * 12)))
+    canvas.create_polygon(*[c for q in pts for c in q], fill=_mix(colour, "#ffffff", 0.35),
+                          outline=colour, smooth=True)
+    canvas.create_oval(x - 8, y - 12, x + 8, y + 5, fill=PORCELAIN, outline=GOLD_DK)
+    for k in (-1, 1):
+        canvas.create_arc(x + k * 3.5 - 2.5, y - 7, x + k * 3.5 + 2.5, y - 3, start=20, extent=140,
+                          style="arc", outline=INK, width=1)
+    canvas.create_arc(x - 3, y - 3, x + 3, y + 2, start=200, extent=140, style="arc", outline=INK, width=1)
+    canvas.create_oval(x - 4, y - 27, x + 4, y - 23, outline=GOLD_HI, width=1)
+
+
+EMOTES = {"cute": "hearts", "sad": "tears", "confused": "questions", "focused": "crosshair",
+          "scary": "sparks", "evil": "smoke", "blank": "dots"}
+
+
+def _emote(canvas, face, x, y, w, h, p):
+    """Floating feelings around the mask, one kind per face (from the sheet)."""
+    kind = EMOTES.get(face)
+    t = p * 2 * math.pi
+    if kind == "hearts":
+        for i, (dx, dy, r) in enumerate(((-w - 20, -h * 0.55, 10), (w + 18, -h * 0.25, 7),
+                                         (w + 26, -h * 0.9, 5))):
+            hx, hy = x + dx, y + dy - 10 * ((p + i * 0.33) % 1.0)
+            canvas.create_oval(hx - r, hy - r, hx, hy, fill="#ff5fa2", outline="")
+            canvas.create_oval(hx, hy - r, hx + r, hy, fill="#ff5fa2", outline="")
+            canvas.create_polygon(hx - r, hy - r * 0.45, hx + r, hy - r * 0.45, hx, hy + r * 0.9,
+                                  fill="#ff5fa2", outline="")
+    elif kind == "tears":
+        for i, dx in enumerate((-w - 10, w + 8)):
+            dy = 14 * ((p + i * 0.4) % 1.0)
+            tx, ty = x + dx, y - h * 0.2 + dy
+            canvas.create_polygon(tx, ty - 10, tx + 6, ty + 2, tx, ty + 7, tx - 6, ty + 2,
+                                  fill="#6aa8ff", outline="#bcd8ff", smooth=True)
+    elif kind == "questions":
+        for i, (dx, dy, sz) in enumerate(((-w - 16, -h * 0.7, 18), (w + 14, -h * 0.85, 13),
+                                          (-w - 4, -h * 1.05, 10))):
+            canvas.create_text(x + dx, y + dy - 3 * math.sin(t + i), text="?", fill="#c9a4ff",
+                               font=("Segoe UI", sz, "bold"))
+    elif kind == "crosshair":
+        cx_, cy_ = x - w - 18, y - h * 0.3
+        r = 11 + 2 * math.sin(t * 2)
+        canvas.create_oval(cx_ - r, cy_ - r, cx_ + r, cy_ + r, outline="#ff4d5e", width=1.4)
+        for a in range(4):
+            ang = a * math.pi / 2
+            canvas.create_line(cx_ + math.cos(ang) * (r - 3), cy_ + math.sin(ang) * (r - 3),
+                               cx_ + math.cos(ang) * (r + 4), cy_ + math.sin(ang) * (r + 4),
+                               fill="#ff4d5e", width=1.4)
+    elif kind == "sparks":
+        for i in range(5):
+            a = t + i * 1.256
+            sx, sy = x + math.cos(a) * (w + 20), y - h * 0.4 + math.sin(a) * 20
+            canvas.create_polygon(sx, sy - 8, sx + 2.4, sy, sx, sy + 8, sx - 2.4, sy, fill="#ff3b3b",
+                                  outline="")
+            canvas.create_polygon(sx - 8, sy, sx, sy + 2.4, sx + 8, sy, sx, sy - 2.4, fill="#ff3b3b",
+                                  outline="")
+    elif kind == "smoke":
+        for k in (-1, 1):
+            pts = []
+            for j in range(10):
+                u = j / 9
+                pts += [x + k * (w + 6 + 18 * u + 6 * math.sin(u * 9 + t)), y + h * 0.4 - 70 * u]
+            canvas.create_line(*pts, fill="#ff2a6d", width=2.2, smooth=True)
+            canvas.create_line(*[v + (1.5 if n % 2 == 0 else 0) for n, v in enumerate(pts)],
+                               fill="#ff8ab0", width=0.8, smooth=True)
+    elif kind == "dots":
+        for i in range(3):
+            on = (int(p * 6) % 4) > i
+            dx = x + w + 12 + i * 10
+            canvas.create_oval(dx - 3.2, y - h - 3.2, dx + 3.2, y - h + 3.2, fill="#cbbfe0" if on else "#4a3b62",
+                               outline="")
+
+
+def _charm(canvas, cat, x, y, p, colour):
+    """The tool charm glowing in front of her: a hexagon holding the work's glyph."""
+    pulse = 1.0 + 0.06 * math.sin(p * 2 * math.pi * 2)
+    r = 15 * pulse
+    for k, col in ((1.55, _mix(colour, "#120f17", 0.65)), (1.25, _mix(colour, "#120f17", 0.35))):
+        canvas.create_oval(x - r * k, y - r * k, x + r * k, y + r * k, outline=col, width=2)
+    hexa = [c for i in range(6) for c in (x + math.cos(i * math.pi / 3 + math.pi / 6) * r,
+                                          y + math.sin(i * math.pi / 3 + math.pi / 6) * r)]
+    canvas.create_polygon(*hexa, fill="#0d0a14", outline=colour)
+    kind = "warning" if cat == "failure" else "spark" if cat == "approval" else \
+        CATEGORY_GLYPH.get(cat, "spark")
+    glyph(canvas, kind, x, y, 9, colour)
+
+
+def _splash(canvas, x, y, p, tint):
+    """Landing: a ring of ink splashes out across the floor."""
+    s_ = math.sin(min(p, 1.0) * math.pi)
+    for k in range(3):
+        rx = 40 + 70 * s_ + k * 16
+        canvas.create_arc(x - rx, y - 10 - k * 3, x + rx, y + 10 + k * 3, start=0, extent=180, style="arc",
+                          outline=tint, width=2.5 - k * 0.6)
+    for i in range(8):
+        a = math.pi + i * math.pi / 7
+        d = 50 + 80 * s_
+        dx_, dy_ = x + math.cos(a) * d, y + math.sin(a) * d * 0.35
+        canvas.create_oval(dx_ - 3, dy_ - 3, dx_ + 3, dy_ + 3, fill=INK, outline=tint)
 
 
 def _form(canvas, form, fx, x, y, w, h, p, osc, colour, st):
@@ -1178,16 +1315,9 @@ def _form(canvas, form, fx, x, y, w, h, p, osc, colour, st):
     elif form == "split":                                      # small masked copies, one per helper
         n = max(1, st.helpers)
         for i in range(n):
-            bx = x + (-1) ** i * (70 + 26 * (i // 2))
-            by = 248 - 6 * abs(math.sin(p * 2 * math.pi + i))
-            canvas.create_oval(bx - 16, by - 16, bx + 16, by + 18, fill=INK, outline=colour, width=2)
-            for k in (-1, 1):
-                canvas.create_line(bx + k * 10, by + 14, bx + k * 18, by + 26 + 3 * osc, fill=INK, width=3)
-            canvas.create_oval(bx - 9, by - 11, bx + 9, by + 9, fill=PORCELAIN, outline=GOLD_DK)
-            canvas.create_arc(bx - 5, by - 6, bx - 1, by - 1, start=20, extent=140, style="arc", outline=INK, width=1)
-            canvas.create_arc(bx + 1, by - 6, bx + 5, by - 1, start=20, extent=140, style="arc", outline=INK, width=1)
-            canvas.create_arc(bx - 4, by - 2, bx + 4, by + 5, start=200, extent=140, style="arc", outline=INK, width=1)
-            canvas.create_oval(bx - 3, by - 22, bx + 3, by - 16, outline=GOLD, width=1)   # tiny halo
+            bx = x + (-1) ** i * (74 + 30 * (i // 2))
+            by = 236 - 8 * abs(math.sin(p * 2 * math.pi + i))
+            _ghost(canvas, bx, by, p + i * 0.3, colour)
 
 
 def _effects(canvas, fx, form, x, y, w, h, p, osc, colour, st, pose):

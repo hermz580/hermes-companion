@@ -147,6 +147,8 @@ hermes-companion play --companion masque --palette cute     # softer, fewer eyes
 hermes-companion play --companion masque --palette monster  # every eye open, full grin
 ```
 
+![Masque acting out a real Hermes session](docs/masque-demo.gif)
+
 ![Masque: every look is a real Hermes signal](docs/masque.png)
 
 A vast, many-eyed form of hair-like tendrils under a thorn halo, holding a
@@ -170,6 +172,12 @@ signals, not only her moves:
 She travels by ink-slide, slips through a crack in the world to arrive
 somewhere else, lunges toward you when Hermes needs you, and hovers onto
 your windows. CI drives a real Hermes session through her too.
+
+Every face carries its feeling around the mask: hearts (cute), tears (sad),
+question marks (confused), a crosshair (focused), red sparks (scary), rising
+smoke (evil) and slow dots (blank). The tool at work glows as a charm on her
+chest and as a ring of light on the floor; helpers drift beside her as small
+masked ghosts; her eyes blink on their own beats.
 
 She turns: front, three-quarter, side profile and back (the mask's gold
 ribbon tied over a crown of tendrils), and a full spin passes through all of

@@ -208,3 +208,34 @@ def test_session_end_and_swap_change_the_picture():
         assert r.frame("idle_bob", 0.3).tobytes() != plain
     finally:
         M.STATE.__dict__.update(saved)
+
+
+def test_every_face_has_its_own_floating_feeling():
+    from hermes_companion.renderer.smooth import PILCanvas
+    assert set(M.EMOTES) == set(M.EXPRESSIONS)
+    seen = set()
+    for face in M.EXPRESSIONS:
+        c = PILCanvas(*M.FRAME)
+        M._emote(c, face, 160, 118, 38, 50, 0.3)
+        assert c.img.getbbox() is not None, face
+        seen.add(c.img.tobytes())
+    assert len(seen) == len(M.EXPRESSIONS)                  # each one looks different
+
+
+def test_tool_charm_ghost_helpers_crack_and_landing_draw():
+    from hermes_companion.renderer.smooth import PILCanvas
+    for fn, args in ((M._charm, ("web", 160, 200, 0.3, "#3aa0ff")),
+                     (M._ghost, (160, 200, 0.3, "#ff4fd8")),
+                     (M._portal, (160, 170, 0.5, "#9b7bd6")),
+                     (M._splash, (160, 292, 0.4, "#6d5a8c"))):
+        c = PILCanvas(*M.FRAME)
+        fn(c, *args)
+        assert c.img.getbbox() is not None, fn.__name__
+
+
+def test_demo_gif_runs_on_its_own_clock(tmp_path):
+    from hermes_companion.scripts.make_demo_gif import build
+    before = dict(M.STATE.__dict__)
+    out = build(tmp_path / "m.gif", "masque", None)
+    assert out.stat().st_size > 10_000
+    assert M.STATE.__dict__ == before                       # the live state is left untouched

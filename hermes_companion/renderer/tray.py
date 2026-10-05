@@ -42,7 +42,7 @@ def menu_model(values: dict) -> list:
     items.append(("Size", "submenu", [(s.title(), "radio", ("size", s)) for s in S.SIZES]))
     items.append(("Curiosity", "submenu",
                   [(n.title(), "radio", ("notice", n)) for n in S.NOTICE]))
-    for label, key in (("Speech bubbles", "bubbles"), ("Sound", "sound"),
+    for label, key in (("Speech bubbles", "bubbles"), ("Speak aloud", "speak"), ("Sound", "sound"),
                        ("Learn my rhythm", "memory"), ("Live on my windows", "perch"),
                        ("Reduced motion", "reduced_motion"), ("High contrast", "high_contrast")):
         items.append((label, "toggle", key))
@@ -173,7 +173,7 @@ def open_settings(overlay, values: dict) -> None:
                ENERGIES.get(values["companion"], ("default",)))
     add_choice("Size", "size", S.SIZES)
     add_choice("Curiosity", "notice", S.NOTICE)
-    for label, key in (("Speech bubbles", "bubbles"), ("Sound", "sound"),
+    for label, key in (("Speech bubbles", "bubbles"), ("Speak aloud", "speak"), ("Sound", "sound"),
                        ("Learn my rhythm", "memory"), ("Live on my windows", "perch"),
                        ("Reduced motion", "reduced_motion"), ("High contrast", "high_contrast")):
         v = tk.BooleanVar(value=bool(values.get(key)))

@@ -387,9 +387,11 @@ print(json.dumps(mons))
                      perch=not args.no_perch)
     if args.companion is not None:
         overlay.bind_engine(tail.engine)
+        overlay._director.wander_s = 40.0                 # quiet-time strolls between Hermes work
+        overlay._director.wander_blocked = lambda: bool(tail.perch and tail.perch.perched)
         if hasattr(overlay, "attach_voice"):
             overlay.attach_voice(bubbles=not args.no_bubbles, sound=args.sound,
-                                 lines=tail.traits["voice"])
+                                 lines=tail.traits["voice"], speak=not args.no_speak)
             if tail.traits["greeting"]:
                 overlay.root.after(1500, lambda: overlay.voice.greet(tail.traits["greeting"]))
     overlay.on_ready = lambda: (
@@ -423,6 +425,7 @@ def resolve_play_settings(args: argparse.Namespace, saved: dict) -> dict:
     if args.companion is not None and args.companion != saved.get("companion"):
         v["palette"] = args.palette          # a saved palette belongs to the saved character
     for flag, key, value in (("sound", "sound", True), ("no_bubbles", "bubbles", False),
+                             ("no_speak", "speak", False),
                              ("no_memory", "memory", False), ("no_perch", "perch", False),
                              ("reduced_motion", "reduced_motion", True),
                              ("high_contrast", "high_contrast", True)):
@@ -462,6 +465,7 @@ def cmd_play(args: argparse.Namespace) -> int:
                           seconds=args.seconds, reduced_motion=v["reduced_motion"],
                           high_contrast=v["high_contrast"], artpack=args.artpack,
                           sound=v["sound"] and not args.sibling, bubbles=v["bubbles"],
+                          speak=v["speak"] and not args.sibling,
                           memory=v["memory"] and not args.sibling,
                           seed=args.seed, variety=not args.no_variety,
                           demo=not args.no_demo, x_offset=args.x_offset,
@@ -895,6 +899,7 @@ def build_parser() -> argparse.ArgumentParser:
                          "typing rhythm and clipboard changes (default: full)")
     pl.add_argument("--sound", action="store_true", help="soft chimes (drawn companions)")
     pl.add_argument("--no-bubbles", action="store_true", help="no speech bubbles")
+    pl.add_argument("--no-speak", action="store_true", help="don't say lines aloud")
     pl.add_argument("--follow", action="store_true",
                     help="show whichever Hermes session is active (explicit consent)")
     pl.add_argument("--palette", default=None, help="energy style / palette")
@@ -927,6 +932,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="smooth = anti-aliased, glowing, true transparency (default)")
     pp.add_argument("--sound", action="store_true", help="soft chimes for start, done, needs-you, problems")
     pp.add_argument("--no-bubbles", action="store_true", help="no speech bubbles")
+    pp.add_argument("--no-speak", action="store_true",
+                    help="don't say lines aloud (Windows speech; on by default)")
     pp.add_argument("--no-memory", action="store_true",
                     help="don't learn your rhythm (nothing is stored)")
     pp.add_argument("--reduced-motion", action="store_true",

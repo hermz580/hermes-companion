@@ -1081,6 +1081,9 @@ TOWARD_USER = ("run_to_user", "to_user", "panic")
 TELEPORT_MIN_DX = 300
 
 
+ROAM = 1.6
+
+
 def travel(step: dict, rng) -> dict:
     """Swap a moving step's pose for one of Nyamekra's signature travels.
 
@@ -1104,8 +1107,11 @@ def travel(step: dict, rng) -> dict:
         name = "wing_dash"
     else:
         return step                                      # short walks stay walks
-    out = dict(step, pose=name + ("_back" if dx < 0 else ""))
+    # Travel further than the plain walk would: a big, readable crossing of the
+    # screen (the overlay clamps to the monitors, and may carry on to the next one).
+    out = dict(step, pose=name + ("_back" if dx < 0 else ""),
+               move=dict(move, dx=int(dx * ROAM)))
     if name == "feather_teleport":
-        out["move"] = dict(move, easing="teleport")
+        out["move"] = dict(out["move"], easing="teleport")
         out["duration_ms"] = max(int(step.get("duration_ms", 0)), 900)
     return out

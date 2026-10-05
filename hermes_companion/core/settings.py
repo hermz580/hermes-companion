@@ -18,6 +18,7 @@ DEFAULTS: dict = {
     "notice": "full",
     "sound": False,
     "bubbles": True,
+    "speak": True,
     "memory": True,
     "perch": True,
     "reduced_motion": False,
@@ -73,6 +74,7 @@ def play_command(values: dict, extra: list[str] | None = None) -> list[str]:
     if values.get("palette"):
         cmd += ["--palette", values["palette"]]
     for flag, key, want in (("--sound", "sound", True), ("--no-bubbles", "bubbles", False),
+                            ("--no-speak", "speak", False),
                             ("--no-memory", "memory", False), ("--no-perch", "perch", False),
                             ("--reduced-motion", "reduced_motion", True),
                             ("--high-contrast", "high_contrast", True)):

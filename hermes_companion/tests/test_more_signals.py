@@ -134,7 +134,7 @@ def test_travel_keeps_distance_and_gets_signature_moves():
     assert travel(to_user, rng)["pose"] == "swoop_back"
     for _ in range(40):
         out = travel(run, rng)
-        assert out["move"]["dx"] == 520                  # still goes exactly where Hermes sent it
+        assert out["move"]["dx"] == int(520 * 1.6)        # the same direction, a bigger crossing
         if out["pose"] == "feather_teleport":
             assert out["move"]["easing"] == "teleport" and out["duration_ms"] >= 900
     still = {"pose": "work", "duration_ms": 900, "move": None}

@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import ctypes
+import time
 import sys
 import tkinter as tk
 
@@ -223,12 +224,35 @@ class TkOverlay:
         the pet can be parked where no monitor exists at all.
         """
         rect = getattr(self, "_home_rect", None)
+        if rect is not None and getattr(self, "roam", True):
+            nxt = self._next_monitor(rect, x)
+            if nxt is not None:                   # she walked off this screen onto the next one
+                rect, y = nxt
         if rect is not None:
             return clamp_into(rect, x, y, self.w, self.h)
         left, top, sw, sh = _virtual_screen_bounds()
         if sw > 0 and sh > 0:
             return max(left, min(int(x), left + sw - self.w)), int(y)
         return max(0, min(int(x), self.root.winfo_screenwidth() - self.w)), int(y)
+
+    def _next_monitor(self, rect, x):
+        """If x has carried the pet past this monitor's edge into a neighbouring one,
+        move her home there, keeping the same height above the floor (taskbar)."""
+        left, top, right, bottom = rect
+        cx = int(x) + self.w // 2
+        if left <= cx < right:
+            return None
+        now = time.monotonic()
+        if now - getattr(self, "_mon_at", -1e9) > 3.0:     # enumerate monitors at most every 3 s
+            self._mon_cache, self._mon_at = monitors(), now
+        for other in getattr(self, "_mon_cache", []):
+            o_left, o_top, o_right, o_bottom = other
+            if other != rect and o_left <= cx < o_right:
+                lift_off_floor = bottom - (self.home_y + self.h)
+                self._home_rect = other
+                self.home_y = o_bottom - self.h - max(0, lift_off_floor)
+                return other, self.home_y
+        return None
 
     def set_pose(self, pose: str, progress: float = 0.0) -> None:
         draw_companion(self.canvas, self.companion, pose, progress,

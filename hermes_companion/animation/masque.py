@@ -1362,6 +1362,9 @@ def _effects(canvas, fx, form, x, y, w, h, p, osc, colour, st, pose):
 TOWARD_USER = ("run_to_user", "to_user", "panic")
 
 
+ROAM = 1.6
+
+
 def travel(step: dict, rng) -> dict:
     move = step.get("move")
     if not move or not move.get("dx"):
@@ -1380,8 +1383,11 @@ def travel(step: dict, rng) -> dict:
         name = "ink_slide"
     else:
         return step
-    out = dict(step, pose=name + ("_back" if dx < 0 else ""))
+    # Travel further than the plain walk would: a big, readable crossing of the
+    # screen (the overlay clamps to the monitors, and may carry on to the next one).
+    out = dict(step, pose=name + ("_back" if dx < 0 else ""),
+               move=dict(move, dx=int(dx * ROAM)))
     if name == "crack_portal":
-        out["move"] = dict(move, easing="teleport")
+        out["move"] = dict(out["move"], easing="teleport")
         out["duration_ms"] = max(int(step.get("duration_ms", 0)), 900)
     return out

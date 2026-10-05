@@ -24,7 +24,8 @@ from hermes_companion.movement import easing
 
 # How high a travel step rises mid-flight (px). Flying travels arc through the
 # air; ground travels stay on the floor. Teleports jump, they never arc.
-ARC_BY_POSE = {"soar": 120, "swoop": 90, "wing_dash": 26, "feather_teleport": 0}
+ARC_BY_POSE = {"soar": 150, "swoop": 110, "wing_dash": 60, "feather_teleport": 0,
+               "hover": 150, "lunge": 110, "ink_slide": 50, "crack_portal": 0}
 ARC_BY_TYPE = {"fly": 120, "leap": 100, "pounce": 90, "hop": 60, "bounce": 50,
                "pop": 80, "drift": 40, "zigzag": 30}
 
@@ -57,6 +58,12 @@ class Director:
         self._step_first = True
         self.idle_pose = "idle_bob"
         self.idle_progress: float | None = None   # set while perch travel plays
+        # Quiet-time strolls: after this many seconds with nothing happening she
+        # wanders across the screen (and onto the next monitor) and comes back.
+        self.wander_s: float | None = None
+        self.wander_blocked = lambda: False       # e.g. while perched on a window
+        self._quiet_since = self.clock()
+        self._wander_rng = __import__("random").Random(5)
         # Return-to-anchor phase. A chain ends wherever its last move stopped,
         # so without this the pet parks where it finished and never comes back
         # (observed: a left-running chain left it pinned at the screen edge, and
@@ -86,6 +93,7 @@ class Director:
         self._step_first = True
         self._returning = False
         self.surface.set_state(chain.state.value)
+        self._quiet_since = self.clock()
 
     def current_pose(self) -> str:
         if self.chain is None:
@@ -104,6 +112,9 @@ class Director:
         if self._pending is not None and self.chain is not None and self._step_done():
             self._activate(self._pending)
         if self.chain is None:
+            if self._wander_due():
+                self._activate(self._wander_chain())
+                return
             self._idle(dt)
             return
 
@@ -130,6 +141,7 @@ class Director:
             self._step_first = True
             if self.step_i >= len(self.chain.steps):
                 self.chain = None
+                self._quiet_since = self.clock()
                 self.engine.end_chain()
                 self.idle_pose = "idle_bob"
                 self.surface.set_state(State.IDLE.value)
@@ -148,6 +160,25 @@ class Director:
         if lift is not None:
             lift(int(-arc_height(step) * math.sin(math.pi * t)))
         self.surface.set_pose(step["pose"], t)
+
+    # -- quiet-time wandering -------------------------------------------------
+    def _wander_due(self) -> bool:
+        if self.wander_s is None or self._returning or self.engine.state == State.SLEEPING \
+                or self.wander_blocked():
+            return False
+        return self.clock() - self._quiet_since >= self.wander_s
+
+    def _wander_chain(self) -> Chain:
+        rng = self._wander_rng
+        dx = rng.choice((380, 520, 680, 820)) * rng.choice((-1, 1))
+        kind = rng.choice(("drift", "run", "hop", "dash"))
+        steps = [{"pose": "walk_to_workspace" if dx > 0 else "return_home", "duration_ms": 1500,
+                  "move": {"type": kind, "dx": dx, "dy": 0, "easing": "easeInOutCubic"}},
+                 {"pose": "look_around", "duration_ms": 1600, "move": None}]
+        travel = getattr(self.engine, "travel", None)
+        if travel is not None:
+            steps = [travel(s, rng) for s in steps]
+        return Chain(name="wander", state=State.IDLE, priority=9, steps=steps)
 
     # -- return to anchor ---------------------------------------------------
     RETURN_SPEED_PX_S = 260.0

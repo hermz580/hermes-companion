@@ -44,6 +44,8 @@ CURIOUS_SAY = {
     "clipboard.changed": "Copied something?",
     "cursor.circling": "Hi there!",
 }
+# States worth saying out loud (the rest only show as bubbles).
+SPEAK_STATES = frozenset({"starting", "needs-you", "issue", "stuck", "complete"})
 # Which sound plays for which state (curiosity uses "curious").
 CHIME_FOR = {"starting": "start", "complete": "done", "needs-you": "attention",
              "issue": "problem", "stuck": "problem"}
@@ -54,7 +56,8 @@ class Voice:
 
     def __init__(self, show, play=None, clock=time.monotonic,
                  hold_s: float = 3.5, quiet_curiosity_s: float = 25.0,
-                 lines: dict | None = None) -> None:
+                 lines: dict | None = None, speak=None) -> None:
+        self.speak = speak                     # say it aloud (Windows speech), optional
         # A companion may phrase states its own way; meanings never change.
         self.say_map = dict(SAY, **{k: v for k, v in (lines or {}).items() if k in SAY})
         self.show, self.play, self.clock = show, play, clock
@@ -65,11 +68,13 @@ class Voice:
         self.hide_at: float | None = None
         self.said: list[str] = []
 
-    def _say(self, text: str, hold: float | None = None) -> None:
+    def _say(self, text: str, hold: float | None = None, aloud: bool = False) -> None:
         self._last_text = text
         self.said.append(text)
         self.hide_at = self.clock() + (hold or self.hold_s)
         self.show(text)
+        if aloud and self.speak is not None:
+            self.speak(text)
 
     def on_attention(self, state: str, label: str) -> None:
         if state == self._last_state and state not in ("working", "delegating"):
@@ -79,7 +84,8 @@ class Voice:
         if template:
             text = template.format(label=label)[:48]
             if text != self._last_text:
-                self._say(text, hold=6.0 if state == "needs-you" else None)
+                self._say(text, hold=6.0 if state == "needs-you" else None,
+                          aloud=state in SPEAK_STATES)
         if self.play is not None and state in CHIME_FOR:
             self.play(CHIME_FOR[state])
 
@@ -88,13 +94,13 @@ class Voice:
         now = self.clock()
         if text and now - self._last_curious >= self.quiet_curiosity_s:
             self._last_curious = now
-            self._say(text)
+            self._say(text, aloud=kind == "user.back")
             if self.play is not None:
                 self.play("curious")
 
     def greet(self, text: str | None) -> None:
         if text:
-            self._say(text, hold=5.0)
+            self._say(text, hold=5.0, aloud=True)
 
     def tick(self) -> None:
         if self.hide_at is not None and self.clock() >= self.hide_at:
@@ -133,46 +139,107 @@ def bubble_image(text: str, accent: str = "#ffe39a", width: int = 220) -> Image.
 
 
 class BubbleWindow:
-    """A separate per-pixel-alpha window that floats above the pet (Windows)."""
+    """A small borderless window that floats above the pet with the bubble in it.
+
+    Uses the colour-keyed Tk transparency every companion window already relies
+    on (the bubble is matted onto a dark rim, then the key colour is cut out), so
+    it shows wherever the pet itself shows. Placed above the pet, kept on top,
+    and moved with her while visible.
+    """
+    KEY = "#00fe00"
 
     def __init__(self, overlay) -> None:
         import tkinter as tk
-        from hermes_companion.renderer.layered import LayeredBlitter
         self.overlay = overlay
         self.top = tk.Toplevel(overlay.root)
         self.top.overrideredirect(True)
         self.top.wm_attributes("-topmost", True)
-        self.top.geometry("1x1+0+0")
-        self.top.update_idletasks()
-        self.hwnd = __import__("ctypes").windll.user32.GetParent(self.top.winfo_id())
-        self._blitter_cls = LayeredBlitter
-        self.blitter = None
+        self.top.configure(bg=self.KEY)
+        try:
+            self.top.wm_attributes("-transparentcolor", self.KEY)
+        except tk.TclError:
+            pass                                   # not Windows: a plain dark bubble
+        self.label = tk.Label(self.top, bd=0, bg=self.KEY, highlightthickness=0)
+        self.label.pack()
+        self._photo = None
         self.size = (0, 0)
+        self.visible = False
         self.top.withdraw()
+
+    def _place(self) -> None:
+        ov = self.overlay
+        w, h = self.size
+        x = int(ov.x + ov.w / 2 - w / 2)
+        y = int(getattr(ov, "_y", ov.home_y) + 10 - h)
+        self.top.geometry(f"{w}x{h}+{x}+{max(0, y)}")
 
     def show(self, text: str | None) -> None:
         if not text:
+            self.visible = False
             self.top.withdraw()
             return
-        img = bubble_image(text)
-        if img.size != self.size:
-            if self.blitter is not None:
-                self.blitter.close()
-            self.top.geometry(f"{img.width}x{img.height}")
-            self.top.deiconify()
-            self.top.update_idletasks()
-            self.blitter = self._blitter_cls(self.hwnd, img.width, img.height)
-            self.size = img.size
-        else:
-            self.top.deiconify()
-        ov = self.overlay
-        x = int(ov.x + ov.w / 2 - img.width / 2)
-        y = int(getattr(ov, "_y", ov.home_y) - img.height + 18)
-        self.blitter.blit(img, x, y)
+        from PIL import ImageTk
+        from hermes_companion.renderer.smooth import chroma_fallback
+        img = chroma_fallback(bubble_image(text))
+        self._photo = ImageTk.PhotoImage(img)
+        self.label.configure(image=self._photo)
+        self.size = img.size
+        self._place()
+        self.top.deiconify()
+        self.top.lift()
+        self.visible = True
+
+    def follow(self) -> None:
+        """Keep the bubble over her head while she moves."""
+        if self.visible:
+            self._place()
 
     def close(self) -> None:
-        if self.blitter is not None:
-            self.blitter.close()
+        try:
+            self.top.destroy()
+        except Exception:
+            pass
+
+
+class Speaker:
+    """Says short, fixed lines aloud with the speech engine built into Windows.
+
+    Only the companion's own content-free lines are ever spoken. One line at a
+    time, never queued up: if she is still talking, newer lines are skipped.
+    Does nothing on other systems.
+    """
+
+    def __init__(self, rate: int = 1) -> None:
+        self.rate = rate
+        self._busy = threading.Event()
+
+    @staticmethod
+    def available() -> bool:
+        return sys.platform == "win32"
+
+    def command(self, text: str) -> list[str]:
+        safe = "".join(ch for ch in text if ch.isalnum() or ch in " .,!?'-")[:80].replace("'", "''")
+        script = ("Add-Type -AssemblyName System.Speech; "
+                  "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+                  f"$s.Rate = {int(self.rate)}; $s.Speak('{safe}')")
+        return ["powershell", "-NoProfile", "-NonInteractive", "-Command", script]
+
+    def __call__(self, text: str) -> None:
+        if not self.available() or self._busy.is_set() or not text:
+            return
+        self._busy.set()
+
+        def run() -> None:
+            import subprocess
+            try:
+                subprocess.run(self.command(text), timeout=20, capture_output=True,
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            except Exception:
+                pass
+            finally:
+                self._busy.clear()
+
+        threading.Thread(target=run, daemon=True, name="companion-speech").start()
 
 
 # ---- sound -----------------------------------------------------------------------

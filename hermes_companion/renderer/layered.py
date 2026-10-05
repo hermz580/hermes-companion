@@ -206,20 +206,22 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
             self.canvas.itemconfigure(self._image_item, image=self._photo)
 
     # -- voice: speech bubbles + opt-in chimes -------------------------------
-    def attach_voice(self, *, bubbles: bool = True, sound: bool = False, lines=None):
-        from hermes_companion.renderer.voice import BubbleWindow, Chimes, Voice
+    def attach_voice(self, *, bubbles: bool = True, sound: bool = False, lines=None,
+                     speak: bool = False):
+        from hermes_companion.renderer.voice import BubbleWindow, Chimes, Speaker, Voice
         self._bubble_text = None
         self._bubble_window = None
         show = self._show_bubble_inline
-        if bubbles and self.blitter is not None:
-            try:
+        if bubbles and self.mode != "windowed":
+            try:                                  # its own window above her head
                 self._bubble_window = BubbleWindow(self)
                 show = self._bubble_window.show
             except Exception:
-                self._bubble_window = None
+                self._bubble_window = None        # fall back to drawing it in her frame
         if not bubbles:
             show = lambda _text: None   # noqa: E731
-        self.voice = Voice(show, Chimes() if sound else None, lines=lines)
+        self.voice = Voice(show, Chimes() if sound else None, lines=lines,
+                       speak=Speaker() if speak else None)
         return self.voice
 
     def _show_bubble_inline(self, text) -> None:
@@ -235,6 +237,9 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
         voice = getattr(self, "voice", None)
         if voice is not None:
             voice.tick()
+        bubble = getattr(self, "_bubble_window", None)
+        if bubble is not None:
+            bubble.follow()
         super()._tick()
 
     def close(self) -> None:

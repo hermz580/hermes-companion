@@ -147,6 +147,7 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
                    reduced_motion: bool = False, high_contrast: bool = False,
                    artpack: str | None = None, sound: bool = False,
                    bubbles: bool = True, memory: bool = True, x_offset: int = 0,
+                   speak: bool = False,
                    tray: dict | None = None) -> int:
     from hermes_companion.animation.director import Director
     from hermes_companion.renderer.desktop_sensors import DesktopSensors
@@ -170,6 +171,8 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
                             variety=variety, demo=demo, start=time.monotonic(),
                             perch=perch)
     overlay._director = Director(brain.engine, overlay)
+    overlay._director.wander_s = 40.0 if not reduced_motion else None
+    overlay._director.wander_blocked = lambda: bool(brain.perch and brain.perch.perched)
     if x_offset:
         overlay.home_x += x_offset
         overlay.set_x(overlay.home_x)
@@ -182,7 +185,8 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
         except Exception as exc:          # a tray problem must never stop the pet
             print(f"tray unavailable: {exc}", flush=True)
     if hasattr(overlay, "attach_voice"):
-        overlay.attach_voice(bubbles=bubbles, sound=sound, lines=brain.traits["voice"])
+        overlay.attach_voice(bubbles=bubbles, sound=sound, lines=brain.traits["voice"],
+                             speak=speak)
     if memory:
         from hermes_companion.core.personality import Personality
         brain.personality = Personality.load()

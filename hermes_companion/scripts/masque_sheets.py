@@ -15,7 +15,7 @@ from hermes_companion.renderer.smooth import FrameRenderer, _font
 
 BG = (22, 20, 30, 255)
 RESET = dict(category="general", cracks=0, work=0, running=0, helpers=0, danger=False,
-             think_until=0.0, beat_until=0.0)
+             think_until=0.0, beat_until=0.0, tools=[], swap_until=0.0, rest_until=0.0)
 
 TURNAROUND = [("Front", "idle_bob", 0.2, {}), ("Turn right", "turn_right", 0.15, {}),
               ("Right side", "turn_right", 0.6, {}), ("Back", "turn_back", 0.3, {}),
@@ -40,7 +40,12 @@ FORMS = [("Terminal / code", "terminal_work", {"running": 2, "category": "termin
          ("Helpers", "open_portal", {"helpers": 3, "category": "delegation"}),
          ("Approval needed", "wait", {"category": "approval"}),
          ("Long tool", "work", {"running": 1, "category": "terminal", "beat_until": 1e12}),
-         ("Session ends", "sleep", {})]
+         ("Mixed tools", "work", {"running": 3, "category": "memory",
+                                  "tools": ["terminal", "web", "memory"]}),
+         ("Mask swap", "work", {"running": 1, "category": "terminal", "tools": ["terminal"],
+                                "swap_until": 1e12}),
+         ("Session ends", "idle_bob", {"rest_until": 1e12}),
+         ("Asleep", "sleep", {})]
 
 
 def _cell(r, label, pose, t, state):

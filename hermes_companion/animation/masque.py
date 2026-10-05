@@ -102,31 +102,49 @@ class MasqueState:
     danger: bool = False       # a destructive command is waiting for approval
     think_until: float = 0.0
     beat_until: float = 0.0
+    tools: list = field(default_factory=list)   # categories of the tools in flight
+    swap_until: float = 0.0    # a tendril is pulling a new mask over the face
+    rest_until: float = 0.0    # session over: folded in, a small smiling mask and a rose
     clock: object = field(default=time.monotonic, repr=False)
+
+    def _mood(self) -> str:
+        return {"failure": "sad", "approval": "ask"}.get(self.category, "work" if self.running else "calm")
 
     def observe(self, ev) -> None:
         kind = getattr(ev.kind, "value", str(ev.kind))
         now = self.clock()
         cat = ev.category or "general"
+        before = self._mood()
+        self._apply(kind, cat, now)
+        if self._mood() != before:                  # her mood changed: swap the mask on screen
+            self.swap_until = now + 0.8
+
+    def _apply(self, kind: str, cat: str, now: float) -> None:
+        if kind != "agent.idle" and kind != "task.complete":
+            self.rest_until = 0.0
         if kind == "agent.started":
             self.work, self.running, self.helpers = 0, 0, 0
+            self.tools = []
         elif kind == "user.prompt_submitted":
             self.think_until = now + 3.0
         elif kind == "tool.started":
             self.running = min(self.running + 1, 6)
             self.work += 1
             self.category = cat
+            self.tools = (self.tools + [cat])[-6:]
         elif kind == "tool.progress":
             self.beat_until = now + 1.5
             self.category = cat
         elif kind == "tool.finished":
             self.running = max(0, self.running - 1)
+            self._done(cat)
             self.streak += 1
             if self.streak >= 3 and self.cracks:
                 self.cracks -= 1
                 self.streak = 0
         elif kind == "tool.failed":
             self.running = max(0, self.running - 1)
+            self._done(cat)
             self.cracks = min(self.cracks + 1, 3)
             self.streak = 0
             self.category = "failure"
@@ -146,6 +164,22 @@ class MasqueState:
         elif kind in ("agent.idle", "task.complete"):
             self.running, self.helpers, self.danger = 0, 0, False
             self.category = "general"
+            self.tools = []
+            self.rest_until = now + 8.0
+
+    def _done(self, cat: str) -> None:
+        if cat in self.tools:
+            self.tools.remove(cat)
+        elif self.tools:
+            self.tools.pop(0)
+
+    @property
+    def swapping(self) -> bool:
+        return self.clock() < self.swap_until
+
+    @property
+    def resting(self) -> bool:
+        return self.clock() < self.rest_until
 
     @property
     def thinking(self) -> bool:
@@ -158,7 +192,8 @@ class MasqueState:
     def key(self) -> tuple:
         size = min(4, self.work // 6)
         return (self.category, self.cracks, size, self.running, self.helpers,
-                self.danger, self.thinking, self.pulsing)
+                self.danger, self.thinking, self.pulsing, tuple(self.tools), self.swapping,
+                self.resting)
 
 
 STATE = MasqueState()
@@ -282,12 +317,29 @@ def _mix(a: str, b: str, t: float) -> str:
 
 
 def _strand(canvas, pts, w0, w1, fill, sheen=None):
-    """A tapered tendril along pts (thick at the root, fine at the tip)."""
-    n = len(pts) - 1
-    for i in range(n):
-        w = w0 + (w1 - w0) * i / max(1, n - 1)
-        canvas.create_line(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1],
-                           fill=fill, width=max(1.0, w), capstyle="round")
+    """A tapered tendril along pts (thick at the root, fine at the tip).
+
+    Drawn as one filled outline instead of a line per segment: the same look,
+    a fraction of the drawing work (Masque draws dozens of these per frame).
+    """
+    n = len(pts)
+    if n < 2:
+        return
+    left, right = [], []
+    for i, (x, y) in enumerate(pts):
+        ax, ay = pts[max(0, i - 1)]
+        bx, by = pts[min(n - 1, i + 1)]
+        dx, dy = bx - ax, by - ay
+        ln = math.hypot(dx, dy) or 1.0
+        nx, ny = -dy / ln, dx / ln
+        half = max(0.6, (w0 + (w1 - w0) * i / (n - 1)) / 2)
+        left.append((x + nx * half, y + ny * half))
+        right.append((x - nx * half, y - ny * half))
+    outline = left + right[::-1]
+    canvas.create_polygon(*[c for q in outline for c in q], fill=fill, outline="")
+    r0 = w0 / 2                                              # a rounded root
+    canvas.create_oval(pts[0][0] - r0, pts[0][1] - r0, pts[0][0] + r0, pts[0][1] + r0,
+                       fill=fill, outline="")
     if sheen:
         flat = [c for p in pts[1:-1] for c in p]
         if len(flat) >= 4:
@@ -662,6 +714,8 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
     osc = math.sin(p * 2 * math.pi)
     own = MASQUE_MOVES.get(pose)
     fx = set(own[1]) if own else set()
+    if st.resting and own is None and pose in ("idle_bob", "celebrate", "sleep", "smug", "excited"):
+        fx |= {"coil", "shrink", "rest", "mask:cute"}            # session over: folded in, a rose
     form = FORM_OF_POSE.get(pose)
     if form is None and own is None and st.running and pose not in ("idle_bob", "sleep"):
         form = CATEGORY_FORM.get(st.category)
@@ -754,11 +808,15 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
         _strand(canvas, pts, w0 + 2.4, 4.0, "#3a2d4d")
     for pts, w0 in strands:                                # then thick ink
         _strand(canvas, pts, w0, 2.5, INK)
-    for pts, w0 in strands:                                # sheen catches the colour of the work
+    # sheen catches the colour of the work - several kinds of tools at once braid their colours
+    kinds = list(dict.fromkeys(st.tools)) if len(set(st.tools)) > 1 else []
+    tints = [_mix("#3b2a55", CATEGORY_COLOUR.get(c, colour), 0.6) for c in kinds] or [tint]
+    for i, (pts, w0) in enumerate(strands):
+        tn = tints[i % len(tints)]
         flat = [c for q in pts[1:-2] for c in q]
-        canvas.create_line(*flat, fill=tint, width=1.6, smooth=True)
+        canvas.create_line(*flat, fill=tn, width=1.6, smooth=True)
         tx, ty = pts[-1]
-        canvas.create_oval(tx - 2.2, ty - 2.2, tx + 2.2, ty + 2.2, fill=tint, outline="")
+        canvas.create_oval(tx - 2.2, ty - 2.2, tx + 2.2, ty + 2.2, fill=tn, outline="")
 
     # 3. eyes in the dark
     eye_count = int(9 * eyes_k + (9 if st.thinking or "alleyes" in fx or back else 0))
@@ -822,8 +880,11 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
         tip = (rx + side * (40 + 14 * j) + 6 * osc, 40 + 18 * j - 8 * abs(osc))
         pts = [(rx, ry)] + [((rx * (1 - t) + tip[0] * t) + side * 18 * math.sin(t * math.pi),
                              ry * (1 - t) + tip[1] * t) for t in (0.25, 0.5, 0.75, 1.0)]
-        _strand(canvas, pts, 7, 3, INK, sheen=colour)
-        glyph(canvas, gl, min(max(tip[0], 14), FRAME[0] - 14), max(tip[1], 14), 10, colour)
+        cat_j = st.tools[j] if j < len(st.tools) else None     # each tendril holds its own tool
+        col_j = CATEGORY_COLOUR.get(cat_j, colour) if cat_j else colour
+        gl_j = CATEGORY_GLYPH.get(cat_j, gl) if cat_j else gl
+        _strand(canvas, pts, 7, 3, INK, sheen=col_j)
+        glyph(canvas, gl_j, min(max(tip[0], 14), FRAME[0] - 14), max(tip[1], 14), 10, col_j)
 
     # 7. hands holding the mask (delicate, gold rings)
     hands_later: list = []                                   # drawn over the mask's edges
@@ -869,6 +930,13 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
 
     for hx_, hy_, k in hands_later:                          # fingers curl over the mask's edge
         _hand(canvas, hx_, hy_, k, p)
+    if st.swapping and not back:                             # a tendril carries the old mask away
+        ox, oy = mcx + mw + 46 + 14 * p, mcy - 10 - 10 * p
+        _strand(canvas, [(mcx + 30, mcy + 40), (mcx + mw + 20, mcy + 20), (ox - 10, oy + 26)], 7, 3,
+                INK, sheen=colour)
+        draw_mask(canvas, ox, oy, mw * 0.55, mh * 0.55, "blank", lace=False, p=p)
+    if "rest" in fx and not back:                            # the small smile keeps a rose
+        _rose(canvas, mcx, mcy + mh + 12, 9)
 
     # 9. front effects
     _effects(canvas, fx, form, mcx, mcy, mw, mh, p, osc, colour, st, pose)

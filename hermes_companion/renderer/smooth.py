@@ -98,7 +98,9 @@ class PILCanvas:
             pts = _chaikin(pts, closed=False)
         width = self._w(kw)
         fill = _color(kw.get("fill")) or "#000000"
-        self.d.line(pts, fill=fill, width=width, joint="curve")
+        # Rounded joints only matter on thick strokes; on thin ones they are
+        # invisible but cost a pie-slice per vertex (Masque draws thousands).
+        self.d.line(pts, fill=fill, width=width, joint="curve" if width > 7 else None)
         if kw.get("capstyle") == "round" and width > 2:
             r = width / 2
             for x, y in (pts[0], pts[-1]):

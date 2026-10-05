@@ -170,3 +170,41 @@ def test_hands_are_drawn_over_the_mask_and_the_perch_has_a_window():
     calls.clear()
     M.draw_masque(Rec(), "window_perch", 0.3)
     assert ("create_rectangle", "#2d3a58", "#6a7dab") in calls   # the title bar
+
+
+def test_mixed_tools_each_hold_their_own_colour(st):
+    st.observe(ev("tool.started", "terminal"))
+    st.observe(ev("tool.started", "web"))
+    st.observe(ev("tool.started", "memory"))
+    assert st.tools == ["terminal", "web", "memory"]
+    st.observe(ev("tool.finished", "web"))
+    assert st.tools == ["terminal", "memory"]
+
+
+def test_mood_change_swaps_the_mask_and_session_end_rests(st):
+    st.observe(ev("tool.started", "terminal"))
+    assert st.swapping                                   # calm -> work: a new mask
+    st.now[0] += 2
+    assert not st.swapping
+    st.observe(ev("tool.started", "web"))
+    assert not st.swapping                               # still working: same mask
+    st.observe(ev("task.complete"))
+    assert st.resting and st.tools == []
+    st.observe(ev("agent.started"))
+    assert not st.resting
+
+
+def test_session_end_and_swap_change_the_picture():
+    from hermes_companion.renderer.smooth import FrameRenderer
+    saved = dict(M.STATE.__dict__)
+    try:
+        r = FrameRenderer("masque", glow=False, squash=False)
+        M.STATE.__dict__.update(running=0, cracks=0, category="general", helpers=0, tools=[],
+                                swap_until=0.0, rest_until=0.0)
+        plain = r.frame("idle_bob", 0.3).tobytes()
+        M.STATE.rest_until = 1e12
+        assert r.frame("idle_bob", 0.3).tobytes() != plain
+        M.STATE.rest_until, M.STATE.swap_until = 0.0, 1e12
+        assert r.frame("idle_bob", 0.3).tobytes() != plain
+    finally:
+        M.STATE.__dict__.update(saved)

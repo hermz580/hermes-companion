@@ -94,7 +94,7 @@ BEHAVIOR_GROUPS = (
 
 # What the companion's glow means, in the user's words (colours from herald.MOOD_COLORS).
 MEANINGS = (
-    ("work", "#2dd4bf", "Working", "Hermes is running a tool: terminal, web, files."),
+    ("work", "#2dd4bf", "Working", "Running a tool: terminal, web, files."),
     ("approve", "#fbbf24", "Needs you", "Hermes is waiting on your approval."),
     ("fail", "#fb7185", "Hit a snag", "A step failed. It's retrying or recovering."),
     ("delegate", "#a78bfa", "Delegating", "Work handed to a helper agent."),
@@ -203,6 +203,13 @@ def status_line(values: dict, mode: str | None) -> tuple[str, str]:
     return "idle", f"{title} is resting. Press Start to bring it to your desktop."
 
 
+def home_heading(first_run: bool) -> tuple[str, str]:
+    """Home's title: a real welcome the first time, a short greeting after."""
+    if first_run:
+        return "Welcome", "Pick a companion if you like, then press Start. That's it."
+    return "Welcome back", "Start your companion and see what it's telling you."
+
+
 def crash_notice(companion: str) -> str:
     title = COMPANION_INFO.get(companion, (companion.title(),))[0]
     return f"{title} closed right after starting. Run System check to see why."
@@ -263,7 +270,7 @@ class HomeWindow:
 
     def __init__(self, values: dict | None = None, overlay=None, page: str = "home",
                  runner=None, saver=None, feed=None, master=None,
-                 presence=None, stopper=None) -> None:
+                 presence=None, stopper=None, first_run: bool = False) -> None:
         import tkinter as tk
 
         self.tk = tk
@@ -277,6 +284,7 @@ class HomeWindow:
         # What is really on the desktop, read from the running companion's heartbeat
         # (core.presence), so Home also sees companions it didn't start.
         from hermes_companion.core import presence as P
+        self.first_run = first_run
         self._presence = presence or P.current
         self._stopper = stopper or P.request_stop
         self.running_companion = None
@@ -323,6 +331,10 @@ class HomeWindow:
         self.body = tk.Frame(self.main, bg=THEME["bg"])
         self.body.pack(fill="both", expand=True, padx=28, pady=(8, 16))
 
+        # Tk buttons only answer Space; keyboard users expect Enter to work too.
+        for cls in ("Button", "Checkbutton"):
+            for key in ("<Return>", "<KP_Enter>"):
+                self.win.bind_class(cls, key, lambda e: e.widget.invoke())
         for i, (key, _l, _s) in enumerate(NAV, start=1):
             self.win.bind(f"<Control-Key-{i}>", lambda _e, k=key: self.show(k))
         self.win.bind("<Control-s>", lambda _e: self.apply())
@@ -417,7 +429,9 @@ class HomeWindow:
             btn.configure(bg=bg, fg=THEME["text"] if on else THEME["muted"],
                           font=(FONT, 10, "bold" if on else "normal"))
         _k, title, sub = next(n for n in NAV if n[0] == page)
-        self.title_lbl.configure(text=title if page != "home" else "Welcome back")
+        if page == "home":
+            title, sub = home_heading(self.first_run)
+        self.title_lbl.configure(text=title)
         self.sub_lbl.configure(text=sub)
         for child in self.body.winfo_children():
             child.destroy()
@@ -444,7 +458,7 @@ class HomeWindow:
         col.pack(side="left", fill="both", expand=True, pady=12)
         title, tagline = COMPANION_INFO.get(who["companion"], ("", ""))
         self._label(col, title, 16, bold=True).pack(fill="x")
-        self._label(col, tagline, 10, "muted", wraplength=420).pack(fill="x", pady=(0, 8))
+        self._label(col, tagline, 10, "muted", wraplength=470).pack(fill="x", pady=(0, 8))
         level, line = status_line(who, self.mode)
         self._label(col, line, 10, "ok" if level == "ok" else "text", wraplength=420).pack(fill="x")
         if self.notice:
@@ -477,7 +491,7 @@ class HomeWindow:
         self._label(legend, "What its glow means", 11, bold=True).pack(fill="x", padx=16, pady=(12, 4))
         for _k, color, name, meaning in MEANINGS:
             item = tk.Frame(legend, bg=THEME["card"])
-            item.pack(fill="x", padx=16, pady=2)
+            item.pack(fill="x", padx=16, pady=1)
             dot = tk.Canvas(item, width=12, height=12, bg=THEME["card"], highlightthickness=0)
             dot.create_oval(1, 1, 11, 11, fill=color, outline="")
             dot.pack(side="left", anchor="n", pady=4)
@@ -544,8 +558,12 @@ class HomeWindow:
             f.configure(takefocus=1, highlightcolor=THEME["accent"])
             f.bind("<Return>", pick)
             f.bind("<space>", pick)
-            f.bind("<FocusIn>", lambda e: e.widget.configure(highlightbackground=THEME["accent"]))
-            f.bind("<FocusOut>", lambda e, b=border: e.widget.configure(highlightbackground=b))
+            # Ring only when the card itself has focus: Tk also sends FocusIn to the
+            # card when its "+ Also on screen" button is focused, which lit the wrong ring.
+            ring = (lambda e, b=border: e.widget.configure(
+                highlightbackground=THEME["accent"] if e.widget.focus_get() is e.widget else b))
+            f.bind("<FocusIn>", ring)
+            f.bind("<FocusOut>", ring)
             if card["can_join"]:
                 text = "− Remove from screen" if card["on_screen"] else "+ Also on screen"
                 self._button(f, text, lambda n=card["name"]: self._set(toggle_guest(self.staged, n)),
@@ -566,11 +584,14 @@ class HomeWindow:
             b = tk.Button(row, text=opt.title(), relief="flat", bd=0, cursor="hand2",
                           bg=THEME["accent"] if on else THEME["card_hi"],
                           fg=THEME["accent_text"] if on else THEME["text"],
-                          activebackground=THEME["line"], highlightthickness=0,
-                          font=(FONT, 9, "bold" if on else "normal"), padx=10, pady=5,
+                          # hovering the chosen chip keeps it gold, so it still reads as chosen
+                          activebackground=THEME["accent"] if on else THEME["line"],
+                          activeforeground=THEME["accent_text"] if on else THEME["text"],
+                          highlightthickness=0,
+                          font=(FONT, 9, "bold" if on else "normal"), padx=8, pady=5,
                           command=lambda o=opt: self._set(dict(
                               self.staged, **{key: (None if o == "default" else o)})))
-            b.pack(side="left", padx=(0, 6), pady=2)
+            b.pack(side="left", padx=(0, 5), pady=2)
         if helptext:
             self._label(parent, helptext.get(self.staged.get(key), ""), 9, "muted").pack(
                 fill="x", padx=16, pady=(0, 12))
@@ -845,7 +866,8 @@ def _open_feed():
 
 def open_home(overlay=None, values: dict | None = None, page: str = "home") -> HomeWindow:
     """Open Home. Without an overlay it owns the Tk loop until closed."""
-    home = HomeWindow(values, overlay=overlay, page=page)
+    first_run = values is None and not S.settings_path().exists()
+    home = HomeWindow(values, overlay=overlay, page=page, first_run=first_run)
     if overlay is None:
         home.run()
     return home

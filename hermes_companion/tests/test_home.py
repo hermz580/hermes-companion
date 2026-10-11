@@ -176,3 +176,35 @@ def test_a_companion_that_dies_at_startup_is_explained(tk_root):
         assert w.notice is None
     finally:
         w.close()
+
+
+def test_keyboard_enter_works_and_focus_ring_is_honest(tk_root):
+    w = H.HomeWindow(dict(S.DEFAULTS, companion="nia"), runner=lambda *a, **k: None,
+                     saver=lambda v: None, feed=None, master=tk_root,
+                     presence=lambda: None, stopper=lambda: False)
+    try:
+        w.show("companions")
+        w.win.update()
+        cards = w.body.winfo_children()[0].winfo_children()
+        samurai = cards[4]
+        button = samurai.winfo_children()[-1]            # "+ Also on screen"
+        button.focus_force()
+        w.win.update()
+        assert samurai.cget("highlightbackground") != H.THEME["accent"]   # button, not card
+        button.event_generate("<Return>")
+        w.win.update()
+        assert w.staged["with"] == ["samurai"]           # Enter pressed the button
+        cards = w.body.winfo_children()[0].winfo_children()
+        cards[4].focus_force()
+        w.win.update()
+        assert cards[4].cget("highlightbackground") == H.THEME["accent"]  # card focused: ring
+        cards[4].event_generate("<Return>")
+        w.win.update()
+        assert w.staged["companion"] == "samurai"
+    finally:
+        w.close()
+
+
+def test_first_launch_says_welcome_not_welcome_back():
+    assert H.home_heading(True)[0] == "Welcome"
+    assert H.home_heading(False)[0] == "Welcome back"

@@ -12,6 +12,7 @@ REM   Start-Companion.cmd live                         Nyamekra driven by your r
 REM   Start-Companion.cmd live nia                     any companion, live
 REM   Start-Companion.cmd --reduced-motion --high-contrast   accessibility
 REM   Start-Companion.cmd doctor                       check this PC can run it
+REM   Start-Companion.cmd home                         open Companion Home (all settings)
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
@@ -51,6 +52,10 @@ if /i "%FIRST%"=="doctor" (
     ".venv\Scripts\python.exe" -m hermes_companion doctor
     pause
     exit /b %ERRORLEVEL%
+)
+if /i "%FIRST%"=="home" (
+    start "" ".venv\Scripts\pythonw.exe" -m hermes_companion home
+    exit /b 0
 )
 set "MODE=play"
 if /i "%FIRST%"=="live" (

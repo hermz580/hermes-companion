@@ -23,6 +23,11 @@ really doing always reads correctly, and decoration never replaces it.
 5. ✅ **Tray icon + settings panel.** Switch energy, size and character, and
    pause curiosity without a terminal.
 
+## Now: make it make sense
+- [x] **Companion Home.** One window (`hermes-companion`) to start, choose, tune and
+  check the companion, replacing the scattered settings dialog. Tray left-click opens it.
+- [ ] Live event feed on Home (last real Hermes event, from the status panel's evidence rules).
+
 ## Later: grow the world
 - ✅ **Multi-companion scenes** (`--with`; portal hand-offs still to come). Nyamekra, Nia and Herald on screen together,
   handing delegated work through portals (signed social signals already exist).

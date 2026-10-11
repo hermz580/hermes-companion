@@ -416,6 +416,13 @@ print(json.dumps(mons))
     return 0
 
 
+def cmd_home(args: argparse.Namespace, page: str | None = None) -> int:
+    """Open Companion Home, the one window for everything (also the no-argument default)."""
+    from hermes_companion.renderer.home import open_home
+    open_home(page=page or getattr(args, "page", None) or "home")
+    return 0
+
+
 def resolve_play_settings(args: argparse.Namespace, saved: dict) -> dict:
     """Saved settings, overridden by anything given on the command line."""
     v = dict(saved)
@@ -818,7 +825,8 @@ def build_parser() -> argparse.ArgumentParser:
     """
     p = argparse.ArgumentParser(prog="hermes-companion")
     p.add_argument("--seed", type=int, default=1)
-    sub = p.add_subparsers(dest="cmd", required=True)
+    sub = p.add_subparsers(dest="cmd")
+    p.set_defaults(fn=lambda a: cmd_home(a))
 
     pe = sub.add_parser("emit")
     pe.add_argument("event")
@@ -950,10 +958,13 @@ def build_parser() -> argparse.ArgumentParser:
                     help="stay on the floor instead of living on your windows")
     pp.set_defaults(fn=cmd_play)
 
-    pset = sub.add_parser("settings", help="open the settings window")
-    pset.set_defaults(fn=lambda a: (__import__("hermes_companion.renderer.tray", fromlist=["x"])
-                                    .open_settings(None, __import__("hermes_companion.core.settings",
-                                                                    fromlist=["x"]).load()), 0)[1])
+    phome = sub.add_parser("home", help="open Companion Home: start, choose, tune, check")
+    phome.add_argument("--page", default="home",
+                       choices=("home", "companions", "look", "behavior", "check", "help"))
+    phome.set_defaults(fn=cmd_home)
+
+    pset = sub.add_parser("settings", help="open Companion Home on the Look page")
+    pset.set_defaults(fn=lambda a: cmd_home(a, page="look"))
 
     pdoc = sub.add_parser("doctor", help="check this PC can run the companion")
     pdoc.add_argument("--no-window", action="store_true", help="skip opening a test window")

@@ -83,3 +83,18 @@ def play_command(values: dict, extra: list[str] | None = None) -> list[str]:
     if values.get("with"):
         cmd += ["--with", ",".join(values["with"])]
     return cmd + list(extra or [])
+
+
+def live_command(values: dict) -> list[str]:
+    """The command that connects this companion to the real Hermes agent."""
+    base = [sys.executable] if getattr(sys, "frozen", False) else \
+        [sys.executable, "-m", "hermes_companion"]
+    cmd = base + ["live", "--companion", values["companion"], "--follow",
+                  "--notice", values["notice"]]
+    if values.get("palette"):
+        cmd += ["--palette", values["palette"]]
+    for flag, key, want in (("--sound", "sound", True), ("--no-bubbles", "bubbles", False),
+                            ("--no-speak", "speak", False), ("--no-perch", "perch", False)):
+        if bool(values.get(key)) == want:
+            cmd.append(flag)
+    return cmd

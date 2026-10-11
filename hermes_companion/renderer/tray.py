@@ -2,9 +2,10 @@
 
 The tray menu changes the saved settings and restarts the companion with
 them (character, energy, size, curiosity, sound, bubbles, memory, perching,
-accessibility, extra companions). "Settings..." opens a small window with the
-same options. Everything degrades quietly: without `pystray` there is no tray
-icon, and the settings window still opens from `hermes-companion settings`.
+accessibility, extra companions). "Open Home..." (also a left-click on the
+icon) opens Companion Home, the full window for every option. Everything
+degrades quietly: without `pystray` there is no tray icon, and Home still
+opens from `hermes-companion` or `hermes-companion settings`.
 """
 from __future__ import annotations
 
@@ -32,7 +33,7 @@ def relaunch(values: dict, on_quit=None) -> None:
 
 def menu_model(values: dict) -> list:
     """Pure description of the tray menu: [(label, kind, payload)], testable."""
-    items: list = []
+    items: list = [("Open Home…", "action", "home"), ("", "separator", None)]
     items.append(("Character", "submenu",
                   [(c.title(), "radio", ("companion", c)) for c in S.COMPANIONS]))
     energies = ENERGIES.get(values["companion"])
@@ -49,7 +50,7 @@ def menu_model(values: dict) -> list:
     items.append(("Companions on screen", "submenu",
                   [(c.title(), "toggle_with", c) for c in S.COMPANIONS
                    if c != values["companion"]]))
-    items.append(("Settings…", "action", "settings"))
+    items.append(("", "separator", None))
     items.append(("Quit", "action", "quit"))
     return items
 
@@ -96,11 +97,14 @@ def build_menu(pystray, values: dict, quit_all, show_settings):
     def build(items):
         entries = []
         for label, kind, payload in items:
-            if kind == "submenu":
+            if kind == "separator":
+                entries.append(pystray.Menu.SEPARATOR)
+            elif kind == "submenu":
                 entries.append(pystray.MenuItem(label, pystray.Menu(*build(payload))))
             elif kind == "action":
                 handler = quit_all if payload == "quit" else show_settings
-                entries.append(pystray.MenuItem(label, _action_fn(handler)))
+                entries.append(pystray.MenuItem(label, _action_fn(handler),
+                                                default=(payload == "home")))
             else:
                 entries.append(pystray.MenuItem(
                     label, _clicked_fn(values, kind, payload, quit_all),
@@ -133,7 +137,7 @@ def start_tray(overlay, values: dict):
         overlay.root.after(0, overlay.close)
 
     def show_settings():
-        overlay.root.after(0, lambda: open_settings(overlay, values))
+        overlay.root.after(0, lambda: open_home_window(overlay, values))
 
     icon = pystray.Icon("hermes-companion", icon_img, "Hermes Companion",
                         build_menu(pystray, values, quit_all, show_settings))
@@ -142,59 +146,11 @@ def start_tray(overlay, values: dict):
     return icon
 
 
+def open_home_window(overlay, values: dict, page: str = "home"):
+    from hermes_companion.renderer.home import open_home
+    return open_home(overlay, values, page=page)
+
+
 def open_settings(overlay, values: dict) -> None:
-    """A small settings window (Tk), opened from the tray or the CLI."""
-    import tkinter as tk
-    from tkinter import ttk
-
-    root = overlay.root if overlay is not None else tk.Tk()
-    win = tk.Toplevel(root) if overlay is not None else root
-    win.title("Hermes Companion - Settings")
-    win.configure(bg="#0b0912")
-    win.resizable(False, False)
-    style = ttk.Style(win)
-    style.configure("TLabel", background="#0b0912", foreground="#ffe39a")
-    style.configure("TCheckbutton", background="#0b0912", foreground="#f4e9d8")
-
-    vars_: dict = {}
-    row = 0
-
-    def add_choice(label, key, options):
-        nonlocal row
-        ttk.Label(win, text=label).grid(row=row, column=0, sticky="w", padx=12, pady=4)
-        v = tk.StringVar(value=values.get(key) or options[0])
-        ttk.Combobox(win, textvariable=v, values=list(options), state="readonly",
-                     width=16).grid(row=row, column=1, padx=12, pady=4)
-        vars_[key] = v
-        row += 1
-
-    add_choice("Character", "companion", S.COMPANIONS)
-    add_choice("Energy / palette", "palette",
-               ENERGIES.get(values["companion"], ("default",)))
-    add_choice("Size", "size", S.SIZES)
-    add_choice("Curiosity", "notice", S.NOTICE)
-    for label, key in (("Speech bubbles", "bubbles"), ("Speak aloud", "speak"), ("Sound", "sound"),
-                       ("Learn my rhythm", "memory"), ("Live on my windows", "perch"),
-                       ("Reduced motion", "reduced_motion"), ("High contrast", "high_contrast")):
-        v = tk.BooleanVar(value=bool(values.get(key)))
-        ttk.Checkbutton(win, text=label, variable=v).grid(row=row, column=0, columnspan=2,
-                                                         sticky="w", padx=12)
-        vars_[key] = v
-        row += 1
-
-    def save_and_restart():
-        new = dict(values)
-        for key, v in vars_.items():
-            new[key] = v.get()
-        if new.get("palette") == "default":
-            new["palette"] = None
-        if overlay is None:
-            S.save(new)
-            win.destroy()
-            return
-        relaunch(new, on_quit=lambda: overlay.root.after(0, overlay.close))
-
-    ttk.Button(win, text="Save & restart" if overlay is not None else "Save",
-               command=save_and_restart).grid(row=row, column=0, columnspan=2, pady=10)
-    if overlay is None:
-        win.mainloop()
+    """Kept for old callers: settings now live in Companion Home."""
+    open_home_window(overlay, values, page="look")

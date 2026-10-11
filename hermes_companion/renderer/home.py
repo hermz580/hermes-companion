@@ -210,6 +210,7 @@ def fix_for(detail: str) -> tuple[str, str]:
     return detail, ""
 
 
+STALE_S = 10 * 60      # older than this, the headline is history, not "now"
 MOOD_HEX = {key: color for key, color, _n, _m in MEANINGS}
 FEED_NOTICE = ("Only signed events from your Hermes count. Quiet doesn't prove nothing "
                "is running.")
@@ -229,6 +230,8 @@ def feed_view(feed, now: float | None = None) -> dict:
                 "sub": "Connected. No events yet: start a task in Hermes.",
                 "items": []}
     headline, mood = feed.headline()
+    if now - feed.last_ts > STALE_S:
+        headline, mood = f"Last known: {headline}", "calm"
     return {"headline": headline, "mood": mood,
             "sub": f"Last event {age_text(now - feed.last_ts)}.",
             "items": [(i.text, i.mood, age_text(now - i.ts)) for i in feed.items]}
@@ -414,14 +417,15 @@ class HomeWindow:
     def _page_home(self):
         tk = self.tk
         hero = self._card(self.body)
-        img = self._photo("hero", self.staged["companion"], self.staged.get("palette"), 110)
+        who = self.staged if self.mode is None else self.saved
+        img = self._photo("hero", who["companion"], who.get("palette"), 110)
         tk.Label(hero, image=img, bg=THEME["card"]).pack(side="left", padx=18, pady=12)
         col = tk.Frame(hero, bg=THEME["card"])
         col.pack(side="left", fill="both", expand=True, pady=12)
-        title, tagline = COMPANION_INFO.get(self.staged["companion"], ("", ""))
+        title, tagline = COMPANION_INFO.get(who["companion"], ("", ""))
         self._label(col, title, 16, bold=True).pack(fill="x")
         self._label(col, tagline, 10, "muted", wraplength=420).pack(fill="x", pady=(0, 8))
-        level, line = status_line(self.saved, self.mode)
+        level, line = status_line(who, self.mode)
         self._label(col, line, 10, "ok" if level == "ok" else "text", wraplength=420).pack(fill="x")
         row = tk.Frame(col, bg=THEME["card"])
         row.pack(fill="x", pady=(12, 0))
@@ -511,8 +515,15 @@ class HomeWindow:
             tag = tk.Label(f, text=card["tagline"], bg=bg, fg=THEME["muted"], font=(FONT, 9),
                            wraplength=170, justify="center", height=3)
             tag.pack(padx=8)
+            pick = (lambda _e, n=card["name"]: self._set(choose_companion(self.staged, n)))
             for w in (f, pic, name, tag):
-                w.bind("<Button-1>", lambda _e, n=card["name"]: self._set(choose_companion(self.staged, n)))
+                w.bind("<Button-1>", pick)
+            # Keyboard: Tab reaches each card, Enter/Space chooses it, focus shows a gold ring.
+            f.configure(takefocus=1, highlightcolor=THEME["accent"])
+            f.bind("<Return>", pick)
+            f.bind("<space>", pick)
+            f.bind("<FocusIn>", lambda e: e.widget.configure(highlightbackground=THEME["accent"]))
+            f.bind("<FocusOut>", lambda e, b=border: e.widget.configure(highlightbackground=b))
             if card["can_join"]:
                 text = "− Remove from screen" if card["on_screen"] else "+ Also on screen"
                 self._button(f, text, lambda n=card["name"]: self._set(toggle_guest(self.staged, n)),
@@ -731,17 +742,18 @@ class HomeWindow:
                 result = collect_checks(open_window=False, echo=False)
             except Exception as exc:          # a broken check must not kill the window
                 result = [("FAIL", "System check", repr(exc))]
-            self.win.after(0, lambda: self._checks_done(result))
+            self._checks_result = result      # picked up by _tick on the Tk thread
+        self._checks_result = None
         threading.Thread(target=work, daemon=True).start()
-
-    def _checks_done(self, result) -> None:
-        self.checks = result
-        if self.page in ("check", "home"):
-            self._rerender()
 
     def _tick(self) -> None:
         """Keep the sidebar's running light and the Hermes feed honest."""
         self._ticks = getattr(self, "_ticks", 0) + 1
+        result, self._checks_result = getattr(self, "_checks_result", None), None
+        if result is not None:
+            self.checks = result
+            if self.page in ("check", "home"):
+                self._rerender()
         if self.feed is not None:
             try:
                 changed = self.feed.poll()

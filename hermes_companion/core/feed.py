@@ -90,7 +90,8 @@ def age_text(seconds: float | None) -> str:
 
 
 def default_paths() -> tuple[Path, Path]:
-    from hermes_companion.core.binding import hermes_home
+    # Exactly where `live` reads, so Home and the companion never disagree.
+    from hermes_companion.renderer.live import hermes_home
     base = hermes_home() / "companion"
     return base / "events.jsonl", base / "event-auth.key"
 

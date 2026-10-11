@@ -99,3 +99,26 @@ def test_wording_helpers():
     assert describe(EventKind.TOOL_STARTED, "file") == ("Using files", "work")
     assert age_text(None) == "no events yet" and age_text(2) == "just now"
     assert age_text(75) == "1 min ago" and age_text(7200) == "2 h ago"
+
+
+def test_old_state_is_labelled_as_history(tmp_path):
+    feed, events = _setup(tmp_path)
+    _write(events, {"event": "approval.required", "ts": 1000.0})
+    feed.poll()
+    assert feed_view(feed, now=1060.0)["headline"] == "Decision needed"
+    stale = feed_view(feed, now=1000.0 + 3600)
+    assert stale["headline"] == "Last known: Decision needed" and stale["mood"] == "calm"
+
+
+def test_feed_reads_where_live_mode_reads(monkeypatch, tmp_path):
+    from hermes_companion.core.feed import default_paths
+    from hermes_companion.renderer.live import hermes_home
+    # No HERMES_HOME/LOCALAPPDATA (macOS/Linux): the plugin and `live` both use
+    # ~/AppData/Local/hermes, so the feed must too.
+    monkeypatch.delenv("HERMES_HOME", raising=False)
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    events, key = default_paths()
+    assert events == hermes_home() / "companion" / "events.jsonl"
+    assert key == hermes_home() / "companion" / "event-auth.key"

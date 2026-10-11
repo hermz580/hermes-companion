@@ -125,5 +125,8 @@ def test_home_window_walks_every_page_and_starts_a_companion(tk_root, tmp_path):
         assert not started[0].alive and "live" in started[-1].cmd
         w.stop()
         assert w.mode is None and not started[-1].alive
+        w._checks_result = [("PASS", "Python", "3")]      # as the worker thread leaves it
+        w._tick()
+        assert w.checks == [("PASS", "Python", "3")] and w._checks_result is None
     finally:
         w.close()

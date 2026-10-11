@@ -17,11 +17,34 @@ PASS, WARN, FAIL = "PASS", "WARN", "FAIL"
 
 def _check(results, status, name, detail=""):
     results.append((status, name, detail))
-    print(f"  [{status}] {name}" + (f" - {detail}" if detail else ""), flush=True)
+    if _ECHO:
+        print(f"  [{status}] {name}" + (f" - {detail}" if detail else ""), flush=True)
+
+
+_ECHO = True
 
 
 def run_doctor(open_window: bool = True) -> int:
     print("Hermes Companion doctor", flush=True)
+    results = collect_checks(open_window)
+    fails = sum(1 for r in results if r[0] == FAIL)
+    warns = sum(1 for r in results if r[0] == WARN)
+    print(f"\n{'READY' if not fails else 'NOT READY'}: {fails} problem(s), {warns} warning(s)",
+          flush=True)
+    return 1 if fails else 0
+
+
+def collect_checks(open_window: bool = False, echo: bool = True) -> list[tuple[str, str, str]]:
+    """Every check as (status, name, detail); the Home window shows these."""
+    global _ECHO
+    _ECHO = echo
+    try:
+        return _collect(open_window)
+    finally:
+        _ECHO = True
+
+
+def _collect(open_window: bool) -> list[tuple[str, str, str]]:
     results: list[tuple[str, str, str]] = []
 
     v = sys.version_info
@@ -90,9 +113,4 @@ def run_doctor(open_window: bool = True) -> int:
                 Path(os.environ.get("LOCALAPPDATA", Path.home())) / "hermes")
     _check(results, PASS if home.exists() else WARN, "Hermes (for live mode)",
            str(home) if home.exists() else "not found - 'play' works; 'live' needs Hermes")
-
-    fails = sum(1 for r in results if r[0] == FAIL)
-    warns = sum(1 for r in results if r[0] == WARN)
-    print(f"\n{'READY' if not fails else 'NOT READY'}: {fails} problem(s), {warns} warning(s)",
-          flush=True)
-    return 1 if fails else 0
+    return results

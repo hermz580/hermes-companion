@@ -42,7 +42,7 @@ def test_tray_menu_covers_every_setting():
     labels = [m[0] for m in model]
     for want in ("Character", "Energy", "Size", "Curiosity", "Speech bubbles", "Sound",
                  "Learn my rhythm", "Live on my windows", "Reduced motion", "High contrast",
-                 "Companions on screen", "Settings…", "Quit"):
+                 "Companions on screen", "Open Home…", "Quit"):
         assert want in labels
 
 

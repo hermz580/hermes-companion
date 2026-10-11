@@ -21,6 +21,10 @@ from hermes_companion.renderer.smooth import (
     FRAME_H, FRAME_W, FrameRenderer, chroma_fallback, premultiplied_bgra,
 )
 
+# Display-ready copies of recent frames (Windows BGRA bytes or Tk images).
+# ~176 KB each at standard size; an idle loop and a walk cycle fit easily.
+CONVERT_CACHE = 96
+
 ULW_ALPHA = 0x00000002
 AC_SRC_OVER = 0x00
 AC_SRC_ALPHA = 0x01
@@ -89,9 +93,12 @@ class LayeredBlitter:
         self.old = g.SelectObject(ctypes.c_void_p(self.mem_dc), ctypes.c_void_p(self.dib))
         self.blend = _BLENDFUNCTION(AC_SRC_OVER, 0, 255, AC_SRC_ALPHA)
 
-    def blit(self, img, x: int, y: int) -> None:
-        data = premultiplied_bgra(img)
-        ctypes.memmove(self.bits, data, len(data))
+    def blit(self, img, x: int, y: int, data: bytes | None = None) -> None:
+        if data is None:
+            data = premultiplied_bgra(img)
+        if data is not getattr(self, "_last", None):    # same frame, new place: skip the copy
+            ctypes.memmove(self.bits, data, len(data))
+            self._last = data
         ok = self.user32.UpdateLayeredWindow(
             ctypes.c_void_p(self.hwnd), ctypes.c_void_p(self.screen_dc),
             ctypes.byref(_POINT(int(x), int(y))), ctypes.byref(_SIZE(self.w, self.h)),
@@ -172,17 +179,43 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
         self._place(self.x, self.home_y)
 
     def _present(self) -> None:
+        """Ask for a redraw. A pose change and a move in the same tick draw once."""
+        if getattr(self, "_present_pending", False):
+            return
+        self._present_pending = True
+        try:
+            self.root.after_idle(self._flush)
+        except tk.TclError:                     # window already gone
+            self._present_pending = False
+
+    def _converted(self, frame, kind: str, make):
+        """Per-frame display conversions, reused while the frame stays cached."""
+        cache = self.__dict__.setdefault("_conv", {})
+        key = (id(frame), kind)
+        hit = cache.get(key)
+        if hit is not None and hit[0] is frame:     # holding `frame` keeps id() unique
+            return hit[1]
+        out = make(frame)
+        if len(cache) >= CONVERT_CACHE:
+            cache.pop(next(iter(cache)))            # oldest first
+        cache[key] = (frame, out)
+        return out
+
+    def _flush(self) -> None:
+        self._present_pending = False
         frame = self.renderer.frame(*self._pose)
         text = getattr(self, "_bubble_text", None)
+        state = (text, self.x, self._y, self.blitter is not None)
+        if frame is getattr(self, "_shown_frame", None) and state == getattr(self, "_shown", None):
+            return                                  # nothing visible changed
+        source = frame
         if text:                                     # no bubble window: draw it in-frame
-            from hermes_companion.renderer.voice import bubble_image
-            b = bubble_image(text, width=self.w - 8)
-            b.thumbnail((self.w - 4, self.h // 3))
-            frame = frame.copy()
-            frame.alpha_composite(b, ((self.w - b.width) // 2, 2))
+            frame = self._converted(frame, f"bubble:{text}", lambda f: self._with_bubble(f, text))
         if self.blitter is not None:
             try:
-                self.blitter.blit(frame, self.x, self._y)
+                self.blitter.blit(frame, self.x, self._y,
+                                  data=self._converted(frame, "bgra", premultiplied_bgra))
+                self._shown, self._shown_frame = state, source
                 return
             except OSError:
                 self.blitter.close()
@@ -191,19 +224,35 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
                 from hermes_companion.animation.animator import BG
                 self.root.wm_attributes("-transparentcolor", BG)
                 super()._place(self.x, self._y)
-        from PIL import Image, ImageTk
-        if getattr(self, "windowed", False):
+        windowed = getattr(self, "windowed", False)
+        if windowed:
             self.mode = "windowed"
+        photo = self._converted(frame, "windowed" if windowed else "chroma",
+                                lambda f: self._tk_photo(f, windowed))
+        self._photo = photo
+        if self._image_item is None:
+            self.canvas.delete("all")
+            self._image_item = self.canvas.create_image(0, 0, image=photo, anchor="nw")
+        else:
+            self.canvas.itemconfigure(self._image_item, image=photo)
+        self._shown, self._shown_frame = state, source
+
+    def _with_bubble(self, frame, text):
+        from hermes_companion.renderer.voice import bubble_image
+        b = bubble_image(text, width=self.w - 8)
+        b.thumbnail((self.w - 4, self.h // 3))
+        frame = frame.copy()
+        frame.alpha_composite(b, ((self.w - b.width) // 2, 2))
+        return frame
+
+    def _tk_photo(self, frame, windowed: bool):
+        from PIL import Image, ImageTk
+        if windowed:
             from hermes_companion.renderer.overlay import WINDOWED_BG
             shown = Image.alpha_composite(Image.new("RGBA", frame.size, WINDOWED_BG), frame)
         else:
             shown = chroma_fallback(frame)
-        self._photo = ImageTk.PhotoImage(shown)
-        if self._image_item is None:
-            self.canvas.delete("all")
-            self._image_item = self.canvas.create_image(0, 0, image=self._photo, anchor="nw")
-        else:
-            self.canvas.itemconfigure(self._image_item, image=self._photo)
+        return ImageTk.PhotoImage(shown, master=self.root)
 
     # -- voice: speech bubbles + opt-in chimes -------------------------------
     def attach_voice(self, *, bubbles: bool = True, sound: bool = False, lines=None,

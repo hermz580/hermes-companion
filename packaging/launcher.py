@@ -1,6 +1,8 @@
 """Entry point for the one-file HermesCompanion.exe.
 
-Double-click: starts `play` with your saved settings (tray icon included).
+Double-click: the first time, opens Companion Home so you can choose and
+start a companion; after that, starts `play` with your saved settings (tray
+icon included, and Home is one click on it).
 With arguments it behaves exactly like the `hermes-companion` command, e.g.
 `HermesCompanion.exe live`, `HermesCompanion.exe doctor`.
 
@@ -24,7 +26,8 @@ def run(argv):
     from hermes_companion.cli.emit import main
     args = list(argv)
     if not args:
-        args = ["play"]
+        from hermes_companion.core.settings import settings_path
+        args = ["play"] if settings_path().exists() else ["home"]
     elif args[0] == "live" and "--companion" not in args:
         args = ["live", "--companion", "nyamekra", "--follow"] + args[1:]
     return main(args)

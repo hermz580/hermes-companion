@@ -148,7 +148,7 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
                    artpack: str | None = None, sound: bool = False,
                    bubbles: bool = True, memory: bool = True, x_offset: int = 0,
                    speak: bool = False,
-                   tray: dict | None = None) -> int:
+                   tray: dict | None = None, presence: bool = False) -> int:
     from hermes_companion.animation.director import Director
     from hermes_companion.renderer.desktop_sensors import DesktopSensors
     from hermes_companion.renderer.overlay import ProceduralLiveOverlay
@@ -223,6 +223,9 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
         overlay.root.after(int(seconds * 1000), finish)
 
     overlay.on_ready = ready
+    if presence:              # the main companion; extra guests never claim the desktop
+        from hermes_companion.core.presence import hold
+        hold(overlay.root, "play", companion, overlay.close)
     try:
         overlay.run()
     except KeyboardInterrupt:

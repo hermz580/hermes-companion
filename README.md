@@ -8,6 +8,30 @@ falls asleep when the agent goes idle.
 
 ![Nyamekra acting out a real Hermes session: terminal, web, failure, approval, code, done](docs/demo.gif)
 
+## Companion Home: one window for everything
+
+![Companion Home: start your companion, see what its glow means, pick who lives on your desktop](docs/home.png)
+
+Run `hermes-companion` with no arguments (or double-click the app the first
+time, or left-click the tray icon) and **Companion Home** opens. It works like
+a small OS for your companion:
+
+| Page | What you do there |
+|---|---|
+| **Home** | Press **Start** (practice mode) or **Connect to Hermes** (live). **Hermes right now** shows what your agent is doing, in plain words, from signed events only. A key explains every glow colour. |
+| **Companions** | Pick your main companion from picture cards. Invite up to three more onto the screen. |
+| **Look** | Energy style and size, with a live preview. |
+| **Behavior** | Talking, awareness and comfort settings, each explained in one line. |
+| **System check** | The `doctor` checks as cards, each with its fix. |
+| **Help** | How it works, the privacy promises, handy commands. |
+
+Changes are staged in an "Unsaved" bar and applied together (Ctrl+S); a
+running companion restarts with them. Ctrl+1 to Ctrl+6 switch pages.
+
+One companion is on your desktop at a time. Starting another (from Home, the
+tray, the app or a terminal) hands over smoothly: the old one closes itself.
+Home sees and can stop a companion even if something else started it.
+
 ## Easiest: download the app (Windows, no Python needed)
 
 Grab **`HermesCompanion.exe`** from the

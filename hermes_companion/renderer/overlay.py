@@ -289,6 +289,10 @@ class TkOverlay:
             pass
 
 
+TICK_S = 1.0 / 30.0
+MAX_STEP_S = 0.1         # never jump more than 3 frames' worth after a stall
+
+
 class ProceduralLiveOverlay(TkOverlay):
     """Adapt a procedural companion to the live EventTail surface contract."""
 
@@ -332,9 +336,18 @@ class ProceduralLiveOverlay(TkOverlay):
         # ended (the "it ran off and I never saw it again" report): idle
         # progression never advanced, and the return-to-anchor walk could never
         # run because it happens precisely when there is no active chain.
+        # Advance by the time that really passed (clamped so a stall or a
+        # dragged window doesn't teleport the pet), and aim the next tick at the
+        # 30 Hz grid: a fixed 1/30 s step made everything slow-motion whenever
+        # a tick took longer than its budget.
+        now = time.monotonic()
+        last = getattr(self, "_tick_at", None)
+        dt = TICK_S if last is None else min(max(now - last, 0.0), MAX_STEP_S)
+        self._tick_at = now
         if self._director is not None:
-            self._director.step(1.0 / 30.0)
-        self.root.after(33, self._tick)
+            self._director.step(dt)
+        spent = time.monotonic() - now
+        self.root.after(max(1, int((TICK_S - spent) * 1000)), self._tick)
 
     def run(self) -> None:
         self.set_pose("idle_bob", 0.0)

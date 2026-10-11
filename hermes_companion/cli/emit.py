@@ -969,6 +969,12 @@ def build_parser() -> argparse.ArgumentParser:
     pset = sub.add_parser("settings", help="open Companion Home on the Look page")
     pset.set_defaults(fn=lambda a: cmd_home(a, page="look"))
 
+    pins = sub.add_parser("install", help="add a Hermes Companion icon to the Desktop and Start menu")
+    pins.add_argument("--no-desktop", action="store_true", help="Start menu only")
+    pins.add_argument("--uninstall", action="store_true", help="remove the shortcuts")
+    pins.set_defaults(fn=lambda a: __import__(
+        "hermes_companion.core.install", fromlist=["cmd_install"]).cmd_install(a))
+
     pdoc = sub.add_parser("doctor", help="check this PC can run the companion")
     pdoc.add_argument("--no-window", action="store_true", help="skip opening a test window")
     pdoc.set_defaults(fn=lambda a: __import__(

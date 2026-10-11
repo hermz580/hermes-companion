@@ -18,7 +18,7 @@ a small OS for your companion:
 
 | Page | What you do there |
 |---|---|
-| **Home** | Press **Start** (practice mode) or **Connect to Hermes** (live). See whether it's running and what every glow colour means. |
+| **Home** | Press **Start** (practice mode) or **Connect to Hermes** (live). **Hermes right now** shows what your agent is doing, in plain words, from signed events only. A key explains every glow colour. |
 | **Companions** | Pick your main companion from picture cards. Invite up to three more onto the screen. |
 | **Look** | Energy style and size, with a live preview. |
 | **Behavior** | Talking, awareness and comfort settings, each explained in one line. |

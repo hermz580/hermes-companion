@@ -82,8 +82,9 @@ def tk_root():
     tk = pytest.importorskip("tkinter")
     if os.name != "nt" and not os.environ.get("DISPLAY"):
         pytest.skip("no display")
+    from conftest import shared_tk_root
     try:
-        tk.Tk().destroy()
+        return shared_tk_root()       # one interpreter per process (see conftest)
     except tk.TclError:
         pytest.skip("Tk cannot open a window here")
 
@@ -99,14 +100,16 @@ class _Proc:
         self.alive = False
 
 
-def test_home_window_walks_every_page_and_starts_a_companion(tk_root):
+def test_home_window_walks_every_page_and_starts_a_companion(tk_root, tmp_path):
+    from hermes_companion.core.feed import HermesFeed
     saved, started = [], []
 
     def runner(cmd, **_kw):
         started.append(_Proc(cmd))
         return started[-1]
 
-    w = H.HomeWindow(dict(S.DEFAULTS), runner=runner, saver=saved.append)
+    w = H.HomeWindow(dict(S.DEFAULTS), runner=runner, saver=saved.append,
+                     feed=HermesFeed(tmp_path / "e.jsonl", tmp_path / "k"), master=tk_root)
     try:
         for key, _l, _s in H.NAV:
             w.show(key)

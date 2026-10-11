@@ -4,7 +4,8 @@ Before this, the experience was split across a tray menu, a bare settings
 dialog, a status panel and a dozen CLI commands. Home pulls them into a single
 window with a sidebar, like a small OS for the companion:
 
-* **Home** - what's running, one big Start button, and what every colour means.
+* **Home** - what's running, one big Start button, what Hermes is doing right
+  now (signed events only), and what every colour means.
 * **Companions** - pick who lives on your desktop, see them, invite others.
 * **Look** - energy style and size, with a live preview.
 * **Behavior** - talking, awareness and comfort, each in plain words.
@@ -209,6 +210,30 @@ def fix_for(detail: str) -> tuple[str, str]:
     return detail, ""
 
 
+MOOD_HEX = {key: color for key, color, _n, _m in MEANINGS}
+FEED_NOTICE = ("Only signed events from your Hermes count. Quiet doesn't prove nothing "
+               "is running.")
+
+
+def feed_view(feed, now: float | None = None) -> dict:
+    """What the 'Hermes right now' card shows, from a HermesFeed (or None)."""
+    import time as _time
+    now = _time.time() if now is None else now
+    if feed is None or not feed.connected:
+        return {"headline": "Not connected", "mood": "calm",
+                "sub": "Press Connect to Hermes above and this card shows what your "
+                       "agent is doing.", "items": []}
+    from hermes_companion.core.feed import age_text
+    if feed.last_ts is None:
+        return {"headline": "Waiting for Hermes", "mood": "rest",
+                "sub": "Connected. No events yet: start a task in Hermes.",
+                "items": []}
+    headline, mood = feed.headline()
+    return {"headline": headline, "mood": mood,
+            "sub": f"Last event {age_text(now - feed.last_ts)}.",
+            "items": [(i.text, i.mood, age_text(now - i.ts)) for i in feed.items]}
+
+
 # --------------------------------------------------------------------------- view
 def _avatar(companion: str, palette: str | None, px: int):
     """A cropped, square idle frame of the companion as a PIL image."""
@@ -228,7 +253,7 @@ class HomeWindow:
     """Tk view of the model above. `overlay` is set when opened from a running pet."""
 
     def __init__(self, values: dict | None = None, overlay=None, page: str = "home",
-                 runner=None, saver=None) -> None:
+                 runner=None, saver=None, feed=None, master=None) -> None:
         import tkinter as tk
 
         self.tk = tk
@@ -241,9 +266,11 @@ class HomeWindow:
         self.mode = "play" if overlay is not None else None
         self.checks = None
         self._images: dict = {}
+        self.feed = feed if feed is not None else _open_feed()
+        self.feed_card = None
 
-        if overlay is not None:
-            self.win = tk.Toplevel(overlay.root)
+        if overlay is not None or master is not None:
+            self.win = tk.Toplevel(master if master is not None else overlay.root)
         else:
             self.win = tk.Tk()
         self.win.title("Hermes Companion")
@@ -307,6 +334,13 @@ class HomeWindow:
                              font=(FONT, size, "bold" if bold else "normal"),
                              anchor="w", justify="left", **kw)
 
+    @staticmethod
+    def _wrapping(label):
+        """Wrap a label's text to whatever width its container gives it."""
+        label.configure(wraplength=150)
+        label.bind("<Configure>", lambda e: e.widget.configure(wraplength=max(120, e.width - 4)))
+        return label
+
     def _photo(self, key, companion, palette, px):
         from PIL import ImageTk
         cache_key = (key, companion, palette, px)
@@ -369,6 +403,7 @@ class HomeWindow:
         self.sub_lbl.configure(text=sub)
         for child in self.body.winfo_children():
             child.destroy()
+        self.feed_card = None
         getattr(self, f"_page_{page}")()
         self._refresh_bar()
 
@@ -401,28 +436,61 @@ class HomeWindow:
                      small=True).pack(side="right", padx=16)
 
         level, line = readiness(self.checks)
-        ready = self._card(self.body)
-        self._label(ready, "●  " + line, 10, {"ok": "ok", "warn": "warn", "bad": "bad"}
-                    .get(level, "muted")).pack(side="left", padx=16, pady=10)
-        self._button(ready, "Run check" if self.checks is None else "Details",
-                     lambda: self.show("check"), small=True).pack(side="right", padx=12)
+        ready = tk.Label(col, text="\u25cf  " + line + "  \u203a", bg=THEME["card"], cursor="hand2",
+                         fg=THEME[{"ok": "ok", "warn": "warn", "bad": "bad"}.get(level, "muted")],
+                         font=(FONT, 9), anchor="w")
+        ready.pack(fill="x", pady=(10, 0))
+        ready.bind("<Button-1>", lambda _e: self.show("check"))
 
-        legend = self._card(self.body)
-        self._label(legend, "What its glow means", 11, bold=True).grid(
-            row=0, column=0, columnspan=2, sticky="w", padx=16, pady=(12, 4))
-        for i, (_k, color, name, meaning) in enumerate(MEANINGS):
+        cols = tk.Frame(self.body, bg=THEME["bg"])
+        cols.pack(fill="both", expand=True)
+        legend = tk.Frame(cols, bg=THEME["card"], highlightthickness=1,
+                          highlightbackground=THEME["line"], width=290)
+        legend.pack(side="right", fill="y", padx=(12, 0))
+        legend.pack_propagate(False)
+        self._label(legend, "What its glow means", 11, bold=True).pack(fill="x", padx=16, pady=(12, 4))
+        for _k, color, name, meaning in MEANINGS:
             item = tk.Frame(legend, bg=THEME["card"])
-            item.grid(row=1 + i // 2, column=i % 2, sticky="nw", padx=(16, 8), pady=3)
+            item.pack(fill="x", padx=16, pady=2)
             dot = tk.Canvas(item, width=12, height=12, bg=THEME["card"], highlightthickness=0)
             dot.create_oval(1, 1, 11, 11, fill=color, outline="")
             dot.pack(side="left", anchor="n", pady=4)
             text = tk.Frame(item, bg=THEME["card"])
-            text.pack(side="left", padx=(8, 0))
-            self._label(text, name, 10, bold=True).pack(fill="x")
-            self._label(text, meaning, 9, "muted", wraplength=270).pack(fill="x")
-        legend.columnconfigure(0, weight=1, uniform="legend")
-        legend.columnconfigure(1, weight=1, uniform="legend")
-        tk.Frame(legend, bg=THEME["card"], height=8).grid(row=9, column=0)
+            text.pack(side="left", padx=(8, 0), fill="x")
+            self._label(text, name, 9, bold=True).pack(fill="x")
+            self._label(text, meaning, 8, "muted", wraplength=230).pack(fill="x")
+
+        self.feed_card = tk.Frame(cols, bg=THEME["card"], highlightthickness=1,
+                                  highlightbackground=THEME["line"])
+        self.feed_card.pack(side="left", fill="both", expand=True)
+        self._fill_feed()
+
+    def _fill_feed(self):
+        """The 'Hermes right now' card; rebuilt in place when new events arrive."""
+        tk = self.tk
+        card = self.feed_card
+        for child in card.winfo_children():
+            child.destroy()
+        self._label(card, "Hermes right now", 11, bold=True).pack(fill="x", padx=16, pady=(12, 6))
+        view = feed_view(self.feed)
+        head = tk.Frame(card, bg=THEME["card"])
+        head.pack(fill="x", padx=16)
+        dot = tk.Canvas(head, width=14, height=14, bg=THEME["card"], highlightthickness=0)
+        dot.create_oval(1, 1, 13, 13, fill=MOOD_HEX.get(view["mood"], THEME["line"]), outline="")
+        dot.pack(side="left")
+        self._label(head, view["headline"], 12, bold=True).pack(side="left", padx=8)
+        self._wrapping(self._label(card, view["sub"], 9, "muted")).pack(
+            fill="x", padx=16, pady=(2, 8))
+        for text, mood, when in view["items"]:
+            row = tk.Frame(card, bg=THEME["card"])
+            row.pack(fill="x", padx=16, pady=1)
+            c = tk.Canvas(row, width=8, height=8, bg=THEME["card"], highlightthickness=0)
+            c.create_oval(0, 0, 7, 7, fill=MOOD_HEX.get(mood, THEME["line"]), outline="")
+            c.pack(side="left")
+            self._label(row, text, 9).pack(side="left", padx=8)
+            self._label(row, when, 9, "muted").pack(side="right")
+        self._wrapping(self._label(card, FEED_NOTICE, 8, "muted")).pack(
+            side="bottom", fill="x", padx=16, pady=(4, 10))
 
     def _page_companions(self):
         tk = self.tk
@@ -528,10 +596,8 @@ class HomeWindow:
                                command=lambda k=key, v=var: self._set(
                                    dict(self.staged, **{k: v.get()}), rerender=False)
                                ).pack(fill="x", padx=10)
-                hint = self._label(f, helptext, 9, "muted", wraplength=150)
-                hint.pack(fill="x", padx=(34, 10), pady=(0, 8))
-                hint.bind("<Configure>", lambda e: e.widget.configure(
-                    wraplength=max(120, e.width - 4)))
+                self._wrapping(self._label(f, helptext, 9, "muted")).pack(
+                    fill="x", padx=(34, 10), pady=(0, 8))
 
     def _page_check(self):
         tk = self.tk
@@ -674,7 +740,19 @@ class HomeWindow:
             self._rerender()
 
     def _tick(self) -> None:
-        """Keep the sidebar's running light honest if the companion exits."""
+        """Keep the sidebar's running light and the Hermes feed honest."""
+        self._ticks = getattr(self, "_ticks", 0) + 1
+        if self.feed is not None:
+            try:
+                changed = self.feed.poll()
+            except Exception:
+                changed = False
+            if self.page == "home" and self.feed_card is not None and (
+                    changed or self._ticks % 5 == 0):        # ages tick even when quiet
+                try:
+                    self._fill_feed()
+                except Exception:
+                    pass
         if self.overlay is None and self.proc is not None and self.proc.poll() is not None:
             self.proc, self.mode = None, None
             if self.page == "home":
@@ -698,6 +776,14 @@ class HomeWindow:
 
     def run(self) -> None:
         self.win.mainloop()
+
+
+def _open_feed():
+    try:
+        from hermes_companion.core.feed import HermesFeed
+        return HermesFeed()
+    except Exception:          # no feed is better than no Home
+        return None
 
 
 def open_home(overlay=None, values: dict | None = None, page: str = "home") -> HomeWindow:

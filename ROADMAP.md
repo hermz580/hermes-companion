@@ -26,7 +26,8 @@ really doing always reads correctly, and decoration never replaces it.
 ## Now: make it make sense
 - [x] **Companion Home.** One window (`hermes-companion`) to start, choose, tune and
   check the companion, replacing the scattered settings dialog. Tray left-click opens it.
-- [ ] Live event feed on Home (last real Hermes event, from the status panel's evidence rules).
+- [x] **Hermes right now** on Home: a live feed of signed Hermes events in plain words
+  (status-panel evidence rules: verified records only, categories never content).
 
 ## Later: grow the world
 - ✅ **Multi-companion scenes** (`--with`; portal hand-offs still to come). Nyamekra, Nia and Herald on screen together,

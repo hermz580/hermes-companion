@@ -26,6 +26,8 @@ really doing always reads correctly, and decoration never replaces it.
 ## Now: make it make sense
 - [x] **Companion Home.** One window (`hermes-companion`) to start, choose, tune and
   check the companion, replacing the scattered settings dialog. Tray left-click opens it.
+- [x] **One companion at a time.** A heartbeat file lets Home see and stop any running
+  companion, and a new one takes over gracefully instead of doubling up.
 - [x] **Hermes right now** on Home: a live feed of signed Hermes events in plain words
   (status-panel evidence rules: verified records only, categories never content).
 

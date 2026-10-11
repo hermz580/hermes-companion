@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import subprocess
 import threading
+import time
 
 from hermes_companion.core import settings as S
 
@@ -202,6 +203,11 @@ def status_line(values: dict, mode: str | None) -> tuple[str, str]:
     return "idle", f"{title} is resting. Press Start to bring it to your desktop."
 
 
+def crash_notice(companion: str) -> str:
+    title = COMPANION_INFO.get(companion, (companion.title(),))[0]
+    return f"{title} closed right after starting. Run System check to see why."
+
+
 def fix_for(detail: str) -> tuple[str, str]:
     """Split a doctor detail into (what was found, how to fix it)."""
     if " - " in detail:
@@ -256,7 +262,8 @@ class HomeWindow:
     """Tk view of the model above. `overlay` is set when opened from a running pet."""
 
     def __init__(self, values: dict | None = None, overlay=None, page: str = "home",
-                 runner=None, saver=None, feed=None, master=None) -> None:
+                 runner=None, saver=None, feed=None, master=None,
+                 presence=None, stopper=None) -> None:
         import tkinter as tk
 
         self.tk = tk
@@ -267,6 +274,14 @@ class HomeWindow:
         self._saver = saver or S.save
         self.proc = None
         self.mode = "play" if overlay is not None else None
+        # What is really on the desktop, read from the running companion's heartbeat
+        # (core.presence), so Home also sees companions it didn't start.
+        from hermes_companion.core import presence as P
+        self._presence = presence or P.current
+        self._stopper = stopper or P.request_stop
+        self.running_companion = None
+        self.notice = None
+        self._started_at = 0.0
         self.checks = None
         self._images: dict = {}
         self.feed = feed if feed is not None else _open_feed()
@@ -417,7 +432,12 @@ class HomeWindow:
     def _page_home(self):
         tk = self.tk
         hero = self._card(self.body)
-        who = self.staged if self.mode is None else self.saved
+        who = self.staged if self.mode is None else dict(
+            self.saved, companion=self.running_companion or self.saved["companion"])
+        if who["companion"] not in COMPANION_INFO:          # e.g. a Petdex pet in live mode
+            who = dict(who, companion=self.saved["companion"])
+        if who["companion"] != self.saved["companion"]:
+            who["palette"] = None
         img = self._photo("hero", who["companion"], who.get("palette"), 110)
         tk.Label(hero, image=img, bg=THEME["card"]).pack(side="left", padx=18, pady=12)
         col = tk.Frame(hero, bg=THEME["card"])
@@ -427,6 +447,8 @@ class HomeWindow:
         self._label(col, tagline, 10, "muted", wraplength=420).pack(fill="x", pady=(0, 8))
         level, line = status_line(who, self.mode)
         self._label(col, line, 10, "ok" if level == "ok" else "text", wraplength=420).pack(fill="x")
+        if self.notice:
+            self._label(col, self.notice, 9, "bad", wraplength=420).pack(fill="x", pady=(4, 0))
         row = tk.Frame(col, bg=THEME["card"])
         row.pack(fill="x", pady=(12, 0))
         if self.mode is None:
@@ -711,22 +733,27 @@ class HomeWindow:
             self._runner(cmd, close_fds=True)
             self.overlay.root.after(0, self.overlay.close)
             return
-        self.stop(rerender=False)
+        # No need to stop what's running: the new companion claims the desktop and
+        # the old one (ours or not) notices and closes itself gracefully.
         cmd = S.live_command(self.saved) if mode == "live" else S.play_command(self.saved)
+        self.notice = None
         try:
             self.proc = self._runner(cmd)
-            self.mode = mode
+            self.mode, self.running_companion = mode, self.saved["companion"]
+            self._started_at = time.monotonic()
         except OSError:
             self.proc, self.mode = None, None
+            self.notice = "Couldn't start the companion. Try System check."
         self._rerender()
 
     def stop(self, rerender: bool = True) -> None:
         if self.overlay is not None:
             self.overlay.root.after(0, self.overlay.close)
             return
-        if self.proc is not None and self.proc.poll() is None:
-            self.proc.terminate()
-        self.proc, self.mode = None, None
+        asked = self._stopper()               # closes any companion gracefully
+        if not asked and self.proc is not None and self.proc.poll() is None:
+            self.proc.terminate()             # ours, but not yet claimed the desktop
+        self.proc, self.mode, self.running_companion = None, None, None
         if rerender:
             self._rerender()
 
@@ -765,10 +792,8 @@ class HomeWindow:
                     self._fill_feed()
                 except Exception:
                     pass
-        if self.overlay is None and self.proc is not None and self.proc.poll() is not None:
-            self.proc, self.mode = None, None
-            if self.page == "home":
-                self._rerender()
+        if self.overlay is None:
+            self._sync_running()
         on = self.mode is not None
         self.dot.delete("all")
         self.dot.create_oval(1, 1, 9, 9, fill=THEME["ok"] if on else THEME["line"], outline="")
@@ -778,6 +803,26 @@ class HomeWindow:
             self.win.after(1000, self._tick)
         except Exception:
             pass
+
+    def _sync_running(self) -> None:
+        """Running light = the heartbeat, or our own process while it starts up."""
+        before = (self.mode, self.running_companion, self.notice)
+        if self.proc is not None and self.proc.poll() is not None:
+            code, quick = self.proc.returncode, time.monotonic() - self._started_at < 20
+            if code and quick:
+                self.notice = crash_notice(self.running_companion or self.saved["companion"])
+            self.proc = None
+        try:
+            claim = self._presence()
+        except Exception:
+            claim = None
+        if claim is not None:
+            self.mode = claim.get("mode") if claim.get("mode") in ("play", "live") else "play"
+            self.running_companion = claim.get("companion")
+        elif self.proc is None:
+            self.mode, self.running_companion = None, None
+        if (self.mode, self.running_companion, self.notice) != before and self.page == "home":
+            self._rerender()
 
     def close(self) -> None:
         # A companion started from here keeps running: Home is only a window onto it.

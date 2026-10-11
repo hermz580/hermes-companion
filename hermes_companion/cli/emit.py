@@ -412,6 +412,8 @@ print(json.dumps(mons))
         ]
         for delay, event, tool in demo:
             overlay.root.after(delay, lambda e=event, t=tool: _play_demo(tail, e, t))
+    from hermes_companion.core.presence import hold
+    hold(overlay.root, "live", args.companion or "pet", overlay.close)
     overlay.run()
     return 0
 
@@ -476,7 +478,8 @@ def cmd_play(args: argparse.Namespace) -> int:
                           memory=v["memory"] and not args.sibling,
                           seed=args.seed, variety=not args.no_variety,
                           demo=not args.no_demo, x_offset=args.x_offset,
-                          tray=None if (args.no_tray or args.sibling) else v)
+                          tray=None if (args.no_tray or args.sibling) else v,
+                          presence=not args.sibling)
 
 
 def _make_grab_publisher(relay):

@@ -28,6 +28,10 @@ a small OS for your companion:
 Changes are staged in an "Unsaved" bar and applied together (Ctrl+S); a
 running companion restarts with them. Ctrl+1 to Ctrl+6 switch pages.
 
+One companion is on your desktop at a time. Starting another (from Home, the
+tray, the app or a terminal) hands over smoothly: the old one closes itself.
+Home sees and can stop a companion even if something else started it.
+
 ## Easiest: download the app (Windows, no Python needed)
 
 Grab **`HermesCompanion.exe`** from the

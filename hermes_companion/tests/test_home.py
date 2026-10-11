@@ -102,31 +102,77 @@ class _Proc:
 
 def test_home_window_walks_every_page_and_starts_a_companion(tk_root, tmp_path):
     from hermes_companion.core.feed import HermesFeed
-    saved, started = [], []
+    saved, started, stops, claim = [], [], [], {}
 
     def runner(cmd, **_kw):
         started.append(_Proc(cmd))
         return started[-1]
 
+    def stopper():
+        stops.append(1)
+        had = bool(claim)
+        claim.clear()
+        return had
+
     w = H.HomeWindow(dict(S.DEFAULTS), runner=runner, saver=saved.append,
-                     feed=HermesFeed(tmp_path / "e.jsonl", tmp_path / "k"), master=tk_root)
+                     feed=HermesFeed(tmp_path / "e.jsonl", tmp_path / "k"), master=tk_root,
+                     presence=lambda: dict(claim) or None, stopper=stopper)
     try:
         for key, _l, _s in H.NAV:
             w.show(key)
             w.win.update()
         w.show("companions")
         w._set(H.choose_companion(w.staged, "herald"))
-        assert w.bar.winfo_ismapped() or w.bar.winfo_manager() == "pack"
+        assert w.bar.winfo_manager() == "pack"
         w.apply()
         assert saved[-1]["companion"] == "herald" and not w.bar.winfo_manager()
+        w.show("home")
         w.start("play")
         assert w.mode == "play" and "play" in started[-1].cmd
-        w.start("live")
-        assert not started[0].alive and "live" in started[-1].cmd
+        w._tick()                               # starting up: no heartbeat yet, still "play"
+        assert w.mode == "play"
+        claim.update(mode="play", companion="herald")
+        w.start("live")                         # hand-over, not a kill
+        assert started[0].alive and "live" in started[-1].cmd
+        claim.update(mode="live", companion="herald")
         w.stop()
-        assert w.mode is None and not started[-1].alive
+        assert w.mode is None and stops and not claim
         w._checks_result = [("PASS", "Python", "3")]      # as the worker thread leaves it
         w._tick()
         assert w.checks == [("PASS", "Python", "3")] and w._checks_result is None
+    finally:
+        w.close()
+
+
+def test_home_sees_a_companion_it_did_not_start(tk_root):
+    claim = {"mode": "live", "companion": "nia"}
+    w = H.HomeWindow(dict(S.DEFAULTS), runner=lambda *a, **k: None, saver=lambda v: None,
+                     feed=None, master=tk_root, presence=lambda: dict(claim) or None,
+                     stopper=lambda: bool(claim.clear() or True))
+    try:
+        w._tick()
+        assert w.mode == "live" and w.running_companion == "nia"
+        assert w.run_lbl.cget("text") == "Live with Hermes"
+        claim.clear()
+        w._tick()
+        assert w.mode is None and w.run_lbl.cget("text") == "Not running"
+    finally:
+        w.close()
+
+
+def test_a_companion_that_dies_at_startup_is_explained(tk_root):
+    class Dead(_Proc):
+        returncode = 1
+
+        def poll(self):
+            return 1
+    w = H.HomeWindow(dict(S.DEFAULTS), runner=lambda cmd, **k: Dead(cmd), saver=lambda v: None,
+                     feed=None, master=tk_root, presence=lambda: None, stopper=lambda: False)
+    try:
+        w.start("play")
+        w._tick()
+        assert w.mode is None and "closed right after starting" in w.notice
+        w.start("play")
+        assert w.notice is None
     finally:
         w.close()

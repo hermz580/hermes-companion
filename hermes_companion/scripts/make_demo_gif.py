@@ -90,7 +90,7 @@ if __name__ == "__main__":
         name = sys.argv[1]
         dancers = name == "duet"                # partner work needs more frames to read
         p = build(Path(sys.argv[2] if len(sys.argv) > 2 else f"docs/{name}-demo.gif"),
-                  name, None, steps=8 if dancers else 3, frame_ms=90 if dancers else 140)
+                  name, None, steps=6 if dancers else 3, frame_ms=110 if dancers else 140)
         print(p, p.stat().st_size // 1024, "KB")
         sys.exit(0)
     p = build(Path("docs/demo.gif"))

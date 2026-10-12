@@ -203,6 +203,17 @@ The stage follows live work too, from signed events only:
 - **Thinking:** dots over their heads while Hermes thinks.
 - **Confetti:** when the task is done.
 
+**Easy to read at a glance.** Every part of both dancers has a clean dark
+edge. Faces carry brows, glasses, a nose and a smile; Ade has a textured beard
+and gold-cuffed locs, Rae has a fringe, lashes and gold hoops. Under the floor, a
+**status plaque** says what Hermes is doing in plain words ("Running a command ·
+terminal · 2 tools running", "Needs your OK · dangerous command", "Task
+complete!"), with an icon for each meaning: gear, raised hand, cross, star,
+helpers, moon, question mark. **Labelled badges** in the corner count tools,
+helpers and missteps, and flag a dangerous command. The words come only from
+the event kind, the tool category and counts, never from your prompts, files or
+commands.
+
 They also have 19 decorative moves of their own (jive kicks, shimmies, conga
 hops, box steps, back-to-back…). These play only around a signature move and
 never replace one.

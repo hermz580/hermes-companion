@@ -36,25 +36,25 @@ from dataclasses import dataclass, field
 from hermes_companion.animation.animator import pose_params
 from hermes_companion.animation.herald import EXCLAIM, MOOD_COLORS, WONDER, _bubble, _prop, mood_of
 
-FRAME = (320, 260)
-FLOOR = 228
+FRAME = (320, 300)
+FLOOR = 228   # stage floor; the status plaque sits below it
 CENTER = FRAME[0] / 2
 
 DUET_PALETTES: dict[str, dict[str, str]] = {
     # the look from the reference: sky-blue shirt, white floral dress
-    "classic": {"lead_skin": "#6b4226", "lead_hair": "#1c140f", "beard": "#c9c9c9",
+    "classic": {"edge": "#241a14", "lead_skin": "#6b4226", "lead_hair": "#1c140f", "beard": "#c9c9c9",
                 "shirt": "#7fb8e6", "shirt_hi": "#a9d1f2", "trousers": "#1f2a44",
                 "shoes": "#1f2a44", "chain": "#d4a017", "lead_glasses": "#3a3a3a",
                 "follow_skin": "#f2c9a5", "follow_hair": "#ead27c", "dress": "#fbfbf7",
                 "flowers": "#1f4e9c", "follow_glasses": "#c0392b", "sleeve": "#1f4e9c",
                 "follow_shoes": "#1f4e9c", "earring": "#d4a017"},
-    "evening": {"lead_skin": "#5a361e", "lead_hair": "#120c08", "beard": "#b8b8b8",
+    "evening": {"edge": "#0a0a14", "lead_skin": "#5a361e", "lead_hair": "#120c08", "beard": "#b8b8b8",
                 "shirt": "#1b1f3b", "shirt_hi": "#2c335e", "trousers": "#0d0f1f",
                 "shoes": "#0d0f1f", "chain": "#e8bf4f", "lead_glasses": "#d4a017",
                 "follow_skin": "#efc3a0", "follow_hair": "#f0d98a", "dress": "#7a1f3d",
                 "flowers": "#f4c2d7", "follow_glasses": "#e8bf4f", "sleeve": "#4a0f24",
                 "follow_shoes": "#e8bf4f", "earring": "#e8bf4f"},
-    "carnival": {"lead_skin": "#7a4e2d", "lead_hair": "#1b120c", "beard": "#d6d6d6",
+    "carnival": {"edge": "#2a1608", "lead_skin": "#7a4e2d", "lead_hair": "#1b120c", "beard": "#d6d6d6",
                  "shirt": "#f39c12", "shirt_hi": "#f8c471", "trousers": "#1e8449",
                  "shoes": "#145a32", "chain": "#f4d03f", "lead_glasses": "#1b120c",
                  "follow_skin": "#f5cba7", "follow_hair": "#f7dc6f", "dress": "#fdfefe",
@@ -614,8 +614,14 @@ def _palette(name: str | None) -> dict[str, str]:
 # negative) and mapped through spin (x-scale), tilt and placement.
 # ---------------------------------------------------------------------------
 class _Body:
-    def __init__(self, canvas, hx, hy, spin, rot):
-        self.c, self.hx, self.hy = canvas, hx, hy
+    """Maps a dancer's local drawing through spin, tilt and placement.
+
+    Every stroke can carry an ``edge``: a darker outline drawn first, so each
+    part of the body reads cleanly against any desktop.
+    """
+
+    def __init__(self, canvas, hx, hy, spin, rot, edge):
+        self.c, self.hx, self.hy, self.edge = canvas, hx, hy, edge
         self.sx = spin if abs(spin) > 0.18 else math.copysign(0.18, spin or 1)
         r = math.radians(rot)
         self.cos, self.sin = math.cos(r), math.sin(r)
@@ -624,17 +630,34 @@ class _Body:
         x *= self.sx
         return (self.hx + x * self.cos - y * self.sin, self.hy + x * self.sin + y * self.cos)
 
-    def line(self, pts, **kw):
+    @staticmethod
+    def _w(kw):
+        """Whole-pixel widths: every canvas (Tk, PIL, test recorders) accepts them."""
+        if "width" in kw:
+            kw["width"] = max(1, round(kw["width"]))
+        return kw
+
+    def line(self, pts, edge=False, **kw):
         flat = [v for xy in pts for v in self.pt(*xy)]
+        kw = self._w(kw)
+        if edge:
+            self.c.create_line(*flat, capstyle="round", joint="round", fill=self.edge,
+                               width=kw.get("width", 1) + 2)
         self.c.create_line(*flat, capstyle="round", joint="round", **kw)
 
-    def poly(self, pts, **kw):
+    def poly(self, pts, edge=False, **kw):
         flat = [v for xy in pts for v in self.pt(*xy)]
-        self.c.create_polygon(*flat, **kw)
+        if edge:
+            kw = {**kw, "outline": self.edge, "width": 2}
+        self.c.create_polygon(*flat, **self._w(kw))
 
-    def dot(self, x, y, r, **kw):
+    def dot(self, x, y, r, edge=False, **kw):
+        kw = self._w(kw)
         cx, cy = self.pt(x, y)
         rx = max(1.0, r * abs(self.sx)) if kw.pop("squash", False) else r
+        if edge:
+            self.c.create_oval(cx - rx - 1.2, cy - r - 1.2, cx + rx + 1.2, cy + r + 1.2,
+                               fill=self.edge, outline="")
         self.c.create_oval(cx - rx, cy - r, cx + rx, cy + r, **kw)
 
 
@@ -645,87 +668,149 @@ def _limb_pts(x, y, ang1, ang2, l1, l2, side):
     return (x, y), (ex, ey), (ex + side * math.sin(a2) * l2, ey + math.cos(a2) * l2)
 
 
+def _mix(a: str, b: str, t: float) -> str:
+    """Blend two #rrggbb colours (t=0 -> a, t=1 -> b)."""
+    ca = [int(a[i:i + 2], 16) for i in (1, 3, 5)]
+    cb = [int(b[i:i + 2], 16) for i in (1, 3, 5)]
+    return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(ca, cb))
+
+
 def _draw_dancer(canvas, who: str, P, hx, hy, st, eyes: str):
-    b = _Body(canvas, hx, hy, st["spin"], st["rot"])
-    back = st["spin"] < 0
     lead = who == "lead"
     skin = P["lead_skin"] if lead else P["follow_skin"]
+    edge = P.get("edge") or _mix(skin, "#000000", 0.62)
+    b = _Body(canvas, hx, hy, st["spin"], st["rot"], edge)
+    back = st["spin"] < 0
+    skin_shade = _mix(skin, "#000000", 0.22)
     hands = {}
 
-    # legs
+    # ---- legs + shoes -------------------------------------------------------
     for side, (hip, knee) in ((-1, st["legs"][0:2]), (1, st["legs"][2:4])):
         a, k, f = _limb_pts(side * 6, 0, hip, knee, 22, 22, side)
         if lead:
-            b.line([a, k, f], width=10, fill=P["trousers"])
+            b.line([a, k, f], edge=True, width=10, fill=P["trousers"])
+            b.line([((a[0] + k[0]) / 2, (a[1] + k[1]) / 2), k], width=1,
+                   fill=_mix(P["trousers"], "#ffffff", 0.25))           # trouser crease
         else:
-            b.line([a, k, f], width=7, fill=skin)
-        b.dot(f[0] + side * 3, f[1] + 1, 5, fill=P["shoes"] if lead else P["follow_shoes"], outline="")
+            b.line([a, k, f], edge=True, width=7, fill=skin)
+            b.line([(k[0] - 1, k[1]), (f[0] - 1, f[1])], width=1.5, fill=skin_shade)   # calf shade
+        shoe = P["shoes"] if lead else P["follow_shoes"]
+        b.dot(f[0] + side * 3, f[1] + 1, 5, edge=True, fill=shoe, outline="")
+        b.line([(f[0] + side * 3 - 5, f[1] + 5), (f[0] + side * 3 + 5, f[1] + 5)], width=1.5,
+               fill=_mix(shoe, "#000000", 0.5))                         # sole
+        b.dot(f[0] + side * 3 - 1.5, f[1] - 1.5, 1.3, fill=_mix(shoe, "#ffffff", 0.55), outline="")
+        if not lead:
+            b.line([(f[0] - 3, f[1] - 2), (f[0] + 3, f[1] - 2)], width=1.2, fill=P["earring"])  # strap
 
-    # torso
+    # ---- torso ----------------------------------------------------------------
     if lead:
-        b.poly([(-13, -46), (13, -46), (11, 2), (-11, 2)], fill=P["shirt"], outline=P["shirt_hi"], width=1)
-        for yy in (-36, -26, -16, -6):                       # buttons
+        b.poly([(-13, -46), (13, -46), (11, 2), (-11, 2)], edge=True, fill=P["shirt"])
+        b.poly([(-13, -46), (-3, -46), (-9, -38)], fill=P["shirt_hi"], outline="")      # collar
+        b.poly([(13, -46), (3, -46), (9, -38)], fill=P["shirt_hi"], outline="")
+        b.line([(0, -40), (0, 2)], width=1, fill=_mix(P["shirt"], "#000000", 0.25))     # placket
+        for yy in (-34, -24, -14, -4):
             b.dot(0, yy, 1.2, fill="#ffffff", outline="")
-        b.line([(-7, -44), (0, -32), (7, -44)], width=2, fill=P["chain"])       # gold chain
+        b.poly([(4, -32), (10, -32), (10, -25), (4, -25)], fill=P["shirt_hi"],
+               outline=_mix(P["shirt"], "#000000", 0.3))                                # pocket
+        b.line([(-7, -45), (0, -33), (7, -45)], width=2, fill=P["chain"])               # chain
+        b.dot(0, -32, 2, fill=P["chain"], outline=_mix(P["chain"], "#000000", 0.4))     # pendant
+        b.line([(-11, 0), (11, 0)], width=2.5, fill=_mix(P["trousers"], "#000000", 0.3))  # belt
+        b.dot(0, 0, 1.6, fill=P["chain"], outline="")
     else:
-        b.poly([(-10, -46), (10, -46), (20, 12), (-20, 12)], fill=P["dress"], outline="#d9d9d0", width=1)
-        for fx, fy in ((-9, -30), (8, -14), (-12, 4), (12, 2), (2, -38)):       # flowers
+        b.poly([(-10, -46), (10, -46), (20, 12), (-20, 12)], edge=True, fill=P["dress"])
+        b.line([(-6, -46), (0, -41), (6, -46)], width=1.5, fill=_mix(P["dress"], "#000000", 0.18))  # neckline
+        b.line([(-12, -22), (12, -22)], width=3, fill=P["flowers"])                     # waist sash
+        b.dot(6, -22, 2.4, fill=P["flowers"], outline="")
+        for i in range(6):                                                              # scalloped hem
+            x0 = -20 + i * 6.7
+            b.dot(x0 + 3.3, 12, 3.3, fill=P["dress"], outline=_mix(P["dress"], "#000000", 0.2))
+        for fx, fy in ((-9, -32), (7, -12), (-12, 3), (12, 1), (3, -38), (-3, -8)):     # flowers
             for k in range(5):
                 ang = k / 5 * 2 * math.pi
-                b.dot(fx + math.cos(ang) * 2.6, fy + math.sin(ang) * 2.6, 2.1, fill=P["flowers"], outline="")
-            b.dot(fx, fy, 1.1, fill=P["dress"], outline="")
+                b.dot(fx + math.cos(ang) * 2.7, fy + math.sin(ang) * 2.7, 2.1, fill=P["flowers"], outline="")
+            b.dot(fx, fy, 1.2, fill=P["earring"], outline="")
 
-    # arms (lead's shirt sleeves; Rae's right sleeve matches the flowers)
+    # ---- arms + hands ------------------------------------------------------------
     sh_y = -42
     for side, (shd, elb) in ((-1, st["arms"][0:2]), (1, st["arms"][2:4])):
         a, e, h = _limb_pts(side * 12, sh_y, 180 - shd if shd > 90 else shd, elb, 17, 16, side)
         if shd > 90:   # raised: mirror the vertical component
             a, e, h = (a, (e[0], 2 * sh_y - e[1]), (h[0], 2 * sh_y - h[1]))
         sleeve = P["shirt"] if lead else (P["sleeve"] if side > 0 else skin)
-        b.line([a, e], width=7, fill=sleeve)
-        b.line([e, h], width=6, fill=skin)
-        b.dot(h[0], h[1], 3.2, fill=skin, outline="")
+        b.line([a, e], edge=True, width=7, fill=sleeve)
+        b.line([e, h], edge=True, width=6, fill=skin)
+        if lead:                                                    # rolled cuff
+            b.dot(e[0], e[1], 3.6, fill=P["shirt_hi"], outline=_mix(P["shirt"], "#000000", 0.3))
+            if side < 0:                                            # gold watch
+                wx, wy = e[0] + (h[0] - e[0]) * 0.72, e[1] + (h[1] - e[1]) * 0.72
+                b.dot(wx, wy, 2.2, fill=P["chain"], outline=_mix(P["chain"], "#000000", 0.4))
+        b.dot(h[0], h[1], 3.4, edge=True, fill=skin, outline="")
+        tx, ty = h[0] + (h[0] - e[0]) * 0.18, h[1] + (h[1] - e[1]) * 0.18   # thumb
+        b.dot(tx + side * 1.5, ty, 1.4, fill=skin_shade, outline="")
         hands["left" if side < 0 else "right"] = b.pt(*h)
 
-    # head
+    # ---- head --------------------------------------------------------------------
     head_y = -60
-    b.line([(0, -46), (0, head_y + 10)], width=6, fill=skin)
-    if lead:   # locs fall behind the head
+    b.line([(0, -46), (0, head_y + 10)], edge=True, width=6, fill=skin)
+    hair = P["lead_hair"] if lead else P["follow_hair"]
+    if lead:                                                    # locs with gold cuffs
         for k in range(-3, 4):
-            b.line([(k * 3.2, head_y - 10), (k * 4.0, head_y + 18 + abs(k))], width=3, fill=P["lead_hair"])
-    b.dot(0, head_y, 12.5, fill=skin, outline="", squash=True)
-    if lead:
-        b.dot(0, head_y - 7, 11, fill=P["lead_hair"], outline="", squash=True)   # crown
-        b.dot(0, head_y - 2, 11.5, fill=skin, outline="", squash=True)
-    else:
-        b.dot(0, head_y - 6, 12, fill=P["follow_hair"], outline="", squash=True)  # short crop
-        b.dot(0, head_y - 1, 11, fill=skin, outline="", squash=True)
+            end = (k * 4.0, head_y + 18 + abs(k))
+            b.line([(k * 3.2, head_y - 10), end], edge=True, width=3, fill=hair)
+            if k % 2 == 0:
+                b.dot(end[0] * 0.85, end[1] - 6, 1.4, fill=P["chain"], outline="")
+    b.dot(0, head_y, 12.5, edge=True, fill=skin, outline="", squash=True)
     if back:   # turned away: we see the back of the hair
-        hair = P["lead_hair"] if lead else P["follow_hair"]
-        b.dot(0, head_y - 1, 12.6, fill=hair, outline="", squash=True)
+        b.dot(0, head_y - 1, 12.6, edge=True, fill=hair, outline="", squash=True)
         if lead:
             for k in range(-3, 4):
                 b.line([(k * 3.4, head_y - 8), (k * 4.2, head_y + 20 + abs(k))], width=3, fill=hair)
-    else:
-        gx = {"left": -2.5, "right": 2.5}.get(eyes, 0.0)
-        gy = {"down": 1.5, "up": -1.5}.get(eyes, 0.0)
-        frame = P["lead_glasses"] if lead else P["follow_glasses"]
-        for side in (-1, 1):
-            b.dot(side * 5 + gx * 0.3, head_y - 1 + gy * 0.3, 3.8, fill="", outline=frame, width=2)
-            if eyes == "closed":
-                b.line([(side * 5 - 2, head_y - 1), (side * 5 + 2, head_y - 1)], width=1, fill="#2b1a10")
-            else:
-                r = 1.6 if eyes != "wide" else 2.2
-                b.dot(side * 5 + gx, head_y - 1 + gy, r, fill="#2b1a10", outline="")
-        b.line([(-1.5, head_y - 1), (1.5, head_y - 1)], width=1, fill=frame)
-        if lead:   # silver beard + smile
-            b.poly([(-9, head_y + 3), (9, head_y + 3), (5, head_y + 13), (-5, head_y + 13)],
-                   fill=P["beard"], outline="")
-            b.line([(-4, head_y + 5), (0, head_y + 7), (4, head_y + 5)], width=2, fill="#5a2e1a")
         else:
-            b.line([(-4, head_y + 5), (0, head_y + 7.5), (4, head_y + 5)], width=2, fill="#a2453a")
-            b.dot(-11, head_y + 3, 2.2, fill="", outline=P["earring"], width=2)
-            b.dot(11, head_y + 3, 2.2, fill="", outline=P["earring"], width=2)
+            b.line([(-6, head_y + 6), (0, head_y + 9), (6, head_y + 6)], width=1.5,
+                   fill=_mix(hair, "#000000", 0.25))               # nape line
+        return hands
+
+    if lead:
+        b.dot(0, head_y - 7, 11, fill=hair, outline="", squash=True)        # crown
+        b.dot(0, head_y - 2, 11.5, fill=skin, outline="", squash=True)
+    else:
+        b.dot(0, head_y - 6, 12, fill=hair, outline="", squash=True)        # short crop
+        b.dot(0, head_y - 1, 11, fill=skin, outline="", squash=True)
+        for k in (-6, -2, 2, 6):                                            # fringe strands
+            b.line([(k, head_y - 11), (k + 1.5, head_y - 7)], width=1.4, fill=_mix(hair, "#000000", 0.18))
+    for side in (-1, 1):                                                    # ears
+        b.dot(side * 12, head_y, 2.4, fill=skin_shade, outline="", squash=True)
+
+    gx = {"left": -2.5, "right": 2.5}.get(eyes, 0.0)
+    gy = {"down": 1.5, "up": -1.5}.get(eyes, 0.0)
+    frame = P["lead_glasses"] if lead else P["follow_glasses"]
+    brow = _mix(hair, "#000000", 0.2) if not lead else _mix(P["beard"], "#000000", 0.35)
+    lift = -1.2 if eyes == "wide" else (0.8 if eyes == "down" else 0.0)
+    for side in (-1, 1):
+        b.line([(side * 7.5, head_y - 6 + lift), (side * 2.5, head_y - 7 + lift)], width=1.5, fill=brow)
+        b.dot(side * 5 + gx * 0.3, head_y - 1 + gy * 0.3, 3.9, fill="#ffffff", outline=frame, width=2)
+        if eyes == "closed":
+            b.line([(side * 5 - 2, head_y - 1), (side * 5 + 2, head_y - 1)], width=1.2, fill="#2b1a10")
+        else:
+            r = 1.6 if eyes != "wide" else 2.2
+            b.dot(side * 5 + gx, head_y - 1 + gy, r, fill="#2b1a10", outline="")
+            b.dot(side * 5 + gx - 0.6, head_y - 1.7 + gy, 0.5, fill="#ffffff", outline="")  # catchlight
+        if not lead:                                                        # lashes + blush
+            b.line([(side * 7.6, head_y - 3), (side * 9, head_y - 4.5)], width=1, fill="#2b1a10")
+            b.dot(side * 7.5, head_y + 4, 2, fill="#f4a3a3", outline="")
+    b.line([(-1.5, head_y - 1), (1.5, head_y - 1)], width=1.2, fill=frame)  # bridge
+    b.line([(0, head_y + 1), (-1, head_y + 4), (0.8, head_y + 4.5)], width=1.2, fill=skin_shade)  # nose
+    if lead:   # beard with texture, moustache, smile
+        b.poly([(-10, head_y + 3), (10, head_y + 3), (6, head_y + 14), (-6, head_y + 14)],
+               fill=P["beard"], outline=_mix(P["beard"], "#000000", 0.3))
+        for k in (-5, -1.5, 2, 5.5):
+            b.line([(k, head_y + 8), (k * 0.85, head_y + 12)], width=1, fill=_mix(P["beard"], "#000000", 0.25))
+        b.line([(-5, head_y + 4.5), (0, head_y + 3.5), (5, head_y + 4.5)], width=2.2, fill=P["beard"])
+        b.line([(-3.5, head_y + 6.5), (0, head_y + 8), (3.5, head_y + 6.5)], width=1.6, fill="#5a2e1a")
+    else:
+        b.line([(-3.5, head_y + 5.5), (0, head_y + 7.6), (3.5, head_y + 5.5)], width=2, fill="#b5473d")
+        for side in (-1, 1):                                                # gold hoops
+            b.dot(side * 12, head_y + 5, 2.4, fill="", outline=P["earring"], width=2)
     return hands
 
 
@@ -860,6 +945,141 @@ def _draw_stage(canvas, p, mood, P):
             canvas.create_rectangle(x, y, x + 4, y + 2, fill=color, outline="")
 
 
+# ---------------------------------------------------------------------------
+# Indicators: plain words anyone can read, built only from the event kind and
+# tool category - never from tool arguments, prompts or results.
+# ---------------------------------------------------------------------------
+POSE_STATUS: dict[str, str] = {
+    "crack_knuckles": "Starting a task", "attention": "Getting ready", "jump": "On it",
+    "run_to_workspace": "Heading to work", "walk_to_workspace": "Heading to work",
+    "dash_to_workspace": "Starting a step", "sprint_to_workspace": "Starting a step",
+    "tip_to_workspace": "Starting a step",
+    "work": "Working", "lean_work": "Still working", "terminal_work": "Running a command",
+    "web_scan": "Searching the web", "read": "Reading", "file_organize": "Working with files",
+    "dev_merge": "Working on code", "media_paint": "Making media", "design_draft": "Designing",
+    "audio_tune": "Working on audio", "memory_vault": "Using memory",
+    "close_workstation": "Step finished", "celebrate": "Step finished", "return_home": "Step done",
+    "shock": "A step failed", "fall": "A step failed", "sneak": "A step failed",
+    "recover": "Recovering", "inspect": "Checking what broke", "huff": "Shaking it off",
+    "sit_back": "A helper failed", "retry": "Trying again", "repair": "Fixing it",
+    "wake": "Needs your OK", "panic": "Needs your OK", "run_to_user": "Needs your OK",
+    "wave": "Calling you", "wait": "Waiting for your OK", "point": "Needs your OK",
+    "nod": "You answered", "hop": "Approved - going", "shrug": "You declined",
+    "discard": "Dropped that step",
+    "leap": "Task complete!", "double_jump": "Task complete!", "excited": "Helper finished",
+    "open_portal": "Sending out a helper", "channel": "Helpers working", "orb_exits": "Helpers working",
+    "orb_returns": "A helper is back", "absorb": "Taking the helper's work",
+    "fly_up": "Helper finished", "fly_down": "Helper finished",
+    "idle_bob": "Quiet", "idle": "Quiet", "sleep": "Resting", "sit": "Resting",
+    "look_at_input": "Watching you type", "watch": "Watching you type",
+    "look_at_user": "Looking at you", "notice": "Noticed something", "eyebrow_raise": "Noticed something", "think": "Thinking",
+    "look_around": "Looking around", "tilt": "Wondering", "head_tilt": "Wondering",
+    "stretch": "You're back - stretching", "stretch_lazy": "Taking it easy",
+    "yawn": "Getting sleepy", "head_drop": "Resting", "check_watch": "Waiting",
+}
+_MOOD_WORD = {"work": "Working", "delegate": "Delegating", "fail": "Problem", "approve": "Needs you",
+              "joy": "Done", "curious": "Curious", "rest": "Resting", "calm": "Ready"}
+
+
+def status_text(pose: str, mood: str) -> tuple[str, str]:
+    """(headline, detail) for the plaque: what Hermes is doing, in plain words."""
+    headline = POSE_STATUS.get(pose) or _MOOD_WORD.get(mood, "Ready")
+    st = STATE
+    detail = []
+    if mood == "work" and st.category not in ("general", "failure", "approval"):
+        detail.append(st.category)
+    if st.running:
+        detail.append(f"{st.running} tool{'s' if st.running != 1 else ''} running")
+    if st.helpers:
+        detail.append(f"{st.helpers} helper{'s' if st.helpers != 1 else ''} out")
+    if mood == "approve" and st.danger:
+        headline, detail = "Needs your OK", ["dangerous command"] + detail
+    if st.missteps and mood in ("fail", "work"):
+        detail.append(f"{st.missteps} misstep{'s' if st.missteps != 1 else ''}")
+    if st.thinking and mood not in ("approve", "fail"):
+        headline = "Thinking"                           # just got a prompt: reasoning first
+    return headline, " \u00b7 ".join(detail)
+
+
+def _mood_icon(canvas, x, y, mood, color):
+    """A small shape per meaning, so the plaque reads even without the words."""
+    canvas.create_oval(x - 10, y - 10, x + 10, y + 10, fill=color, outline="#0f172a", width=1)
+    ink = "#0f172a"
+    if mood == "work":                                   # gear: ring + teeth
+        for k in range(6):
+            a = k / 6 * 2 * math.pi
+            canvas.create_line(x + math.cos(a) * 4, y + math.sin(a) * 4, x + math.cos(a) * 7.5,
+                               y + math.sin(a) * 7.5, fill=ink, width=2)
+        canvas.create_oval(x - 4, y - 4, x + 4, y + 4, fill=color, outline=ink, width=2)
+    elif mood == "approve":                              # raised hand: "!"
+        canvas.create_line(x, y - 6, x, y + 2, fill=ink, width=3)
+        canvas.create_oval(x - 1.6, y + 4, x + 1.6, y + 7, fill=ink, outline="")
+    elif mood == "fail":                                 # cross
+        canvas.create_line(x - 5, y - 5, x + 5, y + 5, fill=ink, width=3)
+        canvas.create_line(x - 5, y + 5, x + 5, y - 5, fill=ink, width=3)
+    elif mood == "joy":                                  # star
+        pts = []
+        for k in range(10):
+            r = 7.5 if k % 2 == 0 else 3.2
+            a = -math.pi / 2 + k * math.pi / 5
+            pts += [x + math.cos(a) * r, y + math.sin(a) * r]
+        canvas.create_polygon(*pts, fill=ink, outline="")
+    elif mood == "delegate":                             # two figures
+        for dx in (-4, 4):
+            canvas.create_oval(x + dx - 2, y - 6, x + dx + 2, y - 2, fill=ink, outline="")
+            canvas.create_line(x + dx, y - 2, x + dx, y + 6, fill=ink, width=2)
+    elif mood == "rest":                                 # moon
+        canvas.create_oval(x - 6, y - 6, x + 6, y + 6, fill=ink, outline="")
+        canvas.create_oval(x - 3, y - 8, x + 8, y + 3, fill=color, outline="")
+    elif mood == "curious":                              # question mark
+        canvas.create_arc(x - 5, y - 8, x + 5, y + 2, start=-60, extent=240, style="arc",
+                          outline=ink, width=2)
+        canvas.create_line(x, y + 1, x, y + 3, fill=ink, width=2)
+        canvas.create_oval(x - 1.5, y + 5, x + 1.5, y + 8, fill=ink, outline="")
+    else:                                                # ready: dot
+        canvas.create_oval(x - 3, y - 3, x + 3, y + 3, fill=ink, outline="")
+
+
+def _badge(canvas, x, y, text, color):
+    """A labelled counter chip; returns the x after it."""
+    w = 20 + len(text) * 7.4          # room for bold text on every renderer
+    canvas.create_rectangle(x, y - 9, x + w, y + 9, fill="#0f172a", outline=color, width=2)
+    canvas.create_oval(x + 5, y - 3, x + 11, y + 3, fill=color, outline="")
+    canvas.create_text(x + 14 + (w - 14) / 2, y, text=text, fill="#f8fafc", font=("Segoe UI", 8, "bold"))
+    return x + w + 4
+
+
+def _draw_indicators(canvas, pose, mood, glow):
+    st = STATE
+    # top-left: live counters, each named in words; wrap to a second row if needed
+    chips = []
+    if st.danger:
+        chips.append(("dangerous", "#ef4444"))
+    if st.running:
+        chips.append((f"{st.running} tool{'s' if st.running != 1 else ''}",
+                      CATEGORY_COLORS.get(st.category, MOOD_COLORS["work"])))
+    if st.helpers:
+        chips.append((f"{st.helpers} helper{'s' if st.helpers != 1 else ''}", MOOD_COLORS["delegate"]))
+    if st.missteps:
+        chips.append((f"{st.missteps} misstep{'s' if st.missteps != 1 else ''}", MOOD_COLORS["fail"]))
+    x, y = 6, 12
+    for text, color in chips:
+        if x + 20 + len(text) * 7.4 > FRAME[0] - 6:
+            x, y = 6, y + 22
+        x = _badge(canvas, x, y, text, color)
+    # bottom: the plaque
+    headline, detail = status_text(pose, mood)
+    top, bottom = FLOOR + 20, FRAME[1] - 4
+    canvas.create_rectangle(24, top, FRAME[0] - 24, bottom, fill="#0f172a", outline=glow, width=2)
+    _mood_icon(canvas, 42, (top + bottom) / 2, mood, glow)
+    tx = (FRAME[0] + 32) / 2
+    if detail:
+        canvas.create_text(tx, top + 15, text=headline, fill="#f8fafc", font=("Segoe UI", 11, "bold"))
+        canvas.create_text(tx, top + 32, text=detail, fill=glow, font=("Segoe UI", 8, "bold"))
+    else:
+        canvas.create_text(tx, (top + bottom) / 2, text=headline, fill="#f8fafc", font=("Segoe UI", 12, "bold"))
+
+
 def draw_duet(canvas, pose: str, progress: float = 0.0, palette: str | None = None) -> None:
     P = _palette(palette)
     canvas.delete("all")
@@ -936,6 +1156,7 @@ def draw_duet(canvas, pose: str, progress: float = 0.0, palette: str | None = No
     elif pose in WONDER:
         _bubble(canvas, CENTER, 22, "?", glow)
     _prop(canvas, prm["extra"], CENTER, 30, p, glow)
+    _draw_indicators(canvas, pose, mood, glow)
 
 
 def _dancer_hip(st, hip_y):

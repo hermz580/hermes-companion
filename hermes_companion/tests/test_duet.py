@@ -152,3 +152,53 @@ def test_live_stage_changes_the_picture(monkeypatch):
     assert _signature("work") != calm
     key = D.state_key()
     assert key[1:4] == (3, 2, 1)
+
+
+def test_plaque_says_what_hermes_is_doing_in_plain_words(monkeypatch):
+    st = D.DuetState()
+    monkeypatch.setattr(D, "STATE", st)
+    assert D.status_text("terminal_work", "work") == ("Running a command", "")
+    st.running, st.category = 2, "terminal"
+    assert D.status_text("terminal_work", "work") == ("Running a command", "terminal · 2 tools running")
+    st.running, st.category, st.danger = 0, "general", True
+    assert D.status_text("wait", "approve") == ("Needs your OK", "dangerous command")
+    st.danger, st.helpers = False, 1
+    assert D.status_text("channel", "delegate") == ("Helpers working", "1 helper out")
+    assert D.status_text("leap", "joy")[0] == "Task complete!"
+    assert D.status_text("__unknown__", "rest")[0] == "Resting"     # falls back to a mood word
+    st.think_until = float("inf")
+    assert D.status_text("jump", "joy")[0] == "Thinking"
+    assert D.status_text("wait", "approve")[0] == "Waiting for your OK"   # your OK still wins
+
+
+def test_every_signature_pose_has_a_plain_status_line():
+    for kind, (_state, steps) in br.CHAINS.items():
+        for step in steps:
+            headline, _ = D.status_text(step["pose"], "calm")
+            assert headline and headline != "Ready", (kind.value, step["pose"])
+
+
+def test_indicators_never_carry_content():
+    """Only kinds, categories and counts - no free text from tools reaches the plaque."""
+    st = D.DuetState()
+    st.observe(_ev("tool.started", "terminal"))
+    words = " ".join(D.POSE_STATUS.values()) + " " + " ".join(D.CATEGORY_COLORS)
+    assert "rm -rf" not in words and "/" not in words
+
+
+def test_badges_wrap_inside_the_stage(monkeypatch):
+    shapes = []
+
+    class Rec:
+        def __getattr__(self, name):
+            def record(*coords, **kw):
+                shapes.append((name, coords))
+            return record
+
+    st = D.DuetState()
+    st.running, st.helpers, st.missteps, st.danger = 3, 4, 3, True
+    monkeypatch.setattr(D, "STATE", st)
+    D._draw_indicators(Rec(), "wait", "approve", "#ef4444")
+    rects = [c for n, c in shapes if n == "create_rectangle"]
+    assert len(rects) == 5                              # four badges + the plaque
+    assert all(0 <= c[0] and c[2] <= D.FRAME[0] for c in rects)

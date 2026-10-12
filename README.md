@@ -163,6 +163,50 @@ violet = delegating, rose = failure, amber = needs you, gold = success,
 cyan = curious, lavender = resting. "!" means it noticed something you did,
 and "?" means it's wondering about it.
 
+### Ade & Rae, the dancers
+
+```bash
+hermes-companion play --companion duet                     # classic (default)
+hermes-companion play --companion duet --palette evening   # or carnival
+```
+
+![Ade and Rae dancing a real Hermes session](docs/duet-demo.gif)
+
+Two partner dancers whose dance *is* the status. Ade leads: locs, a silver
+beard, round glasses, a sky-blue shirt and a gold chain. Rae follows: short
+golden hair, red round glasses, gold hoops and a white dress with blue flowers.
+Every move the engine can emit has its own partner figure (67 in all), so the
+same Hermes action always gets the same dance:
+
+| Hermes is… | Ade & Rae dance… |
+|---|---|
+| starting a task | a bow, then they take hold |
+| running a terminal command | a cha-cha |
+| on the web | a travelling promenade |
+| organising files or memory | an underarm turn |
+| working on code | switch sides: they cross and trade places |
+| making media | a double spin |
+| sending out helpers | they separate and each dances solo |
+| a helper is back | they come back together, then a dip |
+| needing your OK | they freeze and both reach toward you |
+| a step failed | a missed catch: a stumble, then they reset |
+| finished the task | the lift |
+| listening, glancing, wondering | lean in, glance back, tilt heads, think, peek |
+| quiet or tired | a slow sway, head on a shoulder, a yawn, sitting it out |
+
+The stage follows live work too, from signed events only:
+
+- **Beat lights:** one per tool in flight. The floor takes that tool's colour, and more tools mean more bounce.
+- **Backup dancers:** one per helper Hermes sends out.
+- **Missteps:** each unrecovered failure adds falling petals and a sweat drop. Three clean steps heal one.
+- **Danger:** a red floor when a dangerous command waits for your OK.
+- **Thinking:** dots over their heads while Hermes thinks.
+- **Confetti:** when the task is done.
+
+They also have 19 decorative moves of their own (jive kicks, shimmies, conga
+hops, box steps, back-to-back…). These play only around a signature move and
+never replace one.
+
 ### Masque, the many behind the mask
 
 ```

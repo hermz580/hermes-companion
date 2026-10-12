@@ -13,8 +13,8 @@ Adding a companion = one entry here + a draw function that honors
 """
 from __future__ import annotations
 
-from hermes_companion.animation import (animator, astro_boy, herald, masque, nia, nyamekra,
-                                        samurai)
+from hermes_companion.animation import (animator, astro_boy, duet, herald, masque, nia,
+                                        nyamekra, samurai)
 
 # name -> (draw_fn, default_palette, palette_names, description)
 COMPANIONS: dict[str, dict] = {
@@ -92,6 +92,25 @@ COMPANIONS: dict[str, dict] = {
                 "porcelain mask with 7 faces that cracks with failures · colour, form, "
                 "tendrils and eyes driven by live Hermes work · eerie | cute | monster",
     },
+    "duet": {
+        "draw": duet.draw_duet,
+        "palettes": list(duet.DUET_PALETTES.keys()),
+        "default": duet.DUET_DEFAULT_PALETTE,
+        "frame": duet.FRAME,
+        "state_key": duet.state_key,
+        "observe": duet.observe,
+        "extra_flourishes": duet.duet_flourishes(),
+        "flourish_hints": duet.flourish_hints(),
+        "curious_moves": duet.CURIOUS_MOVES,
+        "voice": duet.VOICE,
+        "greeting": duet.GREETING,
+        "perch_poses": {"hop": "hop", "drop": "jump", "teleport": "spin"},
+        "desc": "Ade & Rae, partner dancers · the dance is the status: promenades while "
+                "tools run, switch sides for code, separate for helpers, freeze for your "
+                f"OK, the lift when work is done · {len(duet.FIGURES)} figures · live stage "
+                "(backup dancers per helper, beat lights per tool, petals per misstep) · "
+                "classic | evening | carnival",
+    },
 }
 
 DEFAULT_COMPANION = "astro"
@@ -103,7 +122,8 @@ def list_companions() -> list[str]:
 
 def has_pose(pose: str) -> bool:
     """True when some companion draws this pose as its own move."""
-    return pose in nyamekra.NYAMEKRA_MOVES or pose in masque.MASQUE_MOVES
+    return (pose in nyamekra.NYAMEKRA_MOVES or pose in masque.MASQUE_MOVES
+            or pose in duet.DUET_MOVES)
 
 
 def get_companion(name: str | None) -> dict:

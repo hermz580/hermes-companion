@@ -19,6 +19,7 @@ ENERGIES = {
                  "neon", "natural", "robotic"),
     "masque": ("eerie", "cute", "monster"),
     "nia": ("kente", "indigo", "ochre", "emerald", "royal"),
+    "duet": ("classic", "evening", "carnival"),
     "herald": ("olympus", "midnight", "ember", "verdant", "nebula"),
 }
 

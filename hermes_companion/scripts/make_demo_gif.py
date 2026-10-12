@@ -31,7 +31,8 @@ SESSION = [
 ]
 
 
-def build(out: Path, companion: str = "nyamekra", palette: str | None = "cosmic") -> Path:
+def build(out: Path, companion: str = "nyamekra", palette: str | None = "cosmic",
+          steps: int = 3, frame_ms: int = 140) -> Path:
     from hermes_companion.animation.characters import traits
     clock = [0.0]
     t = traits(companion)
@@ -40,11 +41,13 @@ def build(out: Path, companion: str = "nyamekra", palette: str | None = "cosmic"
     observe = t.get("observe")
     live_state = None
     if observe is not None:                    # run the companion's live state on the GIF's clock
-        from hermes_companion.animation import masque
-        if t["observe"] is masque.observe:
-            live_state = masque.STATE
+        from hermes_companion.animation import duet, masque
+        fresh = {masque.observe: (masque.STATE, masque.MasqueState),
+                 duet.observe: (duet.STATE, duet.DuetState)}.get(t["observe"])
+        if fresh is not None:
+            live_state, cls = fresh
             saved = dict(live_state.__dict__)
-            live_state.__dict__.update(masque.MasqueState(clock=lambda: clock[0]).__dict__)
+            live_state.__dict__.update(cls(clock=lambda: clock[0]).__dict__)
     W, H = max(360, r.fw + 40), r.fh + 80
     frames: list[Image.Image] = []
     bg = Image.new("RGBA", (W, H), "#0b0912")
@@ -62,9 +65,9 @@ def build(out: Path, companion: str = "nyamekra", palette: str | None = "cosmic"
         poses = [st["pose"] for st in chain.steps if st.get("role") != "flourish"][:6] \
             if chain else ["idle_bob"]
         for pose in poses:
-            for step in range(3):
+            for step in range(steps):
                 f = bg.copy()
-                f.alpha_composite(r.frame(pose, step / 4), ((W - r.fw) // 2, 18))
+                f.alpha_composite(r.frame(pose, step / (steps + 1)), ((W - r.fw) // 2, 18))
                 d = ImageDraw.Draw(f)
                 d.text((W / 2, H - 34), caption, fill="#ffe39a", font=caption_font, anchor="mm")
                 d.text((W / 2, H - 14), f"{mood_label(pose)} · {pose.replace('_', ' ')}",
@@ -72,11 +75,11 @@ def build(out: Path, companion: str = "nyamekra", palette: str | None = "cosmic"
                 if r.fw > 200:                 # big companions: keep the GIF a sensible size
                     f = f.resize((int(W * 0.8), int(H * 0.8)), Image.LANCZOS)
                 frames.append(f.convert("P", palette=Image.ADAPTIVE, colors=96))
-                clock[0] += 0.14               # one GIF frame of time
+                clock[0] += frame_ms / 1000    # one GIF frame of time
     if live_state is not None:
         live_state.__dict__.update(saved)
     out.parent.mkdir(parents=True, exist_ok=True)
-    frames[0].save(out, save_all=True, append_images=frames[1:], duration=140, loop=0,
+    frames[0].save(out, save_all=True, append_images=frames[1:], duration=frame_ms, loop=0,
                    optimize=True, disposal=2)
     return out
 
@@ -84,8 +87,10 @@ def build(out: Path, companion: str = "nyamekra", palette: str | None = "cosmic"
 if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:                       # e.g. masque docs/masque-demo.gif
-        p = build(Path(sys.argv[2] if len(sys.argv) > 2 else f"docs/{sys.argv[1]}-demo.gif"),
-                  sys.argv[1], None)
+        name = sys.argv[1]
+        dancers = name == "duet"                # partner work needs more frames to read
+        p = build(Path(sys.argv[2] if len(sys.argv) > 2 else f"docs/{name}-demo.gif"),
+                  name, None, steps=8 if dancers else 3, frame_ms=90 if dancers else 140)
         print(p, p.stat().st_size // 1024, "KB")
         sys.exit(0)
     p = build(Path("docs/demo.gif"))

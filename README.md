@@ -241,6 +241,87 @@ hops, box steps, back-to-back, Apple Jacks, running man, cabbage patch, the
 robot, Cuban motion, hip twists, ochos, ganchos, fallaways…). These play only around a signature move and
 never replace one.
 
+### Sensei, the master fighter
+
+```bash
+hermes-companion play --companion master                  # midnight (default)
+hermes-companion play --companion master --palette jade   # or dawn
+```
+
+![Sensei fighting a real Hermes session](docs/master-demo.gif)
+
+A master fighter whose fight *is* the status. **Every tool Hermes runs is a
+ninja coming at him**, and its weapon names the kind of work:
+
+| Tool category | Ninja |
+|---|---|
+| terminal | shuriken |
+| web | kunai and rope |
+| files | bo staff |
+| code | twin blades |
+| media | smoke bombs |
+| memory | shadow ninja |
+
+| Hermes is… | Sensei… |
+|---|---|
+| starting a task | bows, then drops into a horse stance |
+| launching a step | **runs up the wall** and along its side |
+| running a tool | **a real exchange** with that tool's ninja: he parries its jab (tan sau), it blocks his punch, he checks its kick with his shin, his roundhouse lands |
+| running a command | a Muay Thai roundhouse, pivoting on the ball of the foot with the hip turned over |
+| working on code / files | a sweep that takes two at once / disarms the bo staff |
+| a long tool keeps going | **arrows fly in and he dodges every one** |
+| reading, searching, memory | **sneaks up** on a ninja and takes it from behind |
+| a step finished | a palm strike, then **throws the ninja far away** |
+| a step failed | **the ninja's jab gets through**, he staggers, then shuts the next one down; a leg sweep takes him down; he kips back up; while fixing it he blocks an overhead weapon chop (age-uke) and **disarms** it |
+| needs your OK | **catches an arrow** / **stops a thrown boulder** in a gold freeze ring, and waits |
+| you approved / declined | flips up and goes / tosses it aside |
+| sending out helpers | **shadow clones** step out and fight beside him |
+| finished the task | a **long backflip**, then a **bicycle kick** |
+| quiet / asleep | **rests under the blossom tree** while petals fall |
+
+**It is a real fight, not a show.** The ninjas fight back: they jab, kick,
+sweep low and swing their weapons, and they block or parry some of his
+strikes (high block, low block, parry) while others land. A white spark marks
+each point where a block meets a strike. When a tool fails, a hit really gets
+through to him.
+
+**Real stances, with their real weight.**
+
+| Stance | Weight | Used for |
+|---|---|---|
+| Ma bu / kiba dachi (horse) | 50/50, deep knees | standing ready, rooting to stop a boulder |
+| Gong bu / zenkutsu (bow, front) | ~70% front, back leg straight | reverse punch, tiger claw, leopard fist |
+| Kokutsu dachi (back) | ~70% back | knife-hand block, arrow catch |
+| Xu bu / neko ashi (empty, cat) | nearly all on the back leg, front toe touching | snake hand, cat-stance block |
+| Pu bu (drop) | sits on one bent leg, the other straight out | the low sweep on code merges |
+| Xie bu (cross) | legs crossed, sitting back | resting, dragon claw wind-up |
+| Du li (crane) | one leg, raised thigh at least level | the crane |
+| Yee jee kim yeung (Wing Chun) | toes turned in, knees in | chain punch, tan sau / bong sau |
+| Muay Thai guard | upright, rear heel up | teep, elbow, knee, roundhouse |
+| Ginga (Capoeira) | the swaying triangle step | walking in, dodging arrows |
+
+**Real styles:** the Shaolin five animals (tiger claw, crane wings and beak,
+leopard fist, snake spear-hand, dragon claw), Wing Chun, karate, Muay Thai
+(teep, elbows, knee, roundhouse), Taekwondo (tornado kick, spinning hook),
+Capoeira (ginga, aú, meia lua de compasso) and judo (the o-goshi hip throw
+behind "throws the ninja far away"). A chip on the stage names the style or
+technique being shown.
+
+**Joints and detail.** He uses the same jointed rig as Ade & Rae. A new
+**torso twist** joint turns the shoulders against the hips, so punches and
+kicks drive from the hip. Each hand takes the shape its style uses: fist with
+knuckles, open palm, knife-hand, tiger claw, crane beak, leopard fist,
+snake spear-hand or dragon claw. Techniques are keyframed (chamber, strike,
+follow-through, recover) with easing. The drawing adds gi shading that deepens
+as he turns, cloth folds and creases, belt and headband tails that stream with
+his speed, ground shadows that shrink when he jumps, afterimage trails on fast
+strikes, and dust from the feet.
+
+Badges count the ninjas in play, the clones, the hits taken and the ninjas
+down. The plaque says what Hermes is doing in plain words ("Running a command
+· 2 ninjas (kunai rope, shuriken)"). He also has 24 kata of his own. These
+play only around a signature move and never replace one.
+
 ### Masque, the many behind the mask
 
 ```

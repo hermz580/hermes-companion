@@ -48,6 +48,7 @@ ENERGIES = {
     "masque": ("eerie", "cute", "monster"),
     "nia": ("kente", "indigo", "ochre", "emerald", "royal"),
     "duet": ("classic", "evening", "carnival"),
+    "master": ("midnight", "jade", "dawn"),
     "herald": ("olympus", "midnight", "ember", "verdant", "nebula"),
 }
 
@@ -65,6 +66,7 @@ COMPANION_INFO = {
     "nyamekra": ("Nyamekra", "The All-Doing Crow. Channels a symbol for every kind of work."),
     "masque": ("Masque", "The many behind the mask. Eyes and tendrils follow live work."),
     "nia": ("Nia", "The storyteller. Drum, dance and a heart that glows when it waits."),
+    "master": ("Sensei", "A master fighter. Every tool is a ninja he takes on; he rests under the blossom tree."),
     "duet": ("Ade & Rae", "Partner dancers. Spins, switches, a split for helpers, the lift when it's done."),
     "herald": ("Herald", "A winged messenger. Its staff orb shows what a move means."),
     "samurai": ("Samurai", "A rigged warrior with martial moves."),

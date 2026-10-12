@@ -13,7 +13,7 @@ Adding a companion = one entry here + a draw function that honors
 """
 from __future__ import annotations
 
-from hermes_companion.animation import (animator, astro_boy, duet, herald, masque, nia,
+from hermes_companion.animation import (animator, astro_boy, duet, herald, masque, master, nia,
                                         nyamekra, samurai)
 
 # name -> (draw_fn, default_palette, palette_names, description)
@@ -111,6 +111,25 @@ COMPANIONS: dict[str, dict] = {
                 "(backup dancers per helper, beat lights per tool, petals per misstep) · "
                 "classic | evening | carnival",
     },
+    "master": {
+        "draw": master.draw_master,
+        "palettes": list(master.PALETTES.keys()),
+        "default": master.DEFAULT_PALETTE,
+        "frame": master.FRAME,
+        "state_key": master.state_key,
+        "observe": master.observe,
+        "extra_flourishes": master.kata_flourishes(),
+        "flourish_hints": master.flourish_hints(),
+        "curious_moves": master.CURIOUS_MOVES,
+        "voice": master.VOICE,
+        "greeting": master.GREETING,
+        "perch_poses": {"hop": "hop", "drop": "jump", "teleport": "spin"},
+        "desc": "Sensei, the master fighter · every running tool is a ninja he fights "
+                "(weapon = kind of work) · wall runs, arrow dodges, thrown ninjas, "
+                "shadow clones for helpers, a long backflip and bicycle kick when done, "
+                f"rest under the blossom tree · {len(master.MOVES)} moves · "
+                "midnight | jade | dawn",
+    },
 }
 
 DEFAULT_COMPANION = "astro"
@@ -123,7 +142,7 @@ def list_companions() -> list[str]:
 def has_pose(pose: str) -> bool:
     """True when some companion draws this pose as its own move."""
     return (pose in nyamekra.NYAMEKRA_MOVES or pose in masque.MASQUE_MOVES
-            or pose in duet.DUET_MOVES)
+            or pose in duet.DUET_MOVES or pose in master.KATA)
 
 
 def get_companion(name: str | None) -> dict:

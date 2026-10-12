@@ -202,3 +202,63 @@ def test_badges_wrap_inside_the_stage(monkeypatch):
     rects = [c for n, c in shapes if n == "create_rectangle"]
     assert len(rects) == 5                              # four badges + the plaque
     assert all(0 <= c[0] and c[2] <= D.FRAME[0] for c in rects)
+
+
+# ── jointed rig + real dance vocabulary ───────────────────────────────────
+
+def _draw_one(st, who="lead"):
+    canvas = PILCanvas(*D.FRAME)
+    D._draw_dancer(canvas, who, D._palette(None), 160, 180, st, "neutral")
+    return canvas.img.tobytes()
+
+
+def test_every_new_joint_changes_the_body():
+    base = D._d()
+    neutral = _draw_one(base)
+    for joint, value in {"torso": 25.0, "hip": 6.0, "head": 20.0, "wrists": (60.0, 60.0),
+                         "ankles": (60.0, 60.0), "swivel": (1.0, 1.0), "shoulders": (5.0, 5.0)}.items():
+        assert _draw_one({**base, joint: value}) != neutral, f"{joint} did not move anything"
+
+
+def _peak(figure, key, sample=24):
+    """Largest magnitude a joint reaches over the move, for either dancer."""
+    best = 0.0
+    for i in range(sample):
+        for st in D.FIGURES[figure](i / sample)[:2]:
+            v = st[key]
+            best = max(best, max(abs(x) for x in v) if isinstance(v, tuple) else abs(v))
+    return best
+
+
+def test_real_moves_use_the_joints_their_technique_needs():
+    assert _peak("charleston", "swivel") > 0.5            # the Charleston twist
+    assert _peak("suzie_q", "swivel") > 0.5
+    assert _peak("moonwalk", "ankles") > 40               # heel up, flat foot slides
+    assert _peak("cuban_motion", "hip") >= 5              # hips over a straight leg
+    assert _peak("cha_cha", "hip") >= 4
+    assert _peak("oversway", "torso") > 30 and _peak("oversway", "head") > 20
+    assert _peak("tango_corte", "head") > 15              # the head snap
+    assert _peak("robot", "wrists") >= 90
+    assert _peak("shoulder_shimmy", "shoulders") >= 3
+    assert _peak("kick_ball_change", "ankles") > 30
+    assert _peak("gancho", "legs") > 90                   # the hook from the knee
+    lead, follow, hold = D.FIGURES["frog_jump"](0.5)
+    assert follow["y"] > 50 and hold == "lift"
+
+
+def test_real_moves_are_named_and_reachable():
+    real = {"swingout", "tuck_turn", "sugar_push", "charleston", "tandem_charleston",
+            "kick_ball_change", "suzie_q", "shorty_george", "apple_jacks", "frog_jump",
+            "salsa_basic", "cross_body_lead", "inside_turn", "copa", "cuban_motion",
+            "promenade_sway", "oversway", "fallaway", "hip_twist", "tango_corte", "ocho",
+            "gancho", "moonwalk", "running_man", "cabbage_patch", "robot", "shoulder_shimmy"}
+    assert real <= set(D.FIGURES)
+    assert real <= set(D.FIGURE_FOR_POSE.values())        # every one can actually play
+    assert set(D.FIGURES) - set(D.FIGURE_FOR_POSE.values()) <= {"hold"}
+
+
+def test_the_lift_only_ever_means_task_complete():
+    lifts = [pose for pose, fig in D.FIGURE_FOR_POSE.items() if fig == "lift"]
+    assert lifts == ["leap"]
+    assert D.figure_for("hop") == "kick_ball_change"      # you approved: off we go
+    assert D.figure_for("return_home") == "moonwalk"

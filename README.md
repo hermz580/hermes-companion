@@ -175,24 +175,46 @@ hermes-companion play --companion duet --palette evening   # or carnival
 Two partner dancers whose dance *is* the status. Ade leads: locs, a silver
 beard, round glasses, a sky-blue shirt and a gold chain. Rae follows: short
 golden hair, red round glasses, gold hoops and a white dress with blue flowers.
-Every move the engine can emit has its own partner figure (67 in all), so the
-same Hermes action always gets the same dance:
+Every move the engine can emit has its own partner figure (94 in all), and
+many of them are **real social and partner dances**: swing and Lindy hop,
+salsa, ballroom, tango and street. The same Hermes action always gets the
+same dance:
 
 | Hermes is… | Ade & Rae dance… |
 |---|---|
-| starting a task | a bow, then they take hold |
-| running a terminal command | a cha-cha |
+| starting a task | a bow, then a tango corte when it's on |
+| launching a step | a Lindy **swingout** |
+| working | a **sugar push**; still working: back to the **salsa basic** |
+| running a terminal command | a **cha-cha** with Cuban hip motion |
 | on the web | a travelling promenade |
-| organising files or memory | an underarm turn |
-| working on code | switch sides: they cross and trade places |
-| making media | a double spin |
-| sending out helpers | they separate and each dances solo |
-| a helper is back | they come back together, then a dip |
+| reading | a **promenade sway** |
+| organising files / using memory | an **underarm turn** / an **inside turn** |
+| working on code | switch sides: a **cross-body** crossover, trading places |
+| making media / design | a double spin / a cross-body lead |
+| a step finished | a **tuck turn**, then the **Charleston**, then a **moonwalk** home |
+| sending out helpers | they separate; Ade does a **Shorty George**, Rae a **Suzie Q** |
+| a helper is back | they come back together, a **copa**, a spin-out, a dip, then a **tandem Charleston** |
 | needing your OK | they freeze and both reach toward you |
-| a step failed | a missed catch: a stumble, then they reset |
-| finished the task | the lift |
+| you approved | a **kick-ball-change** and off they go |
+| a step failed | a missed catch, then an **oversway** as she recovers in his arms |
+| trying again | back to the **salsa basic** |
+| finished the task | **the lift** (it means nothing else), then a Lindy **frog jump** |
 | listening, glancing, wondering | lean in, glance back, tilt heads, think, peek |
 | quiet or tired | a slow sway, head on a shoulder, a yawn, sitting it out |
+
+**Jointed like dancers.** Each dancer has shoulders and elbows, hips and
+knees, plus:
+
+- a **spine** that bends the chest over the hips (sways, oversways, torso-led turns);
+- a **hip shift** for Cuban motion and shimmies;
+- a **neck** for promenade looks and the tango head snap;
+- **wrists** for flicks and the robot;
+- **ankles** that point or flex the foot (kicks, the moonwalk's heel lift);
+- **foot swivel** for the Charleston twist, Suzie Q and Apple Jacks;
+- **shoulders** that lift for shimmies.
+
+The moves follow the real technique: the Charleston swivels the feet, a salsa
+turn is led by the torso, an oversway softens the knee as she arches back.
 
 The stage follows live work too, from signed events only:
 
@@ -214,8 +236,9 @@ helpers and missteps, and flag a dangerous command. The words come only from
 the event kind, the tool category and counts, never from your prompts, files or
 commands.
 
-They also have 19 decorative moves of their own (jive kicks, shimmies, conga
-hops, box steps, back-to-back…). These play only around a signature move and
+They also have 31 decorative moves of their own (jive kicks, shimmies, conga
+hops, box steps, back-to-back, Apple Jacks, running man, cabbage patch, the
+robot, Cuban motion, hip twists, ochos, ganchos, fallaways…). These play only around a signature move and
 never replace one.
 
 ### Masque, the many behind the mask

@@ -76,8 +76,21 @@ _REST_ARMS = (14, 12, 14, 12)
 _REST_LEGS = (5, 0, 5, 0)
 
 
-def _d(x=0.0, y=0.0, spin=1.0, rot=0.0, arms=_REST_ARMS, legs=_REST_LEGS):
-    return {"x": x, "y": y, "spin": spin, "rot": rot, "arms": arms, "legs": legs}
+def _d(x=0.0, y=0.0, spin=1.0, rot=0.0, arms=_REST_ARMS, legs=_REST_LEGS, *,
+       torso=0.0, hip=0.0, head=0.0, wrists=(0.0, 0.0), ankles=(0.0, 0.0),
+       swivel=(0.0, 0.0), shoulders=(0.0, 0.0)):
+    """One dancer's pose.
+
+    Whole body: x, y (lift), spin (1 front .. -1 back), rot (whole-body tilt).
+    Joints: arms (l_sh, l_el, r_sh, r_el), legs (l_hip, l_knee, r_hip, r_knee),
+    torso (spine bend over the hips, deg), hip (sideways hip shift, px - Cuban
+    motion), head (neck tilt, deg), wrists (l, r flick, deg), ankles (l, r:
+    + points the toe, - flexes it), swivel (l, r: + toes in, - toes out - the
+    Charleston twist), shoulders (l, r lift, px - shimmies).
+    """
+    return {"x": x, "y": y, "spin": spin, "rot": rot, "arms": arms, "legs": legs,
+            "torso": torso, "hip": hip, "head": head, "wrists": wrists, "ankles": ankles,
+            "swivel": swivel, "shoulders": shoulders}
 
 
 def _step(p, amp=18.0):
@@ -115,9 +128,13 @@ def _fig_side_step(p):
 
 
 def _fig_cha_cha(p):
+    """Cha-cha: rock step and a cha-cha-cha chassé, hips over each straight leg."""
     s = math.sin(p * 6 * math.pi)
-    return (_d(-30 + s * 4, rot=s * 4, arms=(70, 50, 100, 20), legs=(20 * s, 25, -10 * s, 10)),
-            _d(30 - s * 4, rot=-s * 4, arms=(100, 20, 70, 50), legs=(-10 * s, 10, 20 * s, 25)), "both")
+    return (_d(-30 + s * 4, hip=5 * s, torso=-4 * s, arms=(70, 50, 100, 20), wrists=(0, 20),
+               legs=(20 * s, 25 * max(0, -s), -10 * s, 25 * max(0, s)), ankles=(20 * max(0, s), 20 * max(0, -s))),
+            _d(30 - s * 4, hip=-5 * s, torso=4 * s, arms=(100, 20, 70, 50), wrists=(20, 0),
+               legs=(-10 * s, 25 * max(0, s), 20 * s, 25 * max(0, -s)), ankles=(20 * max(0, -s), 20 * max(0, s))),
+            "both")
 
 
 def _fig_promenade(p):
@@ -157,12 +174,10 @@ def _fig_separate(p):
 
 
 def _fig_solo(p):
-    a = math.sin(p * 4 * math.pi)
-    b = math.sin(p * 4 * math.pi + 1.6)
-    return (_d(-72, y=abs(a) * 4, rot=a * 6, arms=(150 + a * 15, 20, 40 - a * 20, 90),
-               legs=(30 * a, 40, 0, 0)),
-            _d(72, y=abs(b) * 4, spin=math.cos(p * 2 * math.pi), arms=(60, 90, 150 - b * 15, 20),
-               legs=(0, 0, 30 * b, 40)), "none")
+    """Apart, each dances a shine: Ade a Shorty George, Rae a Suzie Q."""
+    ade, _, _ = _fig_shorty_george(p)
+    _, rae, _ = _fig_suzie_q(p)
+    return ({**ade, "x": -72}, {**rae, "x": 72 + _sw(p, 1) * 8}, "none")
 
 
 def _fig_come_together(p):
@@ -470,6 +485,254 @@ def _fig_steady(p):
     return (_d(-18, arms=(30, 40, 80, 40)), _d(18, rot=s, arms=(80, 40, 30, 40)), "both")
 
 
+# ===========================================================================
+# Real dance vocabulary (swing, Lindy, salsa, ballroom, tango, street), built
+# on the jointed rig: spine, hips, neck, wrists, ankles, foot swivel, shoulders.
+# ===========================================================================
+def _sw(p, n=2):
+    return math.sin(p * 2 * math.pi * n)
+
+
+# --- Swing / Lindy hop ------------------------------------------------------
+def _fig_swingout(p):
+    """Lindy swingout: lead draws the follow in, they rotate, he sends her out."""
+    t = _ease(p)
+    rot = math.sin(t * math.pi)
+    fx = 46 - 70 * math.sin(t * math.pi * 0.5) + 70 * max(0.0, t - 0.6) * 2.4
+    return (_d(-28 + 8 * rot, torso=-10 * rot, arms=(70, 40, 60 + 40 * rot, 20), legs=_step(p, 16),
+               ankles=(10, 0)),
+            _d(fx, spin=math.cos(t * 2 * math.pi), torso=12 * rot, arms=(60 + 40 * rot, 20, 120, 30),
+               legs=_step(p + 0.5, 20), ankles=(0, 20)), "inner")
+
+
+def _fig_tuck_turn(p):
+    """East Coast swing tuck turn: a compress, a tuck, then she spins out."""
+    t = _ease(p)
+    tuck = math.sin(min(t * 2, 1.0) * math.pi * 0.5)
+    spin = math.cos(max(0.0, t - 0.5) * 4 * math.pi) if t > 0.5 else 1.0
+    return (_d(-26, torso=6 * tuck, arms=(30, 50, 80, 70 - 30 * tuck), wrists=(0, 30 * tuck)),
+            _d(22 - 6 * tuck, spin=spin, torso=-8 * tuck, arms=(80, 70, 30, 60), legs=_step(p, 10)), "inner")
+
+
+def _fig_sugar_push(p):
+    """Sugar push: she steps in (compression), both rebound out on a stretch."""
+    c = math.sin(p * 2 * math.pi)
+    gap = 44 + 10 * c
+    return (_d(-gap / 2, torso=-6 * c, arms=(75, 60 - 30 * c, 75, 60 - 30 * c), legs=(8 * c, 10, -6, 0)),
+            _d(gap / 2, torso=6 * c, arms=(75, 60 - 30 * c, 75, 60 - 30 * c), legs=(-6, 0, 8 * c, 10)), "both")
+
+
+def _fig_charleston(p):
+    """Side-by-side Charleston: kick forward, kick back, swivelling feet."""
+    k = _sw(p, 2)
+    sw = abs(_sw(p, 4))
+    def one(x, phase):
+        kk = math.sin(p * 4 * math.pi + phase)
+        return _d(x, y=abs(kk) * 3, torso=-8 * kk, arms=(40 - 30 * kk, 30, 40 + 30 * kk, 30),
+                  legs=(45 * max(0, kk), 10, -25 * max(0, -kk), 40 * max(0, -kk)),
+                  ankles=(30 * max(0, kk), 0), swivel=(sw, sw), wrists=(25, 25))
+    return (one(-30, 0.0), one(30, 0.0), "inner")
+
+
+def _fig_tandem_charleston(p):
+    """Tandem Charleston: she in front, he behind, same kicks, holding hands."""
+    k = math.sin(p * 4 * math.pi)
+    sw = abs(_sw(p, 4))
+    leg = (45 * max(0, k), 10, -25 * max(0, -k), 40 * max(0, -k))
+    return (_d(-6, spin=1.0, torso=-6 * k, arms=(60, 40, 60, 40), legs=leg, swivel=(sw, sw)),
+            _d(6, spin=1.0, torso=-6 * k, arms=(40, 30, 40, 30), legs=leg, swivel=(sw, sw), ankles=(20 * max(0, k), 0)),
+            "both")
+
+
+def _fig_kick_ball_change(p):
+    """Kick-ball-change: kick, step onto the ball of the foot, change weight."""
+    q = (p * 3) % 1.0
+    kick = math.sin(min(q * 2, 1.0) * math.pi) if q < 0.5 else 0.0
+    ball = 30 if 0.5 <= q < 0.75 else 0
+    return (_d(-26, y=2 * kick, arms=(40, 70, 75, 40), legs=(50 * kick, 15, 5, 0), ankles=(40 * kick, ball)),
+            _d(26, y=2 * kick, arms=(75, 40, 40, 70), legs=(5, 0, 50 * kick, 15), ankles=(ball, 40 * kick)), "both")
+
+
+def _fig_suzie_q(p):
+    """Suzie Q: travelling sideways on swivelling heels, hands pointing the way."""
+    sw = _sw(p, 3)
+    travel = _sw(p, 1) * 20
+    return (_d(-26 + travel, torso=-8, head=-10, arms=(110, 20, 60, 120), wrists=(-30, 0),
+               legs=(20 * sw, 20, -10 * sw, 20), swivel=(max(0, sw), max(0, -sw))),
+            _d(26 + travel, torso=-8, head=-10, arms=(60, 120, 110, 20), wrists=(0, -30),
+               legs=(20 * sw, 20, -10 * sw, 20), swivel=(max(0, -sw), max(0, sw))), "none")
+
+
+def _fig_shorty_george(p):
+    """Shorty George: knees together and low, shuffling forward, hands pointing down."""
+    sw = _sw(p, 2)
+    return (_d(-28, y=-8, torso=20, arms=(30, 20, 30, 20), wrists=(40, 40),
+               legs=(40 + 15 * sw, 70, 40 - 15 * sw, 70), swivel=(0.6, 0.6)),
+            _d(28, y=-8, torso=20, arms=(30, 20, 30, 20), wrists=(40, 40),
+               legs=(40 - 15 * sw, 70, 40 + 15 * sw, 70), swivel=(0.6, 0.6)), "none")
+
+
+def _fig_apple_jacks(p):
+    """Apple Jacks: rocking heel-toe over bent knees, weight rolling side to side."""
+    r = _sw(p, 2)
+    return (_d(-28 + r * 4, rot=r * 6, hip=r * 3, arms=(50, 80, 50, 80),
+               legs=(25, 40, 25, 40), swivel=(max(0, r), max(0, -r)), ankles=(-20 * max(0, r), -20 * max(0, -r))),
+            _d(28 + r * 4, rot=r * 6, hip=r * 3, arms=(50, 80, 50, 80),
+               legs=(25, 40, 25, 40), swivel=(max(0, -r), max(0, r)), ankles=(-20 * max(0, -r), -20 * max(0, r))),
+            "none")
+
+
+def _fig_frog_jump(p):
+    """Lindy aerial: she leaps forward over his braced arms, knees tucked."""
+    arc = math.sin(min(p, 0.999) * math.pi)
+    return (_d(-16, y=-6 * arc, torso=25 * arc, arms=(100, 20, 100, 20), legs=(30, 40, 30, 40)),
+            _d(4 + 16 * p, y=64 * arc, torso=-10, arms=(130, 30, 130, 30),
+               legs=(80 * arc, 110 * arc, 80 * arc, 110 * arc), ankles=(40, 40)), "lift")
+
+
+# --- Salsa ------------------------------------------------------------------
+def _fig_salsa_basic(p):
+    """Salsa basic on 1: rock forward and back, hips moving over each step."""
+    r = _sw(p, 2)
+    return (_d(-24, hip=4 * r, torso=-4 * r, arms=(60, 80, 70, 40), legs=(18 * r, 10, -10 * r, 5)),
+            _d(24, hip=-4 * r, torso=4 * r, arms=(70, 40, 60, 80), legs=(-10 * r, 5, 18 * r, 10)), "both")
+
+
+def _fig_cross_body_lead(p):
+    """Cross-body lead: he turns his torso and opens a lane; she walks across it."""
+    t = _ease(p)
+    return (_d(-26 + 10 * math.sin(t * math.pi), torso=-30 * math.sin(t * math.pi), spin=1 - 1.6 * math.sin(t * math.pi) * 0.5,
+               arms=(40, 60, 90, 30), legs=_step(p, 12)),
+            _d(30 - 58 * t, spin=math.cos(t * math.pi), arms=(90, 30, 40, 60), legs=_step(p + 0.5, 18)), "inner")
+
+
+def _fig_inside_turn(p):
+    """Inside turn: one and a half turns toward the lead, led by his wrist."""
+    t = _ease(p)
+    return (_d(-24, torso=-10 * math.sin(t * math.pi), arms=(30, 40, 160, 15), wrists=(0, -40)),
+            _d(16, spin=math.cos(t * 3 * math.pi), torso=4, arms=(160, 15, 60, 40), legs=(5, 0, 25, 45),
+               ankles=(0, 30)), "lift_hand")
+
+
+def _fig_copa(p):
+    """Copa: she is sent out, checks, turns back in under his arm."""
+    t = _ease(p)
+    out = math.sin(t * math.pi)
+    return (_d(-26, torso=-8 * out, arms=(40, 50, 90 + 50 * (t > 0.6), 30)),
+            _d(20 + 30 * out, spin=math.cos(max(0.0, t - 0.5) * 2 * math.pi), torso=12 * out,
+               arms=(100, 20, 40, 60), legs=_step(p, 10)), "inner")
+
+
+def _fig_cuban_motion(p):
+    """Cuban motion: hips swing over each straightening knee, chest stays quiet."""
+    r = _sw(p, 2)
+    return (_d(-26, hip=6 * r, torso=-5 * r, arms=(40, 90, 40, 90), legs=(6 * r, 18 * max(0, -r), -6 * r, 18 * max(0, r))),
+            _d(26, hip=7 * r, torso=-6 * r, arms=(40, 90, 40, 90), wrists=(20, 20),
+               legs=(6 * r, 18 * max(0, -r), -6 * r, 18 * max(0, r))), "none")
+
+
+# --- Ballroom ---------------------------------------------------------------
+def _fig_promenade_sway(p):
+    """Promenade sway: they open to a V and stretch up, heads turned the same way."""
+    s = math.sin(min(p, 0.999) * math.pi)
+    return (_d(-20, rot=-6 * s, torso=-10 * s, head=-14 * s, arms=(90, 40, 110, 20), legs=(5, 0, 30 * s, 10)),
+            _d(20, rot=6 * s, torso=10 * s, head=-14 * s, arms=(110, 20, 90, 40), legs=(30 * s, 10, 5, 0)), "both")
+
+
+def _fig_oversway(p):
+    """Oversway: he softens his knee and sways; she arches back, head closed."""
+    s = math.sin(min(p, 0.999) * math.pi)
+    return (_d(-14, torso=-14 * s, arms=(70, 60, 100, 30), legs=(30 * s, 40 * s, 5, 0), head=8 * s),
+            _d(14, rot=10 * s, torso=40 * s, head=30 * s, arms=(100, 30, 150, 20), legs=(5, 0, 40 * s, 10),
+               ankles=(0, 50 * s)), "both")
+
+
+def _fig_fallaway(p):
+    """Fallaway: both step back into a tight V, turning away from each other."""
+    s = math.sin(min(p, 0.999) * math.pi)
+    return (_d(-22 - 6 * s, spin=1 - 0.5 * s, torso=10 * s, arms=(60, 50, 100, 30), legs=(-20 * s, 20, 5, 0)),
+            _d(22 + 6 * s, spin=1 - 0.5 * s, torso=-10 * s, arms=(100, 30, 60, 50), legs=(5, 0, -20 * s, 20)), "inner")
+
+
+def _fig_hip_twist(p):
+    """Rumba hip twist: she swivels on the spot as he guides her hips."""
+    r = _sw(p, 2)
+    return (_d(-22, torso=-4, arms=(60, 60, 80, 30)),
+            _d(20, spin=math.cos(p * 2 * math.pi) * 0.6 + 0.4 * (1 if r > 0 else -1), hip=6 * r,
+               arms=(80, 30, 120, 30), wrists=(0, 30), legs=(10, 10, 10, 10), swivel=(max(0, r), max(0, r))), "inner")
+
+
+# --- Tango ------------------------------------------------------------------
+def _fig_tango_corte(p):
+    """Corte: a deep lunge and a sharp head snap, then hold."""
+    s = math.sin(min(p * 1.6, 1.0) * math.pi * 0.5)
+    return (_d(-18, y=-10 * s, torso=-12 * s, head=-20 * s, arms=(70, 60, 100, 20), legs=(45 * s, 60 * s, -20 * s, 0)),
+            _d(16, y=-8 * s, torso=20 * s, head=-25 * s, arms=(100, 20, 70, 60), legs=(-20 * s, 0, 40 * s, 30 * s),
+               ankles=(40 * s, 0)), "both")
+
+
+def _fig_ocho(p):
+    """Ocho: she pivots on one foot, tracing a figure eight with the free one."""
+    r = _sw(p, 1)
+    return (_d(-22, torso=-6, arms=(70, 60, 90, 30)),
+            _d(20, spin=0.6 * r + 0.4 * math.copysign(1, r), hip=5 * r, arms=(90, 30, 70, 60),
+               legs=(10, 0, 30 * abs(r), 10), swivel=(abs(r), 0), ankles=(0, 50)), "both")
+
+
+def _fig_gancho(p):
+    """Gancho: she hooks her leg around his, a quick flick from the knee."""
+    hook = math.sin(min(p, 0.999) * math.pi)
+    return (_d(-14, torso=-6, arms=(70, 60, 90, 30), legs=(15, 20, 5, 0)),
+            _d(12, torso=-10 * hook, arms=(90, 30, 70, 60), legs=(5, 0, -40 * hook, 120 * hook),
+               ankles=(0, 60 * hook)), "both")
+
+
+# --- Street / social ----------------------------------------------------------
+def _fig_moonwalk(p):
+    """Moonwalk: gliding backwards, one heel up while the flat foot slides."""
+    a = _sw(p, 2)
+    glide = -_sw(p, 1) * 18
+    return (_d(-28 + glide, spin=-0.6, torso=-4, arms=(25, 70, 25, 70),
+               ankles=(60 * max(0, a), 60 * max(0, -a)), legs=(10 * max(0, a), 20 * max(0, a), 10 * max(0, -a), 20 * max(0, -a))),
+            _d(28 + glide, spin=-0.6, torso=-4, arms=(25, 70, 25, 70),
+               ankles=(60 * max(0, -a), 60 * max(0, a)), legs=(10 * max(0, -a), 20 * max(0, -a), 10 * max(0, a), 20 * max(0, a))),
+            "none")
+
+
+def _fig_running_man(p):
+    """Running man: a knee comes up as the other foot slides back."""
+    a = _sw(p, 2)
+    return (_d(-28, y=2 * abs(a), torso=-6, arms=(60 - 40 * a, 90, 60 + 40 * a, 90),
+               legs=(70 * max(0, a), 90 * max(0, a), 70 * max(0, -a), 90 * max(0, -a))),
+            _d(28, y=2 * abs(a), torso=-6, arms=(60 + 40 * a, 90, 60 - 40 * a, 90),
+               legs=(70 * max(0, -a), 90 * max(0, -a), 70 * max(0, a), 90 * max(0, a))), "none")
+
+
+def _fig_cabbage_patch(p):
+    """Cabbage patch: fists circle in front of the chest as the hips rock."""
+    c, s2 = math.cos(p * 4 * math.pi), math.sin(p * 4 * math.pi)
+    return (_d(-28, hip=4 * s2, torso=-3 * s2, arms=(70 + 20 * c, 100 + 20 * s2, 70 - 20 * c, 100 - 20 * s2),
+               legs=(15, 20, 15, 20)),
+            _d(28, hip=4 * s2, torso=-3 * s2, arms=(70 - 20 * c, 100 - 20 * s2, 70 + 20 * c, 100 + 20 * s2),
+               legs=(15, 20, 15, 20)), "none")
+
+
+def _fig_robot(p):
+    """The robot: stiff, angular, one joint at a time on the beat."""
+    q = int(p * 4) % 4
+    arms = [(90, 90, 20, 0), (90, 0, 90, 90), (20, 90, 90, 0), (90, 90, 90, 90)][q]
+    wr = [(90, 0), (0, -90), (-90, 0), (90, 90)][q]
+    hd = [0, 15, 0, -15][q]
+    return (_d(-28, head=hd, arms=arms, wrists=wr), _d(28, head=-hd, arms=arms[2:] + arms[:2], wrists=wr[::-1]), "none")
+
+
+def _fig_shoulder_shimmy(p):
+    """Shimmy: shoulders alternate up and down fast, everything else still."""
+    s = _sw(p, 8)
+    return (_d(-26, shoulders=(4 * s, -4 * s), torso=2 * s, arms=(50, 80, 50, 80)),
+            _d(26, shoulders=(-4 * s, 4 * s), torso=-2 * s, arms=(50, 80, 50, 80)), "none")
+
+
 FIGURES = {
     "hold": _fig_hold, "sway": _fig_sway, "bow": _fig_bow, "side_step": _fig_side_step,
     "cha_cha": _fig_cha_cha, "promenade": _fig_promenade, "underarm_turn": _fig_underarm_turn,
@@ -495,6 +758,15 @@ FIGURES = {
     "head_on_shoulder": _fig_head_on_shoulder, "lazy_stretch": _fig_lazy_stretch, "yawn": _fig_yawn,
 }
 
+FIGURES.update({
+    "swingout": _fig_swingout, "tuck_turn": _fig_tuck_turn, "sugar_push": _fig_sugar_push,
+    "charleston": _fig_charleston, "tandem_charleston": _fig_tandem_charleston,
+    "kick_ball_change": _fig_kick_ball_change, "frog_jump": _fig_frog_jump,
+    "salsa_basic": _fig_salsa_basic, "cross_body_lead": _fig_cross_body_lead,
+    "inside_turn": _fig_inside_turn, "copa": _fig_copa, "promenade_sway": _fig_promenade_sway,
+    "oversway": _fig_oversway, "tango_corte": _fig_tango_corte, "moonwalk": _fig_moonwalk,
+})
+
 # Their own moves: decoration the grammar may add around a signature, sorted
 # by mood. They never stand in for a Hermes action.
 DUET_MOVES: dict[str, tuple] = {
@@ -506,6 +778,13 @@ DUET_MOVES: dict[str, tuple] = {
     "back_to_back": ("calm", _fig_back_to_back),
     "box_step": ("focused", _fig_box_step), "tap_count": ("focused", _fig_tap_count),
     "mirror_hands": ("focused", _fig_mirror_hands), "frame_hold": ("focused", _fig_frame_hold),
+    "suzie_q": ("bright", _fig_suzie_q), "shorty_george": ("bright", _fig_shorty_george),
+    "running_man": ("bright", _fig_running_man), "cabbage_patch": ("bright", _fig_cabbage_patch),
+    "shoulder_shimmy": ("bright", _fig_shoulder_shimmy),
+    "apple_jacks": ("calm", _fig_apple_jacks), "fallaway": ("calm", _fig_fallaway),
+    "ocho": ("calm", _fig_ocho),
+    "cuban_motion": ("focused", _fig_cuban_motion), "hip_twist": ("focused", _fig_hip_twist),
+    "robot": ("focused", _fig_robot), "gancho": ("focused", _fig_gancho),
     "fidget": ("uneasy", _fig_fidget), "glance_away": ("uneasy", _fig_glance_away),
     "rub_neck": ("uneasy", _fig_rub_neck), "steady": ("uneasy", _fig_steady),
 }
@@ -558,6 +837,23 @@ FIGURE_FOR_POSE: dict[str, str] = {
     # rest beats
     "head_drop": "head_on_shoulder", "stretch_lazy": "lazy_stretch", "yawn": "yawn",
 }
+# Real-dance signatures: each still means exactly one thing.
+FIGURE_FOR_POSE.update({
+    "work": "sugar_push",                 # steady give-and-take: a tool is working
+    "lean_work": "salsa_basic",           # still working: back to the basic
+    "dash_to_workspace": "swingout", "sprint_to_workspace": "swingout",   # launching a step
+    "memory_vault": "inside_turn", "design_draft": "cross_body_lead",
+    "read": "promenade_sway", "close_workstation": "tuck_turn",
+    "celebrate": "charleston",            # a step finished
+    "excited": "tandem_charleston",       # a helper finished
+    "hop": "kick_ball_change",            # you approved: off we go
+    "return_home": "moonwalk",            # gliding back home
+    "double_jump": "frog_jump",           # task complete, the second big air
+    "absorb": "copa", "retry": "salsa_basic", "attention": "tango_corte",
+    "recover": "oversway",                # recovering: she leans back, held
+    "audio_tune": "side_step",
+    "fly_up": "spin_out",                 # helper finished: the lift is kept for task complete
+})
 FIGURE_FOR_POSE.update({name: name for name in DUET_MOVES})
 
 # Moods for colour (the floor spotlight) and the grammar's mood buckets.
@@ -568,6 +864,7 @@ _FIGURE_MOOD = {
     "stumble": "fail", "reset": "fail", "look_check": "fail",
     "sit_out": "rest", "sway": "rest",
     "flail": "fail", "head_scratch": "fail", "head_shake": "fail",
+    "frog_jump": "joy", "charleston": "joy", "tandem_charleston": "joy",
     "jive_bounce": "joy", "aerial": "joy", "strike_pose": "joy", "joy_spin": "joy",
     "head_on_shoulder": "rest", "lazy_stretch": "rest", "yawn": "rest",
     "listen_lean": "curious", "glance_back": "curious", "notice_pop": "curious", "peek": "curious",
@@ -613,22 +910,12 @@ def _palette(name: str | None) -> dict[str, str]:
 # Drawing: each dancer is drawn in local coordinates (hip at 0,0, y up is
 # negative) and mapped through spin (x-scale), tilt and placement.
 # ---------------------------------------------------------------------------
-class _Body:
-    """Maps a dancer's local drawing through spin, tilt and placement.
+class _Draw:
+    """Stroke helpers shared by a dancer's body and its jointed sub-frames.
 
     Every stroke can carry an ``edge``: a darker outline drawn first, so each
     part of the body reads cleanly against any desktop.
     """
-
-    def __init__(self, canvas, hx, hy, spin, rot, edge):
-        self.c, self.hx, self.hy, self.edge = canvas, hx, hy, edge
-        self.sx = spin if abs(spin) > 0.18 else math.copysign(0.18, spin or 1)
-        r = math.radians(rot)
-        self.cos, self.sin = math.cos(r), math.sin(r)
-
-    def pt(self, x, y):
-        x *= self.sx
-        return (self.hx + x * self.cos - y * self.sin, self.hy + x * self.sin + y * self.cos)
 
     @staticmethod
     def _w(kw):
@@ -661,6 +948,36 @@ class _Body:
         self.c.create_oval(cx - rx, cy - r, cx + rx, cy + r, **kw)
 
 
+class _Body(_Draw):
+    """The whole dancer: spin (x-scale), whole-body tilt and placement."""
+
+    def __init__(self, canvas, hx, hy, spin, rot, edge):
+        self.c, self.hx, self.hy, self.edge = canvas, hx, hy, edge
+        self.sx = spin if abs(spin) > 0.18 else math.copysign(0.18, spin or 1)
+        r = math.radians(rot)
+        self.cos, self.sin = math.cos(r), math.sin(r)
+
+    def pt(self, x, y):
+        x *= self.sx
+        return (self.hx + x * self.cos - y * self.sin, self.hy + x * self.sin + y * self.cos)
+
+
+class _Joint(_Draw):
+    """A sub-frame that bends at a pivot: the spine over the hips, the neck."""
+
+    def __init__(self, parent, pivot, angle, shift=(0.0, 0.0)):
+        self.parent, self.c, self.edge, self.sx = parent, parent.c, parent.edge, parent.sx
+        self.px, self.py = pivot
+        self.dx, self.dy = shift
+        r = math.radians(angle)
+        self.cos, self.sin = math.cos(r), math.sin(r)
+
+    def pt(self, x, y):
+        lx, ly = x - self.px, y - self.py
+        return self.parent.pt(self.px + self.dx + lx * self.cos - ly * self.sin,
+                              self.py + self.dy + lx * self.sin + ly * self.cos)
+
+
 def _limb_pts(x, y, ang1, ang2, l1, l2, side):
     a1 = math.radians(ang1)
     ex, ey = x + side * math.sin(a1) * l1, y + math.cos(a1) * l1
@@ -675,111 +992,145 @@ def _mix(a: str, b: str, t: float) -> str:
     return "#" + "".join(f"{round(x + (y - x) * t):02x}" for x, y in zip(ca, cb))
 
 
+def _foot(b, ankle_pt, side, ankle_deg, swivel, shoe, strap=None):
+    """A foot from the ankle: toe points (+) or flexes (-), swivels in (+) or out (-)."""
+    ax, ay = ankle_pt
+    a = math.radians(max(-60.0, min(80.0, ankle_deg)))
+    out = side * (1.0 - 2.0 * max(0.0, min(1.0, swivel))) if swivel > 0 else side * (1.0 + abs(swivel) * 0.4)
+    length = 9.0 * (1.0 - 0.45 * abs(math.sin(a)))       # a pointed foot looks shorter from the front
+    toe = (ax + out * length * math.cos(a), ay + 3 + length * math.sin(a))
+    heel = (ax - out * 2.5, ay + 3)
+    b.line([heel, toe], edge=True, width=6, fill=shoe)
+    b.line([(heel[0], heel[1] + 2.5), (toe[0], toe[1] + 2.5)], width=1, fill=_mix(shoe, "#000000", 0.5))  # sole
+    b.dot(toe[0] - out * 2, toe[1] - 1.5, 1.2, fill=_mix(shoe, "#ffffff", 0.55), outline="")
+    if strap:
+        b.line([(ax - 2.5, ay + 1.5), (ax + 2.5, ay + 1.5)], width=1, fill=strap)
+
+
+def _hand(b, wrist, forearm_from, side, flick, skin, skin_shade):
+    """Palm at the wrist plus fingers that follow the forearm, bent by the wrist."""
+    hx, hy = wrist
+    ex, ey = forearm_from
+    ang = math.atan2(hy - ey, hx - ex) + math.radians(side * flick)
+    fx, fy = hx + math.cos(ang) * 4.2, hy + math.sin(ang) * 4.2
+    b.line([(hx, hy), (fx, fy)], edge=True, width=4, fill=skin)          # fingers
+    b.dot(hx, hy, 3.3, edge=True, fill=skin, outline="")                 # palm
+    tx, ty = hx + math.cos(ang - side * 1.2) * 3.2, hy + math.sin(ang - side * 1.2) * 3.2
+    b.dot(tx, ty, 1.3, fill=skin_shade, outline="")                      # thumb
+
+
 def _draw_dancer(canvas, who: str, P, hx, hy, st, eyes: str):
     lead = who == "lead"
     skin = P["lead_skin"] if lead else P["follow_skin"]
     edge = P.get("edge") or _mix(skin, "#000000", 0.62)
-    b = _Body(canvas, hx, hy, st["spin"], st["rot"], edge)
+    body = _Body(canvas, hx, hy, st["spin"], st["rot"], edge)
     back = st["spin"] < 0
     skin_shade = _mix(skin, "#000000", 0.22)
+    hip = st.get("hip", 0.0)
+    ankles, swivel = st.get("ankles", (0, 0)), st.get("swivel", (0, 0))
+    wrists, shoulders = st.get("wrists", (0, 0)), st.get("shoulders", (0, 0))
     hands = {}
 
-    # ---- legs + shoes -------------------------------------------------------
-    for side, (hip, knee) in ((-1, st["legs"][0:2]), (1, st["legs"][2:4])):
-        a, k, f = _limb_pts(side * 6, 0, hip, knee, 22, 22, side)
+    # ---- legs hang from the (shifted) hips; feet from the ankles ---------------
+    for i, (side, (hip_a, knee)) in enumerate(((-1, st["legs"][0:2]), (1, st["legs"][2:4]))):
+        a, k, f = _limb_pts(hip + side * 6, 0, hip_a, knee, 22, 22, side)
         if lead:
-            b.line([a, k, f], edge=True, width=10, fill=P["trousers"])
-            b.line([((a[0] + k[0]) / 2, (a[1] + k[1]) / 2), k], width=1,
-                   fill=_mix(P["trousers"], "#ffffff", 0.25))           # trouser crease
+            body.line([a, k, f], edge=True, width=10, fill=P["trousers"])
+            body.line([((a[0] + k[0]) / 2, (a[1] + k[1]) / 2), k], width=1,
+                      fill=_mix(P["trousers"], "#ffffff", 0.25))           # crease
         else:
-            b.line([a, k, f], edge=True, width=7, fill=skin)
-            b.line([(k[0] - 1, k[1]), (f[0] - 1, f[1])], width=1.5, fill=skin_shade)   # calf shade
-        shoe = P["shoes"] if lead else P["follow_shoes"]
-        b.dot(f[0] + side * 3, f[1] + 1, 5, edge=True, fill=shoe, outline="")
-        b.line([(f[0] + side * 3 - 5, f[1] + 5), (f[0] + side * 3 + 5, f[1] + 5)], width=1.5,
-               fill=_mix(shoe, "#000000", 0.5))                         # sole
-        b.dot(f[0] + side * 3 - 1.5, f[1] - 1.5, 1.3, fill=_mix(shoe, "#ffffff", 0.55), outline="")
-        if not lead:
-            b.line([(f[0] - 3, f[1] - 2), (f[0] + 3, f[1] - 2)], width=1.2, fill=P["earring"])  # strap
+            body.line([a, k, f], edge=True, width=7, fill=skin)
+            body.line([(k[0] - 1, k[1]), (f[0] - 1, f[1])], width=1.5, fill=skin_shade)
+            body.dot(k[0], k[1], 2.2, fill=skin_shade, outline="")             # knee
+        _foot(body, f, side, ankles[i], swivel[i], P["shoes"] if lead else P["follow_shoes"],
+              None if lead else P["earring"])
 
-    # ---- torso ----------------------------------------------------------------
+    # ---- spine: chest bends over the hips ------------------------------------
+    chest = _Joint(body, (hip, 0), st.get("torso", 0.0), (0, 0))
     if lead:
-        b.poly([(-13, -46), (13, -46), (11, 2), (-11, 2)], edge=True, fill=P["shirt"])
-        b.poly([(-13, -46), (-3, -46), (-9, -38)], fill=P["shirt_hi"], outline="")      # collar
-        b.poly([(13, -46), (3, -46), (9, -38)], fill=P["shirt_hi"], outline="")
-        b.line([(0, -40), (0, 2)], width=1, fill=_mix(P["shirt"], "#000000", 0.25))     # placket
-        for yy in (-34, -24, -14, -4):
-            b.dot(0, yy, 1.2, fill="#ffffff", outline="")
-        b.poly([(4, -32), (10, -32), (10, -25), (4, -25)], fill=P["shirt_hi"],
-               outline=_mix(P["shirt"], "#000000", 0.3))                                # pocket
-        b.line([(-7, -45), (0, -33), (7, -45)], width=2, fill=P["chain"])               # chain
-        b.dot(0, -32, 2, fill=P["chain"], outline=_mix(P["chain"], "#000000", 0.4))     # pendant
-        b.line([(-11, 0), (11, 0)], width=2.5, fill=_mix(P["trousers"], "#000000", 0.3))  # belt
-        b.dot(0, 0, 1.6, fill=P["chain"], outline="")
+        body.poly([(hip - 11, -8), (hip + 11, -8), (hip + 11, 2), (hip - 11, 2)], edge=True,
+                  fill=P["shirt"])                                         # shirt tail at the hips
+        chest.poly([(-13, -46), (13, -46), (11, -4), (-11, -4)], edge=True, fill=P["shirt"])
+        chest.poly([(-13, -46), (-3, -46), (-9, -38)], fill=P["shirt_hi"], outline="")    # collar
+        chest.poly([(13, -46), (3, -46), (9, -38)], fill=P["shirt_hi"], outline="")
+        chest.line([(0, -40), (0, -4)], width=1, fill=_mix(P["shirt"], "#000000", 0.25))
+        for yy in (-34, -24, -14):
+            chest.dot(0, yy, 1.2, fill="#ffffff", outline="")
+        chest.poly([(4, -32), (10, -32), (10, -25), (4, -25)], fill=P["shirt_hi"],
+                   outline=_mix(P["shirt"], "#000000", 0.3))               # pocket
+        chest.line([(-7, -45), (0, -33), (7, -45)], width=2, fill=P["chain"])
+        chest.dot(0, -32, 2, fill=P["chain"], outline=_mix(P["chain"], "#000000", 0.4))
+        body.line([(hip - 11, 0), (hip + 11, 0)], width=2.5, fill=_mix(P["trousers"], "#000000", 0.3))
+        body.dot(hip, 0, 1.6, fill=P["chain"], outline="")
     else:
-        b.poly([(-10, -46), (10, -46), (20, 12), (-20, 12)], edge=True, fill=P["dress"])
-        b.line([(-6, -46), (0, -41), (6, -46)], width=1.5, fill=_mix(P["dress"], "#000000", 0.18))  # neckline
-        b.line([(-12, -22), (12, -22)], width=3, fill=P["flowers"])                     # waist sash
-        b.dot(6, -22, 2.4, fill=P["flowers"], outline="")
-        for i in range(6):                                                              # scalloped hem
-            x0 = -20 + i * 6.7
-            b.dot(x0 + 3.3, 12, 3.3, fill=P["dress"], outline=_mix(P["dress"], "#000000", 0.2))
-        for fx, fy in ((-9, -32), (7, -12), (-12, 3), (12, 1), (3, -38), (-3, -8)):     # flowers
+        body.poly([(hip - 13, -14), (hip + 13, -14), (hip + 20, 12), (hip - 20, 12)], edge=True,
+                  fill=P["dress"])                                         # skirt swings with the hips
+        for i in range(6):
+            body.dot(hip - 16.7 + i * 6.7, 12, 3.3, fill=P["dress"], outline=_mix(P["dress"], "#000000", 0.2))
+        for fx, fy in ((-12, 3), (12, 1), (-3, -6)):
             for k in range(5):
                 ang = k / 5 * 2 * math.pi
-                b.dot(fx + math.cos(ang) * 2.7, fy + math.sin(ang) * 2.7, 2.1, fill=P["flowers"], outline="")
-            b.dot(fx, fy, 1.2, fill=P["earring"], outline="")
+                body.dot(hip + fx + math.cos(ang) * 2.7, fy + math.sin(ang) * 2.7, 2.1, fill=P["flowers"], outline="")
+            body.dot(hip + fx, fy, 1.2, fill=P["earring"], outline="")
+        chest.poly([(-10, -46), (10, -46), (13, -14), (-13, -14)], edge=True, fill=P["dress"])
+        chest.line([(-6, -46), (0, -41), (6, -46)], width=1.5, fill=_mix(P["dress"], "#000000", 0.18))
+        chest.line([(-12, -22), (12, -22)], width=3, fill=P["flowers"])         # waist sash
+        chest.dot(6, -22, 2.4, fill=P["flowers"], outline="")
+        for fx, fy in ((-7, -32), (6, -30), (3, -38)):
+            for k in range(5):
+                ang = k / 5 * 2 * math.pi
+                chest.dot(fx + math.cos(ang) * 2.7, fy + math.sin(ang) * 2.7, 2.1, fill=P["flowers"], outline="")
+            chest.dot(fx, fy, 1.2, fill=P["earring"], outline="")
 
-    # ---- arms + hands ------------------------------------------------------------
-    sh_y = -42
-    for side, (shd, elb) in ((-1, st["arms"][0:2]), (1, st["arms"][2:4])):
+    # ---- arms ride on the spine; shoulders can lift; hands flick at the wrist --
+    for i, (side, (shd, elb)) in enumerate(((-1, st["arms"][0:2]), (1, st["arms"][2:4]))):
+        sh_y = -42 - shoulders[i]
         a, e, h = _limb_pts(side * 12, sh_y, 180 - shd if shd > 90 else shd, elb, 17, 16, side)
         if shd > 90:   # raised: mirror the vertical component
             a, e, h = (a, (e[0], 2 * sh_y - e[1]), (h[0], 2 * sh_y - h[1]))
         sleeve = P["shirt"] if lead else (P["sleeve"] if side > 0 else skin)
-        b.line([a, e], edge=True, width=7, fill=sleeve)
-        b.line([e, h], edge=True, width=6, fill=skin)
-        if lead:                                                    # rolled cuff
-            b.dot(e[0], e[1], 3.6, fill=P["shirt_hi"], outline=_mix(P["shirt"], "#000000", 0.3))
-            if side < 0:                                            # gold watch
+        chest.line([a, e], edge=True, width=7, fill=sleeve)
+        chest.line([e, h], edge=True, width=6, fill=skin)
+        if lead:
+            chest.dot(e[0], e[1], 3.6, fill=P["shirt_hi"], outline=_mix(P["shirt"], "#000000", 0.3))
+            if side < 0:
                 wx, wy = e[0] + (h[0] - e[0]) * 0.72, e[1] + (h[1] - e[1]) * 0.72
-                b.dot(wx, wy, 2.2, fill=P["chain"], outline=_mix(P["chain"], "#000000", 0.4))
-        b.dot(h[0], h[1], 3.4, edge=True, fill=skin, outline="")
-        tx, ty = h[0] + (h[0] - e[0]) * 0.18, h[1] + (h[1] - e[1]) * 0.18   # thumb
-        b.dot(tx + side * 1.5, ty, 1.4, fill=skin_shade, outline="")
-        hands["left" if side < 0 else "right"] = b.pt(*h)
+                chest.dot(wx, wy, 2.2, fill=P["chain"], outline=_mix(P["chain"], "#000000", 0.4))
+        _hand(chest, h, e, side, wrists[i], skin, skin_shade)
+        hands["left" if side < 0 else "right"] = chest.pt(*h)
 
-    # ---- head --------------------------------------------------------------------
+    # ---- neck + head ------------------------------------------------------------
     head_y = -60
-    b.line([(0, -46), (0, head_y + 10)], edge=True, width=6, fill=skin)
+    chest.line([(0, -46), (0, head_y + 10)], edge=True, width=6, fill=skin)
+    hb = _Joint(chest, (0, -50), st.get("head", 0.0))
     hair = P["lead_hair"] if lead else P["follow_hair"]
     if lead:                                                    # locs with gold cuffs
         for k in range(-3, 4):
             end = (k * 4.0, head_y + 18 + abs(k))
-            b.line([(k * 3.2, head_y - 10), end], edge=True, width=3, fill=hair)
+            hb.line([(k * 3.2, head_y - 10), end], edge=True, width=3, fill=hair)
             if k % 2 == 0:
-                b.dot(end[0] * 0.85, end[1] - 6, 1.4, fill=P["chain"], outline="")
-    b.dot(0, head_y, 12.5, edge=True, fill=skin, outline="", squash=True)
+                hb.dot(end[0] * 0.85, end[1] - 6, 1.4, fill=P["chain"], outline="")
+    hb.dot(0, head_y, 12.5, edge=True, fill=skin, outline="", squash=True)
     if back:   # turned away: we see the back of the hair
-        b.dot(0, head_y - 1, 12.6, edge=True, fill=hair, outline="", squash=True)
+        hb.dot(0, head_y - 1, 12.6, edge=True, fill=hair, outline="", squash=True)
         if lead:
             for k in range(-3, 4):
-                b.line([(k * 3.4, head_y - 8), (k * 4.2, head_y + 20 + abs(k))], width=3, fill=hair)
+                hb.line([(k * 3.4, head_y - 8), (k * 4.2, head_y + 20 + abs(k))], width=3, fill=hair)
         else:
-            b.line([(-6, head_y + 6), (0, head_y + 9), (6, head_y + 6)], width=1.5,
-                   fill=_mix(hair, "#000000", 0.25))               # nape line
+            hb.line([(-6, head_y + 6), (0, head_y + 9), (6, head_y + 6)], width=1.5,
+                    fill=_mix(hair, "#000000", 0.25))
         return hands
 
     if lead:
-        b.dot(0, head_y - 7, 11, fill=hair, outline="", squash=True)        # crown
-        b.dot(0, head_y - 2, 11.5, fill=skin, outline="", squash=True)
+        hb.dot(0, head_y - 7, 11, fill=hair, outline="", squash=True)
+        hb.dot(0, head_y - 2, 11.5, fill=skin, outline="", squash=True)
     else:
-        b.dot(0, head_y - 6, 12, fill=hair, outline="", squash=True)        # short crop
-        b.dot(0, head_y - 1, 11, fill=skin, outline="", squash=True)
-        for k in (-6, -2, 2, 6):                                            # fringe strands
-            b.line([(k, head_y - 11), (k + 1.5, head_y - 7)], width=1.4, fill=_mix(hair, "#000000", 0.18))
-    for side in (-1, 1):                                                    # ears
-        b.dot(side * 12, head_y, 2.4, fill=skin_shade, outline="", squash=True)
+        hb.dot(0, head_y - 6, 12, fill=hair, outline="", squash=True)
+        hb.dot(0, head_y - 1, 11, fill=skin, outline="", squash=True)
+        for k in (-6, -2, 2, 6):
+            hb.line([(k, head_y - 11), (k + 1.5, head_y - 7)], width=1.4, fill=_mix(hair, "#000000", 0.18))
+    for side in (-1, 1):
+        hb.dot(side * 12, head_y, 2.4, fill=skin_shade, outline="", squash=True)
 
     gx = {"left": -2.5, "right": 2.5}.get(eyes, 0.0)
     gy = {"down": 1.5, "up": -1.5}.get(eyes, 0.0)
@@ -787,30 +1138,30 @@ def _draw_dancer(canvas, who: str, P, hx, hy, st, eyes: str):
     brow = _mix(hair, "#000000", 0.2) if not lead else _mix(P["beard"], "#000000", 0.35)
     lift = -1.2 if eyes == "wide" else (0.8 if eyes == "down" else 0.0)
     for side in (-1, 1):
-        b.line([(side * 7.5, head_y - 6 + lift), (side * 2.5, head_y - 7 + lift)], width=1.5, fill=brow)
-        b.dot(side * 5 + gx * 0.3, head_y - 1 + gy * 0.3, 3.9, fill="#ffffff", outline=frame, width=2)
+        hb.line([(side * 7.5, head_y - 6 + lift), (side * 2.5, head_y - 7 + lift)], width=1.5, fill=brow)
+        hb.dot(side * 5 + gx * 0.3, head_y - 1 + gy * 0.3, 3.9, fill="#ffffff", outline=frame, width=2)
         if eyes == "closed":
-            b.line([(side * 5 - 2, head_y - 1), (side * 5 + 2, head_y - 1)], width=1.2, fill="#2b1a10")
+            hb.line([(side * 5 - 2, head_y - 1), (side * 5 + 2, head_y - 1)], width=1.2, fill="#2b1a10")
         else:
             r = 1.6 if eyes != "wide" else 2.2
-            b.dot(side * 5 + gx, head_y - 1 + gy, r, fill="#2b1a10", outline="")
-            b.dot(side * 5 + gx - 0.6, head_y - 1.7 + gy, 0.5, fill="#ffffff", outline="")  # catchlight
-        if not lead:                                                        # lashes + blush
-            b.line([(side * 7.6, head_y - 3), (side * 9, head_y - 4.5)], width=1, fill="#2b1a10")
-            b.dot(side * 7.5, head_y + 4, 2, fill="#f4a3a3", outline="")
-    b.line([(-1.5, head_y - 1), (1.5, head_y - 1)], width=1.2, fill=frame)  # bridge
-    b.line([(0, head_y + 1), (-1, head_y + 4), (0.8, head_y + 4.5)], width=1.2, fill=skin_shade)  # nose
-    if lead:   # beard with texture, moustache, smile
-        b.poly([(-10, head_y + 3), (10, head_y + 3), (6, head_y + 14), (-6, head_y + 14)],
-               fill=P["beard"], outline=_mix(P["beard"], "#000000", 0.3))
+            hb.dot(side * 5 + gx, head_y - 1 + gy, r, fill="#2b1a10", outline="")
+            hb.dot(side * 5 + gx - 0.6, head_y - 1.7 + gy, 0.5, fill="#ffffff", outline="")
+        if not lead:
+            hb.line([(side * 7.6, head_y - 3), (side * 9, head_y - 4.5)], width=1, fill="#2b1a10")
+            hb.dot(side * 7.5, head_y + 4, 2, fill="#f4a3a3", outline="")
+    hb.line([(-1.5, head_y - 1), (1.5, head_y - 1)], width=1.2, fill=frame)
+    hb.line([(0, head_y + 1), (-1, head_y + 4), (0.8, head_y + 4.5)], width=1.2, fill=skin_shade)
+    if lead:
+        hb.poly([(-10, head_y + 3), (10, head_y + 3), (6, head_y + 14), (-6, head_y + 14)],
+                fill=P["beard"], outline=_mix(P["beard"], "#000000", 0.3))
         for k in (-5, -1.5, 2, 5.5):
-            b.line([(k, head_y + 8), (k * 0.85, head_y + 12)], width=1, fill=_mix(P["beard"], "#000000", 0.25))
-        b.line([(-5, head_y + 4.5), (0, head_y + 3.5), (5, head_y + 4.5)], width=2.2, fill=P["beard"])
-        b.line([(-3.5, head_y + 6.5), (0, head_y + 8), (3.5, head_y + 6.5)], width=1.6, fill="#5a2e1a")
+            hb.line([(k, head_y + 8), (k * 0.85, head_y + 12)], width=1, fill=_mix(P["beard"], "#000000", 0.25))
+        hb.line([(-5, head_y + 4.5), (0, head_y + 3.5), (5, head_y + 4.5)], width=2.2, fill=P["beard"])
+        hb.line([(-3.5, head_y + 6.5), (0, head_y + 8), (3.5, head_y + 6.5)], width=1.6, fill="#5a2e1a")
     else:
-        b.line([(-3.5, head_y + 5.5), (0, head_y + 7.6), (3.5, head_y + 5.5)], width=2, fill="#b5473d")
-        for side in (-1, 1):                                                # gold hoops
-            b.dot(side * 12, head_y + 5, 2.4, fill="", outline=P["earring"], width=2)
+        hb.line([(-3.5, head_y + 5.5), (0, head_y + 7.6), (3.5, head_y + 5.5)], width=2, fill="#b5473d")
+        for side in (-1, 1):
+            hb.dot(side * 12, head_y + 5, 2.4, fill="", outline=P["earring"], width=2)
     return hands
 
 

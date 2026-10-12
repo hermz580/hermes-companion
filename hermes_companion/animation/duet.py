@@ -965,15 +965,18 @@ class _Body(_Draw):
 class _Joint(_Draw):
     """A sub-frame that bends at a pivot: the spine over the hips, the neck."""
 
-    def __init__(self, parent, pivot, angle, shift=(0.0, 0.0)):
+    def __init__(self, parent, pivot, angle, shift=(0.0, 0.0), twist=0.0):
         self.parent, self.c, self.edge, self.sx = parent, parent.c, parent.edge, parent.sx
         self.px, self.py = pivot
         self.dx, self.dy = shift
         r = math.radians(angle)
         self.cos, self.sin = math.cos(r), math.sin(r)
+        # twist: the frame turns about the vertical axis (shoulders against hips),
+        # seen from the front as a narrowing of its width.
+        self.tw = max(0.25, abs(math.cos(math.radians(twist))))
 
     def pt(self, x, y):
-        lx, ly = x - self.px, y - self.py
+        lx, ly = (x - self.px) * self.tw, y - self.py
         return self.parent.pt(self.px + self.dx + lx * self.cos - ly * self.sin,
                               self.py + self.dy + lx * self.sin + ly * self.cos)
 

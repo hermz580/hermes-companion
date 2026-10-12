@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 
 from hermes_companion.animation.animator import pose_params
 from hermes_companion.animation.duet import (
-    _Body, _Joint, _badge, _d, _ease, _foot, _hand, _limb_pts, _mix, _mood_icon, _step,
+    _Body, _Joint, _badge, _d, _ease, _foot, _limb_pts, _mix, _mood_icon, _step,
 )
 from hermes_companion.animation.herald import EXCLAIM, MOOD_COLORS, WONDER, _bubble, mood_of
 
@@ -197,8 +197,10 @@ def _attackers(p, base_x=74.0, stagger=None):
     for i, cat in enumerate(_kinds_in_play()):
         bob = _sw(p + i * 0.3, 2) * 4
         state = stagger if (i == 0 and stagger) else "attack"
-        out.append(_n(base_x + i * 34 + bob, state, kind=cat,
-                      arms=(70 + 20 * _sw(p + i, 2), 40, 110, 20), legs=_step(p + i * 0.2, 10)))
+        jab = max(0.0, _sw(p + i * 0.37, 2)) if state == "attack" else 0.0   # they throw, not just stand
+        out.append(_n(base_x + i * 34 + bob - 6 * jab, state, kind=cat,
+                      arms=(70 + 25 * jab, 125 - 125 * jab, 55, 135), legs=_step(p + i * 0.2, 10),
+                      torso=-6 * jab))
     return out
 
 
@@ -794,6 +796,69 @@ def _palette(name):
 HIP_Y = FLOOR - 46
 
 
+HAND_FORMS = ("fist", "palm", "knife", "tiger", "crane", "leopard", "snake", "dragon")
+
+
+def _hand_form(b, wrist, elbow, side, flick, form, skin, shade):
+    """A real hand shape at the wrist, laid along the forearm.
+
+    fist (knuckles + thumb across), palm (open, fingers up), knife (shuto
+    edge), tiger (curled claws), crane (fingertips pinched to a beak),
+    leopard (half fist, second knuckles forward), snake (spear-hand, fingers
+    together) and dragon (spread, hooked fingers).
+    """
+    hx, hy = wrist
+    ex, ey = elbow
+    ang = math.atan2(hy - ey, hx - ex) + math.radians(side * flick)
+    ux, uy = math.cos(ang), math.sin(ang)
+    vx, vy = -uy * side, ux * side
+
+    def at(a, c):
+        return (hx + ux * a + vx * c, hy + uy * a + vy * c)
+
+    dark = _mix(skin, "#000000", 0.45)
+    if form == "palm":
+        b.dot(*at(1.5, 0), 3.6, edge=True, fill=skin, outline="")
+        for c in (-2.4, -0.8, 0.8, 2.4):
+            b.line([at(3.5, c), at(8.5 - abs(c) * 0.5, c * 1.25)], edge=True, width=1.8, fill=skin)
+        b.line([at(1.0, -3.2), at(3.5, -5.6)], edge=True, width=1.8, fill=skin)          # thumb out
+        b.line([at(0.5, -1.5), at(2.5, 1.5)], width=1, fill=shade)                      # palm crease
+    elif form == "knife":
+        b.poly([at(-0.5, -2.6), at(8.5, -2.0), at(9.2, 0.6), at(-0.5, 2.6)], edge=True, fill=skin)
+        b.line([at(0, 2.6), at(9.0, 0.8)], width=1.4, fill=shade)                       # striking edge
+        b.line([at(1.5, -2.6), at(4.5, -1.0)], width=1.4, fill=dark)                    # thumb tucked
+    elif form == "tiger":
+        b.dot(*at(1.5, 0), 3.8, edge=True, fill=skin, outline="")
+        for c in (-2.6, -0.9, 0.9, 2.6):
+            b.line([at(3.0, c), at(6.4, c * 1.35), at(6.0, c * 1.35 + 2.2)], edge=True, width=1.7, fill=skin)
+        b.line([at(0.5, -3.4), at(3.2, -5.4), at(4.2, -3.8)], edge=True, width=1.7, fill=skin)
+    elif form == "crane":
+        b.poly([at(-0.5, -2.8), at(-0.5, 2.8), at(7.5, 0.3)], edge=True, fill=skin)
+        b.line([at(1.5, -1.6), at(6.5, 0.2)], width=1, fill=shade)
+        b.dot(*at(7.4, 0.3), 1.0, fill=dark, outline="")                                # the beak
+    elif form == "leopard":
+        b.poly([at(-0.5, -3.2), at(4.0, -3.2), at(6.0, -1.8), at(6.0, 1.8), at(4.0, 3.2), at(-0.5, 3.2)],
+               edge=True, fill=skin)
+        for c in (-1.6, 0, 1.6):
+            b.line([at(4.2, c - 0.6), at(6.0, c)], width=1, fill=dark)                  # flat second knuckles
+        b.line([at(1.0, -3.2), at(3.0, -0.8)], width=1.4, fill=shade)
+    elif form == "snake":
+        b.poly([at(-0.5, -2.4), at(8.5, -1.0), at(11.0, 0), at(8.5, 1.0), at(-0.5, 2.4)], edge=True, fill=skin)
+        for c in (-0.6, 0.6):
+            b.line([at(3.0, c), at(9.0, c * 0.6)], width=1, fill=shade)                 # fingers pressed together
+    elif form == "dragon":
+        b.dot(*at(1.5, 0), 3.6, edge=True, fill=skin, outline="")
+        for k, c in enumerate((-3.6, -1.4, 0.6, 2.6)):
+            b.line([at(3.0, c * 0.8), at(7.2, c * 1.6), at(8.2, c * 1.6 + 1.6)], edge=True, width=1.6, fill=skin)
+        b.line([at(0.5, -3.4), at(2.2, -6.4), at(3.6, -6.0)], edge=True, width=1.6, fill=skin)
+    else:  # fist
+        b.poly([at(-0.5, -3.4), at(5.0, -3.4), at(6.2, -2.0), at(6.2, 2.0), at(5.0, 3.4), at(-0.5, 3.4)],
+               edge=True, fill=skin)
+        for c in (-2.0, -0.6, 0.8, 2.2):
+            b.dot(*at(5.4, c), 0.8, fill=dark, outline="")                              # knuckles
+        b.line([at(1.0, -3.4), at(3.6, -1.0), at(3.8, 1.0)], width=1.6, fill=shade)     # thumb across
+
+
 def _draw_fighter(canvas, P, hx, hy, st, eyes, *, ninja=None, clone=None):
     """Sensei (ninja=None) or a ninja (ninja=(kind, colour)) on the shared rig."""
     if ninja:
@@ -815,19 +880,37 @@ def _draw_fighter(canvas, P, hx, hy, st, eyes, *, ninja=None, clone=None):
     for i, (side, (hip_a, knee)) in enumerate(((-1, st["legs"][0:2]), (1, st["legs"][2:4]))):
         a, k, f = _limb_pts(hip + side * 6, 0, hip_a, knee, 22, 22, side)
         body.line([a, k, f], edge=True, width=11 if not ninja else 9, fill=pants)
+        if not clone:                                        # cloth crease down the thigh, knee fold
+            body.line([((a[0] * 2 + k[0]) / 3 + 2, (a[1] * 2 + k[1]) / 3), (k[0] + 1.5, k[1] - 1)],
+                      width=1, fill=_mix(pants, "#000000", 0.28))
+            body.dot(k[0], k[1], 2.2, fill=_mix(pants, "#000000", 0.18), outline="")
         if ninja:                                            # wrapped shins
             for t in (0.55, 0.75):
                 body.line([(k[0] + (f[0] - k[0]) * t - 3, k[1] + (f[1] - k[1]) * t),
                            (k[0] + (f[0] - k[0]) * t + 3, k[1] + (f[1] - k[1]) * t)], width=1, fill="#3a3b48")
         _foot(body, f, side, ankles[i], swivel[i], "#2a2a33" if ninja else (skin if not clone else suit))
-    chest = _Joint(body, (hip, 0), st.get("torso", 0.0))
+    twist = st.get("twist", 0.0)
+    chest = _Joint(body, (hip, 0), st.get("torso", 0.0), twist=twist)
     chest.poly([(-14, -46), (14, -46), (12, 2), (-12, 2)], edge=True, fill=suit)
+    if not clone:                                            # far side in shade; turning shows more of it
+        far = 1 if twist >= 0 else -1
+        depth = 4 + min(8.0, abs(twist) / 6)
+        chest.poly([(far * (14 - depth), -46), (far * 14, -46), (far * 12, 2), (far * (12 - depth), 2)],
+                   fill=_mix(suit, "#000000", 0.25), outline="")
+        for fy in (-36, -26):                                # cloth folds from the armpit
+            chest.line([(-far * 12, fy), (-far * 4, fy + 6)], width=1, fill=_mix(suit, "#000000", 0.3))
     if not ninja and not clone:                              # gi lapels + trim
         chest.poly([(-14, -46), (-4, -46), (6, -18), (-4, -14)], fill=P["gi_hi"], outline="")
         chest.line([(-6, -46), (5, -18)], width=2, fill=P["trim"])
         chest.line([(6, -46), (-2, -30)], width=2, fill=P["trim"])
     chest.line([(-12, -8), (12, -8)], width=4, fill=colour if ninja else (P["belt"] if not clone else edge))  # belt / sash
-    chest.line([(4, -8), (8, 4)], width=3, fill=colour if ninja else (P["belt"] if not clone else edge))
+    flow, wave = st.get("_flow", 0.0), st.get("_wave", 0.0)
+    sash = colour if ninja else (P["belt"] if not clone else edge)
+    chest.dot(5, -8, 3, fill=sash, outline=_mix(sash, "#000000", 0.4))                  # the knot
+    for k in (0, 1):                                         # two tails that stream with speed
+        tx = 6 - 10 * flow - k * 3
+        ty = 6 + 4 * (1 - flow) + math.sin(wave + k) * 2 * flow
+        chest.line([(5, -7), (5 + (tx - 5) * 0.5, -1 + k), (tx, ty + k * 2)], width=3, fill=sash)
     for i, (side, (shd, elb)) in enumerate(((-1, st["arms"][0:2]), (1, st["arms"][2:4]))):
         sh_y = -42 - shoulders[i]
         a, e, h = _limb_pts(side * 13, sh_y, 180 - shd if shd > 90 else shd, elb, 17, 16, side)
@@ -837,7 +920,9 @@ def _draw_fighter(canvas, P, hx, hy, st, eyes, *, ninja=None, clone=None):
         chest.line([e, h], edge=True, width=6, fill=suit if ninja else skin)
         if not ninja and not clone:
             chest.dot(e[0], e[1], 4, fill=P["gi_hi"], outline=P["trim"])           # sleeve cuff
-        _hand(chest, h, e, side, wrists[i], skin if not ninja else "#2a2a33", shade)
+        form = (st.get("hands") or ("fist", "fist"))[i]
+        _hand_form(chest, h, e, side, wrists[i], form, skin if not ninja else "#2a2a33",
+                   shade if not ninja else "#111118")
         hands["left" if side < 0 else "right"] = chest.pt(*h)
     head_y = -60
     chest.line([(0, -46), (0, head_y + 10)], edge=True, width=6, fill=skin if not ninja else suit)
@@ -849,7 +934,8 @@ def _draw_fighter(canvas, P, hx, hy, st, eyes, *, ninja=None, clone=None):
             for sd in (-1, 1):
                 hb.line([(sd * 6, head_y - 1), (sd * 2, head_y - 2)], width=2, fill="#111111")
         hb.line([(-12, head_y - 7), (12, head_y - 7)], width=3, fill=colour)        # headband
-        hb.line([(12, head_y - 7), (22, head_y - 2), (26, head_y + 4)], width=2, fill=colour)
+        hb.line([(12, head_y - 7), (20 + 6 * flow, head_y - 4 + math.sin(wave) * 2 * flow),
+                 (24 + 12 * flow, head_y + 4 - 8 * flow)], width=2, fill=colour)
         return hands
     hb.dot(0, head_y, 12.5, edge=True, fill=skin, outline="", squash=True)
     hair = P["hair"] if not clone else edge
@@ -858,8 +944,9 @@ def _draw_fighter(canvas, P, hx, hy, st, eyes, *, ninja=None, clone=None):
     hb.dot(0, head_y - 1, 11, fill=skin, outline="", squash=True)
     band = P["band"] if not clone else colour
     hb.line([(-12, head_y - 6), (12, head_y - 6)], width=3, fill=band)             # headband + tails
-    hb.line([(-12, head_y - 6), (-22, head_y - 2), (-30, head_y + 3)], width=2, fill=band)
-    hb.line([(-12, head_y - 5), (-24, head_y + 3)], width=2, fill=band)
+    for k in (0, 1):                                         # tails trail further the faster he moves
+        hb.line([(-12, head_y - 6 + k), (-20 - 6 * flow, head_y - 3 + math.sin(wave + k) * 3 * flow),
+                 (-28 - 14 * flow - k * 4, head_y + 4 - 9 * flow + k * 3)], width=2, fill=band)
     if back or clone:
         if back:
             hb.dot(0, head_y - 1, 12.6, fill=hair, outline="", squash=True)
@@ -1016,6 +1103,9 @@ def _indicators(canvas, pose, mood, glow):
         chips.append((f"{st.missteps} hit{'s' if st.missteps != 1 else ''}", MOOD_COLORS["fail"]))
     if st.defeated:
         chips.append((f"{st.defeated} down", MOOD_COLORS["joy"]))
+    style = STYLE_OF.get(MOVE_FOR_POSE.get(pose, ""))
+    if style:
+        chips.append((style, "#94a3b8"))
     x, y = 6, 12
     for text, colour in chips:
         if x + 20 + len(text) * 7.4 > FRAME[0] - 6:
@@ -1053,6 +1143,14 @@ def draw_master(canvas, pose: str, progress: float = 0.0, palette: str | None = 
     elif mood == "work" and STATE.tools:
         glow = _kind(STATE.tools[-1])[1]
     fx = sc["fx"]
+    # how fast he is moving right now: belt and headband tails stream with it
+    m = sc["master"]
+    if move is not None:
+        prev = MOVES[move](max(0.0, p - 0.03))["master"]
+        speed = (math.hypot(m["x"] - prev["x"], m["y"] - prev["y"]) + abs(m["rot"] - prev["rot"]) / 8
+                 + abs(m.get("twist", 0.0) - prev.get("twist", 0.0)) / 6)
+        m["_flow"] = min(1.0, speed / 6)
+    m["_wave"] = p * 2 * math.pi * 3
 
     # sky + moon, mat, tree
     canvas.create_oval(FRAME[0] - 70, 26, FRAME[0] - 40, 56, fill=P["moon"], outline="")
@@ -1069,6 +1167,16 @@ def draw_master(canvas, pose: str, progress: float = 0.0, palette: str | None = 
                                         fill="", outline="#78716c")
     canvas.create_oval(MX - 150, FLOOR - 10, MX + 190, FLOOR + 10, fill=glow, outline="")
     canvas.create_oval(MX - 128, FLOOR - 6, MX + 168, FLOOR + 6, fill="#e7e5e4", outline="")
+    for k in range(9):                                       # mat seams
+        sx = MX - 110 + k * 32
+        canvas.create_line(sx, FLOOR - 4, sx + 4, FLOOR + 4, fill="#d6d3d1", width=1)
+    # ground shadows: smaller and lighter the higher a fighter is off the floor
+    for who in [m] + [nj for nj in sc["ninjas"] if nj["state"] != "down"]:
+        lift = max(0.0, who["y"])
+        w = 26 * max(0.35, 1 - lift / 140)
+        cx = MX + who["x"]
+        canvas.create_oval(cx - w, FLOOR - 3, cx + w, FLOOR + 3,
+                           fill="#a8a29e" if lift < 50 else "#c4bfba", outline="")
 
     # shadow clones (helpers)
     if fx & {"clones", "clones_out", "clones_in"}:
@@ -1088,8 +1196,9 @@ def draw_master(canvas, pose: str, progress: float = 0.0, palette: str | None = 
             st = {**st, "rot": 90, "y": -36}
         hx, hy = MX + nj["x"], HIP_Y - st["y"]
         hands = _draw_fighter(canvas, P, hx, hy, st, "neutral", ninja=(kind, colour))
-        if nj["state"] not in ("down", "fly"):
-            _weapon(canvas, kind, hands.get("right"), colour, p)
+        if nj["state"] not in ("down", "fly") and not nj.get("disarmed"):
+            lead = nj.get("act") in ("overhead", "chop")         # swinging it at him
+            _weapon(canvas, kind, hands.get("left" if lead else "right"), colour, p)
         if nj["state"] == "fly":
             for k in range(4):
                 canvas.create_line(hx - 20 - k * 8, hy - 30 + k * 6, hx - 6 - k * 8, hy - 30 + k * 6,
@@ -1102,8 +1211,19 @@ def draw_master(canvas, pose: str, progress: float = 0.0, palette: str | None = 
         ninja_hands.append((hx, hy))
 
     # Sensei
-    m = sc["master"]
     mhx, mhy = MX + m["x"], HIP_Y - m["y"]
+    if "trail" in fx and move is not None:                   # afterimages of where he just was
+        for k, dt in ((2, 0.09), (1, 0.045)):
+            g = MOVES[move](max(0.0, p - dt))["master"]
+            _draw_fighter(canvas, P, MX + g["x"], HIP_Y - g["y"], g, "neutral",
+                          clone=_mix(glow, "#ffffff", 0.35 + 0.2 * k))
+    if "dust" in fx:                                         # puffs kicked up at the feet
+        for k in range(6):
+            side = -1 if k % 2 else 1
+            r = 3 + (k % 3) * 2 + 4 * p
+            dx = side * (14 + k * 5 + 10 * p)
+            canvas.create_oval(mhx + dx - r, FLOOR - 4 - r - k, mhx + dx + r, FLOOR - 4 + r - k,
+                               fill=("#d6d3d1", "#e7e5e4", "#a8a29e")[k % 3], outline="")
     if "speed" in fx:
         for k in range(4):
             canvas.create_line(mhx - 40 - k * 6, mhy - 50 + k * 10, mhx - 18 - k * 6, mhy - 50 + k * 10,
@@ -1130,6 +1250,10 @@ def draw_master(canvas, pose: str, progress: float = 0.0, palette: str | None = 
             _arrow(canvas, x - 10, y, 0)
         if held:
             canvas.create_oval(x - 24, y - 22, x + 24, y + 22, fill="", outline="#fbbf24", width=2)
+    for sx, sy in sc.get("sparks", ()):                       # contact: a block or a check meets a strike
+        x, y = MX + sx, HIP_Y + sy
+        _burst(canvas, x, y, "#f8fafc")
+        canvas.create_oval(x - 3, y - 3, x + 3, y + 3, fill="#fde68a", outline="")
     if "freeze" in fx:
         canvas.create_oval(mhx - 60, mhy - 120, mhx + 90, mhy + 10, fill="", outline=glow, width=2)
     if "impact" in fx and ninja_hands:
@@ -1163,3 +1287,576 @@ def draw_master(canvas, pose: str, progress: float = 0.0, palette: str | None = 
     elif pose in WONDER:
         _bubble(canvas, mhx, 26, "?", glow)
     _indicators(canvas, pose, mood, glow)
+
+
+# ===========================================================================
+# Real stances and styles, keyframed.
+#
+# Stances follow their weight: ma bu / kiba dachi 50/50; gong bu / zenkutsu
+# ~70% front; kokutsu ~70% back; xu bu / neko ashi almost all on the back leg
+# with the front toe touching; pu bu sits on one bent leg with the other
+# straight out; xie bu crosses and sits back; du li stands on one leg with the
+# raised thigh at least level. Techniques are keyframed (chamber -> strike ->
+# follow-through -> recover) with easing between keys, not a single sine.
+# ===========================================================================
+_LERP_KEYS = ("x", "y", "spin", "rot", "torso", "hip", "head", "twist")
+_TUPLE_KEYS = ("arms", "legs", "wrists", "ankles", "swivel", "shoulders")
+
+
+def _mix_pose(a: dict, b: dict, t: float) -> dict:
+    out = dict(a)
+    for k in _LERP_KEYS:
+        out[k] = a.get(k, 0.0) + (b.get(k, 0.0) - a.get(k, 0.0)) * t
+    for k in _TUPLE_KEYS:
+        av, bv = a.get(k), b.get(k)
+        if av is not None and bv is not None:
+            out[k] = tuple(x + (y - x) * t for x, y in zip(av, bv))
+    out["hands"] = a.get("hands") if t < 0.5 else b.get("hands", a.get("hands"))
+    for k in ("state", "act"):
+        if k in a or k in b:
+            out[k] = a.get(k) if t < 0.5 else b.get(k, a.get(k))
+    return out
+
+
+def _kf(p: float, keys: list) -> dict:
+    """Interpolate keyframes [(t, pose), ...] at progress p with smooth easing."""
+    p = min(max(p, 0.0), 0.9999)
+    for (t0, a), (t1, b) in zip(keys, keys[1:]):
+        if t0 <= p <= t1:
+            return _mix_pose(a, b, _ease((p - t0) / (t1 - t0 or 1)))
+    return dict(keys[-1][1])
+
+
+def _pose(stance: str = "ready", **kw) -> dict:
+    """A full pose built on a named stance, overridden by any joint in kw."""
+    base = dict(STANCES[stance])
+    base.update(kw)
+    hands = base.pop("hands", ("fist", "fist"))
+    twist = base.pop("twist", 0.0)
+    d = _d(**{k: v for k, v in base.items()})
+    d["hands"], d["twist"] = hands, twist
+    return d
+
+
+STANCES: dict[str, dict] = {
+    # stance -> joint values (front leg = right, toward the ninjas)
+    "ready":      {"legs": (14, 10, 14, 10), "arms": (60, 100, 60, 100)},
+    "ma_bu":      {"legs": (48, 62, 48, 62), "y": -16, "swivel": (-0.6, -0.6), "arms": (60, 110, 60, 110)},
+    "gong_bu":    {"legs": (38, 0, 46, 52), "hip": 6, "y": -10, "torso": 6, "ankles": (0, 0)},
+    "kokutsu":    {"legs": (40, 50, 32, 0), "hip": -6, "y": -8, "torso": -6},
+    "xu_bu":      {"legs": (24, 48, 18, 14), "hip": -7, "y": -8, "ankles": (0, 60)},
+    "pu_bu":      {"legs": (82, 140, 84, 0), "hip": -10, "y": -36, "torso": 18},
+    "xie_bu":     {"legs": (28, 96, -18, 70), "hip": -4, "y": -26, "swivel": (0.4, 0.8), "torso": -4},
+    "du_li":      {"legs": (4, 0, 92, 112), "y": 2, "ankles": (0, 50)},
+    "yjkym":      {"legs": (20, 30, 20, 30), "y": -6, "swivel": (0.9, 0.9), "arms": (40, 100, 80, 40),
+                   "hands": ("palm", "fist")},
+    "thai_guard": {"legs": (20, 18, 12, 10), "y": -2, "ankles": (20, 20), "arms": (55, 140, 55, 140),
+                   "hands": ("fist", "fist")},
+    "ginga_l":    {"legs": (60, 80, 20, 10), "hip": -8, "y": -18, "torso": 18, "arms": (130, 30, 40, 90)},
+    "ginga_r":    {"legs": (20, 10, 60, 80), "hip": 8, "y": -18, "torso": -18, "arms": (40, 90, 130, 30)},
+}
+
+
+# --- stance moves ------------------------------------------------------------
+def _t_ma_bu(p):
+    b = _sw(p) * 2
+    return _scene(_pose("ma_bu", y=-16 + b, arms=(70, 120, 70, 120)), fx={"dust"} if p < 0.1 else ())
+
+
+def _t_xu_bu(p):
+    return _scene(_kf(p, [(0, _pose("ready")), (0.4, _pose("xu_bu", arms=(90, 60, 50, 120), hands=("palm", "palm"))),
+                          (1, _pose("xu_bu", arms=(100, 50, 40, 120), hands=("palm", "palm")))]), _attackers(p, 110))
+
+
+def _t_xie_bu(p):
+    return _scene(_kf(p, [(0, _pose("ready")), (0.5, _pose("xie_bu", arms=(110, 40, 40, 120), hands=("knife", "fist"))),
+                          (1, _pose("xie_bu", arms=(120, 30, 30, 120), hands=("knife", "fist")))]))
+
+
+def _t_kokutsu_shuto(p):
+    """Back stance with a knife-hand block (kokutsu dachi, shuto uke)."""
+    return _scene(_kf(p, [(0, _pose("ready")),
+                          (0.35, _pose("kokutsu", arms=(40, 140, 120, 140), hands=("knife", "knife"), twist=30)),
+                          (0.6, _pose("kokutsu", arms=(70, 120, 80, 60), hands=("knife", "knife"), wrists=(0, -30))),
+                          (1, _pose("kokutsu", arms=(70, 120, 80, 60), hands=("knife", "knife")))]), _attackers(p, 90))
+
+
+def _t_neko_block(p):
+    return _scene(_kf(p, [(0, _pose("ready")), (0.5, _pose("xu_bu", arms=(30, 120, 140, 60), hands=("palm", "fist"))),
+                          (1, _pose("xu_bu", arms=(30, 120, 130, 70), hands=("palm", "fist")))]),
+                  _attackers(p, 70), fx={"block"} if p > 0.4 else ())
+
+
+def _t_zenkutsu_gyaku(p):
+    """Front stance, reverse punch: the hip drives, the rear fist corkscrews out."""
+    return _scene(_kf(p, [(0, _pose("gong_bu", arms=(30, 140, 70, 40), twist=0)),
+                          (0.3, _pose("gong_bu", arms=(30, 140, 70, 40), twist=-30, hip=2)),
+                          (0.5, _pose("gong_bu", arms=(90, 0, 30, 140), twist=30, hip=8, torso=10)),
+                          (0.75, _pose("gong_bu", arms=(90, 0, 30, 140), twist=30, hip=8, torso=10)),
+                          (1, _pose("gong_bu", arms=(30, 140, 70, 40)))]),
+                  _attackers(p, 66, "stagger" if 0.45 < p < 0.8 else None),
+                  fx={"impact", "trail"} if 0.45 < p < 0.6 else ())
+
+
+def _t_pu_bu_sweep(p):
+    """Code: drop into pu bu and sweep two ninjas off their feet."""
+    sweep = 0.35 < p < 0.75
+    m = _kf(p, [(0, _pose("ready")), (0.3, _pose("pu_bu", arms=(120, 30, 100, 30))),
+                (0.6, _pose("pu_bu", spin=-0.6, arms=(120, 30, 100, 30), legs=(82, 140, 100, 0))),
+                (1, _pose("ma_bu"))])
+    ninjas = [_n(64 + i * 30, "fly" if sweep else "attack", y=34 if sweep else 0, rot=-90 if sweep else 0, kind=c)
+              for i, c in enumerate(_kinds_in_play(2))]
+    return _scene(m, ninjas, fx={"impact", "dust"} if sweep else {"dust"} if p > 0.25 else ())
+
+
+def _t_du_li_crane(p):
+    """Du li: the crane on one leg, wings spread, beaks ready."""
+    return _scene(_kf(p, [(0, _pose("ready")), (0.4, _pose("du_li", arms=(150, 40, 150, 40), hands=("crane", "crane"),
+                                                            wrists=(60, 60))),
+                          (0.7, _pose("du_li", arms=(170, 20, 120, 60), hands=("crane", "crane"), wrists=(70, 40))),
+                          (1, _pose("du_li", arms=(150, 40, 150, 40), hands=("crane", "crane"), wrists=(60, 60)))]))
+
+
+# --- Shaolin five animals ----------------------------------------------------
+def _t_tiger_claw(p):
+    """Tiger: a pressing double claw from a bow stance."""
+    return _scene(_kf(p, [(0, _pose("ready", hands=("tiger", "tiger"))),
+                          (0.3, _pose("ma_bu", arms=(40, 150, 40, 150), hands=("tiger", "tiger"), twist=-20)),
+                          (0.55, _pose("gong_bu", arms=(100, 20, 80, 40), hands=("tiger", "tiger"), wrists=(-60, -60),
+                                       torso=14, twist=10)),
+                          (1, _pose("gong_bu", arms=(90, 30, 70, 60), hands=("tiger", "tiger")))]),
+                  _attackers(p, 66, "stagger" if p > 0.5 else None), fx={"impact", "trail"} if 0.5 < p < 0.65 else ())
+
+
+def _t_crane_wings(p):
+    return _t_du_li_crane(p)
+
+
+def _t_leopard_fist(p):
+    """Leopard: fast, straight strikes with the half-closed leopard fist."""
+    k = (p * 3) % 1.0
+    m = _kf(k, [(0, _pose("gong_bu", arms=(40, 140, 40, 140), hands=("leopard", "leopard"))),
+                (0.35, _pose("gong_bu", arms=(40, 140, 95, 0), hands=("leopard", "leopard"), twist=25)),
+                (0.7, _pose("gong_bu", arms=(95, 0, 40, 140), hands=("leopard", "leopard"), twist=-25)),
+                (1, _pose("gong_bu", arms=(40, 140, 40, 140), hands=("leopard", "leopard")))])
+    return _scene(m, _attackers(p, 64, "stagger" if k > 0.3 else None), fx={"trail"})
+
+
+def _t_snake_spear(p):
+    """Snake: fingers together like a spear, striking soft and sudden."""
+    s = max(0.0, _sw(p, 2))
+    return _scene(_pose("xu_bu", arms=(50, 130, 70 + 30 * s, 60 - 60 * s), hands=("palm", "snake"),
+                        wrists=(0, -20 * s), torso=6 * s), _attackers(p, 70), fx={"trail"} if s > 0.8 else ())
+
+
+def _t_dragon_claw(p):
+    return _scene(_kf(p, [(0, _pose("ready", hands=("dragon", "dragon"))),
+                          (0.4, _pose("xie_bu", arms=(160, 30, 60, 110), hands=("dragon", "dragon"))),
+                          (0.7, _pose("gong_bu", arms=(70, 60, 110, 20), hands=("dragon", "dragon"), twist=30, torso=10)),
+                          (1, _pose("gong_bu", arms=(70, 60, 110, 20), hands=("dragon", "dragon")))]),
+                  _attackers(p, 68, "stagger" if p > 0.7 else None))
+
+
+# --- Wing Chun -----------------------------------------------------------------
+def _t_chain_punch(p):
+    """Chain punch: vertical fists rolling down the centreline from yjkym."""
+    k = (p * 4) % 1.0
+    lead_out = k < 0.5
+    e = math.sin((k % 0.5) * 2 * math.pi)
+    a = (40, 120, 90 * e + 10, 100 - 100 * e) if lead_out else (90 * e + 10, 100 - 100 * e, 40, 120)
+    return _scene(_pose("yjkym", arms=a, hands=("fist", "fist"), wrists=(0, 0)),
+                  _attackers(p, 60, "stagger" if e > 0.85 else None), fx={"trail"} if e > 0.6 else ())
+
+
+def _t_tan_bong(p):
+    """Tan sau (palm-up deflection) into bong sau (wing arm)."""
+    return _scene(_kf(p, [(0, _pose("yjkym")),
+                          (0.4, _pose("yjkym", arms=(80, 70, 40, 120), hands=("palm", "fist"), wrists=(40, 0))),
+                          (0.7, _pose("yjkym", arms=(110, 100, 40, 120), hands=("palm", "fist"), wrists=(-20, 0))),
+                          (1, _pose("yjkym"))]), _attackers(p, 64), fx={"block"} if p > 0.35 else ())
+
+
+# --- Muay Thai --------------------------------------------------------------
+def _t_teep(p):
+    """Teep: lift the knee, push the ball of the foot through the body."""
+    m = _kf(p, [(0, _pose("thai_guard")),
+                (0.3, _pose("thai_guard", legs=(10, 10, 95, 120), torso=-6)),
+                (0.5, _pose("thai_guard", legs=(10, 10, 90, 0), torso=-16, ankles=(20, -20))),
+                (0.7, _pose("thai_guard", legs=(10, 10, 95, 120), torso=-6)),
+                (1, _pose("thai_guard"))])
+    return _scene(m, _attackers(p, 92 + (30 if 0.45 < p < 0.8 else 0), "stagger" if 0.45 < p < 0.8 else None),
+                  fx={"impact"} if 0.45 < p < 0.55 else ())
+
+
+def _t_thai_elbow(p):
+    """A step in and a horizontal elbow, then the upward elbow."""
+    m = _kf(p, [(0, _pose("thai_guard")),
+                (0.25, _pose("thai_guard", arms=(55, 140, 95, 165), twist=-30)),
+                (0.45, _pose("thai_guard", arms=(55, 140, 95, 165), twist=35, torso=8, hip=4)),
+                (0.65, _pose("thai_guard", arms=(160, 165, 55, 140), twist=-10, torso=-6)),
+                (1, _pose("thai_guard"))])
+    return _scene(m, _attackers(p, 54, "stagger" if 0.4 < p < 0.75 else None),
+                  fx={"impact", "trail"} if 0.4 < p < 0.5 or 0.6 < p < 0.7 else ())
+
+
+def _t_thai_knee(p):
+    m = _kf(p, [(0, _pose("thai_guard")), (0.35, _pose("thai_guard", arms=(120, 120, 120, 120), hands=("palm", "palm"))),
+                (0.55, _pose("thai_guard", arms=(110, 130, 110, 130), hands=("palm", "palm"), legs=(10, 10, 110, 130),
+                             torso=-10, ankles=(30, 60))),
+                (1, _pose("thai_guard"))])
+    return _scene(m, _attackers(p, 50, "stagger" if 0.5 < p < 0.8 else None), fx={"impact"} if 0.5 < p < 0.6 else ())
+
+
+def _t_thai_roundhouse(p):
+    """Rear roundhouse: pivot on the ball of the standing foot, hip over, the
+    shin swings through, arm swings down for balance, then return to guard."""
+    m = _kf(p, [(0, _pose("thai_guard")),
+                (0.2, _pose("thai_guard", swivel=(-0.8, 0), twist=-25, legs=(14, 8, 30, 40))),
+                (0.45, _pose("thai_guard", swivel=(-1.0, 0), twist=40, torso=-24, rot=-8,
+                             legs=(10, 6, 108, 12), arms=(60, 130, 20, 20), ankles=(40, 50))),
+                (0.6, _pose("thai_guard", swivel=(-1.0, 0), twist=55, torso=-20, rot=-6,
+                            legs=(10, 6, 96, 30), arms=(60, 130, 10, 20), ankles=(40, 40))),
+                (1, _pose("thai_guard"))])
+    return _scene(m, _attackers(p, 80, "stagger" if 0.42 < p < 0.75 else None),
+                  fx={"impact", "trail"} if 0.42 < p < 0.55 else {"trail"} if 0.3 < p < 0.6 else ())
+
+
+# --- Taekwondo --------------------------------------------------------------
+def _t_tornado_kick(p):
+    """Tornado (360) roundhouse: spin, jump, kick at the top."""
+    a = math.sin(min(p, 0.999) * math.pi)
+    turn = math.cos(p * 2 * math.pi)
+    m = _kf(p, [(0, _pose("ready")), (0.25, _pose("ready", spin=-1.0, y=10, legs=(30, 60, 30, 60))),
+                (0.5, _pose("ready", spin=0.2, y=40, rot=-20, legs=(40, 90, 100, 10), arms=(100, 40, 60, 90),
+                            ankles=(40, 50))),
+                (0.75, _pose("ready", spin=1.0, y=20, legs=(40, 80, 60, 60))), (1, _pose("thai_guard"))])
+    m["spin"] = turn if p < 0.75 else m["spin"]
+    return _scene(m, _attackers(p, 84, "fly" if 0.45 < p < 0.8 else None), fx={"trail", "speed"} if a > 0.3 else ())
+
+
+def _t_spinning_hook(p):
+    m = _kf(p, [(0, _pose("thai_guard")), (0.3, _pose("thai_guard", spin=-1.0, twist=40)),
+                (0.55, _pose("thai_guard", spin=-0.4, torso=-30, rot=-10, legs=(10, 6, 110, 80), ankles=(0, 30))),
+                (0.75, _pose("thai_guard", spin=0.6, torso=-20, legs=(10, 6, 80, 120))), (1, _pose("thai_guard"))])
+    return _scene(m, _attackers(p, 82, "stagger" if 0.5 < p < 0.8 else None), fx={"trail"} if 0.4 < p < 0.75 else ())
+
+
+# --- Capoeira -----------------------------------------------------------------
+def _t_ginga(p):
+    """Ginga: the swaying triangle step, arms guarding the face."""
+    t = (p * 2) % 1.0
+    m = _kf(t, [(0, _pose("ginga_l")), (0.5, _pose("ginga_r")), (1, _pose("ginga_l"))])
+    return _scene(m, _attackers(p, 96))
+
+
+def _t_au(p):
+    """Aú: the capoeira cartwheel, hands to the floor, legs over."""
+    m = _kf(p, [(0, _pose("ginga_l")),
+                (0.3, _pose("ready", rot=-90, y=30, arms=(170, 0, 170, 0), legs=(60, 0, 60, 0), hands=("palm", "palm"))),
+                (0.55, _pose("ready", rot=-180, y=56, arms=(170, 0, 170, 0), legs=(70, 0, 70, 0), hands=("palm", "palm"))),
+                (0.8, _pose("ready", rot=-270, y=30, arms=(170, 0, 170, 0), legs=(60, 0, 60, 0), hands=("palm", "palm"))),
+                (1, _pose("ginga_r", rot=-360))])
+    m["x"] = -40 + 80 * p
+    return _scene(m, fx={"speed", "victory"})
+
+
+def _t_meia_lua(p):
+    """Meia lua de compasso: hands down, the heel arcs round like a compass."""
+    m = _kf(p, [(0, _pose("ginga_l")),
+                (0.3, _pose("ginga_l", torso=60, arms=(20, 0, 20, 0), hands=("palm", "palm"))),
+                (0.55, _pose("ginga_l", torso=70, spin=-0.5, legs=(60, 70, 120, 10), arms=(20, 0, 20, 0),
+                             hands=("palm", "palm"), ankles=(0, -30))),
+                (0.8, _pose("ginga_l", torso=50, spin=0.5, legs=(60, 70, 90, 30))), (1, _pose("ginga_r"))])
+    return _scene(m, _attackers(p, 88, "stagger" if 0.5 < p < 0.8 else None), fx={"trail"} if 0.4 < p < 0.8 else ())
+
+
+# --- the headline moves, rebuilt as real technique ---------------------------
+def _t_hip_throw(p):
+    """O-goshi hip throw: grip, step in, load the ninja on the hip, rotate,
+    release - and he flies far. One tool done."""
+    first = _kinds_in_play()[0]
+    m = _kf(p, [(0, _pose("thai_guard")),
+                (0.2, _pose("gong_bu", arms=(100, 40, 120, 40), hands=("palm", "palm"))),
+                (0.4, _pose("ma_bu", twist=-60, torso=20, arms=(120, 60, 100, 80), hands=("fist", "fist"))),
+                (0.6, _pose("ma_bu", twist=40, torso=35, rot=6, arms=(150, 30, 60, 100))),
+                (1, _pose("gong_bu", arms=(160, 10, 40, 80), hands=("palm", "fist")))])
+    if p < 0.4:
+        flyer = _n(40 - 10 * p / 0.4, "stagger", kind=first, rot=-10)
+    elif p < 0.6:
+        u = (p - 0.4) / 0.2
+        flyer = _n(30 - 20 * u, "fly", y=20 + 50 * u, rot=-20 - 160 * u, kind=first)
+    else:
+        u = (p - 0.6) / 0.4
+        flyer = _n(10 + 220 * u, "fly", y=70 + 60 * math.sin(u * math.pi * 0.8), rot=-180 - 540 * u, kind=first)
+    return _scene(m, [flyer] + _attackers(p, 130)[1:], fx={"throw", "trail"} if p > 0.55 else {"throw"})
+
+
+def _t_long_backflip(p):
+    """Set, jump, tuck, open, spot the landing: a long, high backflip."""
+    m = _kf(p, [(0, _pose("ready", arms=(20, 20, 20, 20))),
+                (0.12, _pose("ma_bu", y=-20, arms=(10, 10, 10, 10), torso=20)),           # set
+                (0.25, _pose("ready", y=40, arms=(175, 0, 175, 0), legs=(5, 0, 5, 0), ankles=(60, 60))),  # jump
+                (0.45, _pose("ready", y=95, rot=160, arms=(80, 60, 80, 60), legs=(100, 140, 100, 140))),  # tuck
+                (0.65, _pose("ready", y=80, rot=300, arms=(160, 10, 160, 10), legs=(20, 30, 20, 30))),   # open
+                (0.85, _pose("ma_bu", y=-10, rot=360, arms=(120, 20, 120, 20))),                          # land
+                (1, _pose("ready", rot=360, arms=(150, 20, 150, 20)))])
+    m["x"] = 60 - 130 * _ease(min(1.0, p / 0.85))
+    return _scene(m, fx={"speed", "victory", "trail"} | ({"dust"} if p > 0.82 else set()))
+
+
+def _t_bicycle_kick(p):
+    """Scissor kick: launch, the first leg feints, the second whips through."""
+    first = _kinds_in_play()[0]
+    m = _kf(p, [(0, _pose("ready")),
+                (0.2, _pose("ma_bu", y=-14, arms=(60, 60, 60, 60))),
+                (0.4, _pose("ready", y=70, rot=-110, legs=(100, 20, 20, 60), arms=(150, 30, 110, 40))),
+                (0.55, _pose("ready", y=82, rot=-140, legs=(20, 60, 120, 0), arms=(160, 20, 100, 40), ankles=(50, 50))),
+                (0.8, _pose("ready", y=20, rot=-200, legs=(60, 60, 60, 60), arms=(170, 10, 170, 10))),
+                (1, _pose("ma_bu", rot=-360))])
+    hit = 0.5 < p
+    flyer = _n(70 + (180 * (p - 0.5) / 0.5 if hit else 0), "fly" if hit else "attack",
+               y=(40 + 70 * math.sin((p - 0.5) / 0.5 * math.pi * 0.8)) if hit else 0,
+               rot=-400 * (p - 0.5) if hit else 0, kind=first)
+    return _scene(m, [flyer], fx={"victory", "trail"} | ({"impact"} if 0.5 < p < 0.6 else set()))
+
+
+def _t_dodge_arrows(p):
+    """Arrows keep coming: he sways back (limbo), sidesteps in ginga, ducks."""
+    m = _kf(p, [(0, _pose("ginga_l")),
+                (0.25, _pose("ma_bu", torso=-55, head=-20, arms=(110, 20, 110, 20), legs=(40, 70, 40, 70))),
+                (0.5, _pose("ginga_r")),
+                (0.75, _pose("pu_bu", torso=30, arms=(120, 30, 100, 30))),
+                (1, _pose("ginga_l"))])
+    arrows = [((p * 1.6 + k * 0.33) % 1.0 * 380 - 20, -70 + 22 * k, 180) for k in range(3)]
+    return _scene(m, arrows=arrows, fx={"arrows", "trail"})
+
+
+def _t_stop_object(p):
+    """A boulder is hurled; he roots into ma bu and stops it with one palm."""
+    held = p > 0.4
+    bx = 230 - 180 * min(1.0, p / 0.4)
+    m = _kf(p, [(0, _pose("thai_guard")), (0.38, _pose("ma_bu", arms=(40, 120, 70, 60), hands=("fist", "palm"))),
+                (0.45, _pose("ma_bu", arms=(40, 120, 95, 0), hands=("fist", "palm"), wrists=(0, -80), hip=-3)),
+                (1, _pose("ma_bu", arms=(40, 120, 95, 0), hands=("fist", "palm"), wrists=(0, -80)))])
+    return _scene(m, [_n(160, "attack", kind=_kinds_in_play()[0], arms=(150, 20, 150, 20))],
+                  objects=[("boulder", 52 if held else bx, -62, 0, held)],
+                  fx={"freeze", "dust"} if held else ())
+
+
+def _t_catch_arrow(p):
+    caught = p > 0.45
+    ax = 210 - 160 * min(1.0, p / 0.45)
+    m = _kf(p, [(0, _pose("kokutsu", hands=("palm", "palm"))),
+                (0.42, _pose("kokutsu", arms=(30, 60, 100, 30), hands=("palm", "palm"))),
+                (0.5, _pose("kokutsu", arms=(30, 60, 150, 30), hands=("palm", "fist"), head=-10)),
+                (1, _pose("xu_bu", arms=(30, 60, 160, 20), hands=("palm", "fist"), head=-14))])
+    return _scene(m, arrows=[] if caught else [(ax, -60, 180)],
+                  objects=[("arrow_held", 18, -100, 0)] if caught else [],
+                  fx={"freeze"} if caught else {"arrows"})
+
+
+# Register the new techniques and upgrade the headline moves.
+MOVES.update({
+    "ma_bu": _t_ma_bu, "xu_bu": _t_xu_bu, "xie_bu": _t_xie_bu, "kokutsu_shuto": _t_kokutsu_shuto,
+    "neko_block": _t_neko_block, "zenkutsu_gyaku": _t_zenkutsu_gyaku, "pu_bu_sweep": _t_pu_bu_sweep,
+    "du_li_crane": _t_du_li_crane, "tiger_claw_strike": _t_tiger_claw, "leopard_fist": _t_leopard_fist,
+    "snake_spear": _t_snake_spear, "dragon_claw": _t_dragon_claw, "chain_punch": _t_chain_punch,
+    "tan_bong": _t_tan_bong, "teep": _t_teep, "thai_elbow": _t_thai_elbow, "thai_knee": _t_thai_knee,
+    "thai_roundhouse": _t_thai_roundhouse, "tornado_kick": _t_tornado_kick,
+    "spinning_hook": _t_spinning_hook, "ginga": _t_ginga, "au": _t_au, "meia_lua": _t_meia_lua,
+    # rebuilt headline moves (same meaning, real technique)
+    "throw_far": _t_hip_throw, "long_backflip": _t_long_backflip, "bicycle_kick": _t_bicycle_kick,
+    "dodge_arrows": _t_dodge_arrows, "stop_object": _t_stop_object, "catch_arrow": _t_catch_arrow,
+})
+
+# Real techniques as signatures where the meaning fits.
+MOVE_FOR_POSE.update({
+    "work": "chain_punch",               # steady centreline work: a tool is running
+    "terminal_work": "thai_roundhouse",  # a command: the big pivoting kick
+    "audio_tune": "thai_elbow", "media_paint": "tornado_kick", "dev_merge": "pu_bu_sweep",
+    "close_workstation": "tiger_claw_strike", "retry": "zenkutsu_gyaku", "huff": "du_li_crane",
+    "walk_to_workspace": "ginga", "tip_to_workspace": "xu_bu", "dance": "ginga",
+    "panic": "tan_bong", "eyebrow_raise": "neko_block", "watch": "kokutsu_shuto",
+    "idle": "ma_bu", "sit": "xie_bu", "spin": "spinning_hook", "spin_joy": "au",
+    "fly_up": "teep", "sit_back": "xie_bu", "squint": "snake_spear", "tilt": "dragon_claw",
+    "look_up": "leopard_fist", "bounce": "thai_knee", "leap_double_joy": "meia_lua",
+})
+
+# Displaced moves stay as kata decoration (never a signature), sorted by mood.
+_DISPLACED = {"jab_cross": "focused", "roundhouse": "focused", "elbow_combo": "focused",
+              "twin_sweep": "bright", "spin_kick": "bright", "palm_strike": "focused",
+              "ready_again": "calm", "breathe": "calm", "scan_left": "calm", "alert": "calm",
+              "tree_sleep": "calm", "head_tilt": "calm", "stroke_beard": "calm",
+              "double_backflip": "bright", "tornado_kick": "bright"}
+for _name, _mood in _DISPLACED.items():
+    # a kata self-maps by name, so it must never shadow a real engine pose
+    if _name not in MOVE_FOR_POSE.values() and _name in MOVES and _name not in MOVE_FOR_POSE:
+        KATA[_name] = (_mood, MOVES[_name])
+for _name, _mood in {"tiger_claw_strike": "focused", "leopard_fist": "focused", "snake_spear": "calm",
+                     "dragon_claw": "bright", "crane_wings": "calm", "kokutsu_shuto": "focused",
+                     "meia_lua": "bright", "au": "bright"}.items():
+    if _name == "crane_wings":
+        MOVES[_name] = _t_crane_wings
+    if _name not in MOVE_FOR_POSE.values():
+        KATA[_name] = (_mood, MOVES[_name])
+# the old pose-named moves keep playing as kata under their own names
+for _old, _new, _mood in (("squint", "eagle_eye", "calm"), ("bounce", "light_feet", "bright"),
+                          ("look_up", "sky_watch", "calm")):
+    MOVES[_new] = MOVES.pop(_old)
+    KATA[_new] = (_mood, MOVES[_new])
+MOVE_FOR_POSE.update({name: name for name in KATA})
+_MOVE_MOOD.update({
+    "au": "joy", "meia_lua": "joy", "tornado_kick": "work", "spinning_hook": "joy",
+    "tan_bong": "approve", "du_li_crane": "calm", "xie_bu": "rest", "ma_bu": "rest",
+})
+_MOVE_MOOD.update({name: {"bright": "joy", "focused": "work"}.get(m, "calm")
+                   for name, (m, _f) in KATA.items() if name not in _MOVE_MOOD})
+
+
+# What style each technique comes from, shown as a chip so people can read the fight.
+STYLE_OF = {
+    "ma_bu": "Horse stance", "xu_bu": "Empty stance", "xie_bu": "Cross stance",
+    "kokutsu_shuto": "Karate shuto", "neko_block": "Cat stance", "zenkutsu_gyaku": "Gyaku-zuki",
+    "pu_bu_sweep": "Pu bu sweep", "du_li_crane": "Crane", "crane_wings": "Crane",
+    "tiger_claw_strike": "Tiger claw", "leopard_fist": "Leopard fist", "snake_spear": "Snake hand",
+    "dragon_claw": "Dragon claw", "chain_punch": "Wing Chun", "tan_bong": "Tan / bong sau",
+    "teep": "Muay Thai teep", "thai_elbow": "Muay Thai elbow", "thai_knee": "Muay Thai knee",
+    "thai_roundhouse": "Muay Thai kick", "tornado_kick": "TKD tornado", "spinning_hook": "Spin hook",
+    "ginga": "Capoeira ginga", "au": "Capoeira au", "meia_lua": "Meia lua",
+    "throw_far": "O-goshi throw", "long_backflip": "Backflip", "bicycle_kick": "Bicycle kick",
+    "dodge_arrows": "Evade", "stop_object": "Iron palm", "catch_arrow": "Arrow catch",
+}
+
+
+# ===========================================================================
+# Real exchanges: the ninjas fight back.
+#
+# A bout is keyframed for both fighters at once. Ninjas jab, kick, sweep and
+# swing weapons; they block and parry some of his strikes and take others.
+# He parries (tan sau), checks kicks with his shin, rises to block overhead
+# chops (age uke) - and when a tool fails, a ninja's strike gets through.
+# The ninja's lead side (left limbs) faces him; his right side faces them.
+# ===========================================================================
+NINJA_ACTS: dict[str, dict] = {
+    "guard":      {"arms": (70, 125, 55, 135), "legs": (22, 18, 12, 8)},
+    "jab":        {"arms": (95, 0, 55, 135), "legs": (28, 10, 10, 8), "torso": -8},
+    "kick":       {"arms": (55, 135, 40, 70), "legs": (100, 12, 8, 6), "torso": 22},
+    "sweep":      {"arms": (100, 40, 120, 40), "legs": (84, 4, 70, 120), "torso": -12, "y": -30},
+    "high_block": {"arms": (140, 95, 55, 135), "legs": (20, 22, 14, 8), "torso": 6, "hands": ("knife", "fist")},
+    "low_block":  {"arms": (30, 20, 55, 135), "legs": (24, 20, 14, 8), "torso": -4, "hands": ("knife", "fist")},
+    "parry":      {"arms": (75, 60, 55, 135), "legs": (22, 18, 12, 8), "wrists": (40, 0), "hands": ("palm", "fist")},
+    "overhead":   {"arms": (168, 20, 60, 130), "legs": (26, 14, 10, 8), "torso": 8},
+    "chop":       {"arms": (100, 10, 60, 130), "legs": (32, 10, 8, 6), "torso": -14},
+    "hit":        {"arms": (40, 30, 130, 50), "legs": (10, 6, 30, 30), "torso": 26, "head": 22, "state": "stagger"},
+}
+NINJA_BLOCKS = ("high_block", "low_block", "parry")
+
+
+def _nj(act: str, x: float, kind=None, **kw) -> dict:
+    a = {**NINJA_ACTS[act], **kw}
+    st = a.pop("state", "attack")
+    hands = a.pop("hands", ("fist", "fist"))
+    d = _n(x, st, y=a.pop("y", 0.0), arms=a.pop("arms"), legs=a.pop("legs"), torso=a.pop("torso", 0.0), kind=kind)
+    d.update(a)
+    d["hands"], d["act"], d["twist"] = hands, act, 0.0
+    return d
+
+
+def _bout(p, beats, extra_ninjas=True):
+    """beats: [(t, master_pose, ninja_act, ninja_x, info)]; info may carry fx
+    (held from that beat to the next) and a spark (x, y) shown at contact."""
+    kind = _kinds_in_play()[0]
+    m = _kf(p, [(t, mp) for t, mp, _a, _x, _i in beats])
+    nj = _kf(p, [(t, _nj(a, x, kind)) for t, _mp, a, x, _i in beats])
+    fx, sparks = set(), []
+    for (t, _mp, _a, _x, info), nxt in zip(beats, beats[1:] + [(1.01,) + beats[-1][1:]]):
+        if t <= p < nxt[0]:
+            fx |= set(info.get("fx", ()))
+        if "spark" in info and abs(p - t) < 0.07:
+            sparks.append(info["spark"])
+    ninjas = [nj] + (_attackers(p, 130)[1:] if extra_ninjas else [])
+    sc = _scene(m, ninjas, fx=fx)
+    sc["sparks"] = sparks
+    return sc
+
+
+def _b_exchange(p):
+    """Work: a real exchange. He parries a jab (tan sau); his reverse punch
+    is blocked high; he checks the ninja's kick with his shin; his roundhouse
+    lands; both reset."""
+    G = _pose("thai_guard")
+    return _bout(p, [
+        (0.00, G, "guard", 76, {}),
+        (0.14, _pose("yjkym", arms=(40, 120, 82, 70), hands=("fist", "palm"), wrists=(0, 40)), "jab", 64,
+         {"fx": {"block"}, "spark": (34, -56)}),
+        (0.30, _pose("gong_bu", arms=(30, 140, 92, 0), twist=30, torso=8), "high_block", 70,
+         {"spark": (44, -66)}),
+        (0.46, _pose("thai_guard", legs=(14, 8, 72, 124), ankles=(20, 40)), "kick", 62,
+         {"spark": (30, -34)}),
+        (0.62, _pose("thai_guard", twist=45, torso=-20, rot=-6, legs=(10, 6, 100, 14), arms=(60, 130, 15, 20),
+                     swivel=(-1.0, 0)), "hit", 88, {"fx": {"impact", "trail"}}),
+        (0.82, G, "guard", 82, {}),
+        (1.00, G, "guard", 76, {}),
+    ])
+
+
+def _b_trade_blows(p):
+    """A tool failed: he blocks the feint low, the ninja's jab gets through,
+    he staggers back, then shuts the next jab down with a high block."""
+    G = _pose("thai_guard")
+    return _bout(p, [
+        (0.00, G, "guard", 72, {}),
+        (0.16, _pose("thai_guard", arms=(55, 140, 30, 30), hands=("fist", "knife")), "low_block", 62,
+         {"spark": (30, -24)}),
+        (0.32, _pose("thai_guard", x=-12, torso=-26, head=-22, arms=(100, 40, 70, 60)), "jab", 58,
+         {"fx": {"hit"}}),
+        (0.52, _pose("kokutsu", x=-18, torso=-10, arms=(60, 120, 70, 120)), "guard", 64, {}),
+        (0.72, _pose("kokutsu", x=-10, arms=(40, 120, 155, 80), hands=("fist", "knife")), "jab", 56,
+         {"fx": {"block"}, "spark": (28, -66)}),
+        (1.00, G, "guard", 72, {}),
+    ])
+
+
+def _b_swept(p):
+    """Fall: the ninja drops into a low spinning sweep and takes his legs."""
+    G = _pose("thai_guard")
+    down = _pose("ready", y=-40, rot=-82, arms=(90, 30, 120, 30), legs=(30, 40, 60, 20), x=-6)
+    return _bout(p, [
+        (0.00, G, "guard", 74, {}),
+        (0.22, G, "sweep", 54, {"fx": {"dust"}}),
+        (0.40, _pose("ready", y=-16, rot=-46, legs=(60, 20, 90, 10), arms=(150, 30, 120, 40)), "sweep", 52,
+         {"fx": {"dust", "hit"}, "spark": (8, -6)}),
+        (0.70, down, "guard", 70, {"fx": {"dust"}}),
+        (1.00, down, "guard", 78, {}),
+    ])
+
+
+def _b_block_counter(p):
+    """Repair: the ninja swings his weapon overhead; Sensei rises into age
+    uke, steps in with a palm strike, and the weapon flies out of his hand."""
+    G = _pose("thai_guard")
+    sc = _bout(p, [
+        (0.00, G, "guard", 72, {}),
+        (0.20, _pose("kokutsu", arms=(40, 120, 60, 110)), "overhead", 66, {}),
+        (0.36, _pose("kokutsu", arms=(40, 120, 160, 70), hands=("fist", "knife")), "chop", 60,
+         {"fx": {"block"}, "spark": (34, -74)}),
+        (0.56, _pose("gong_bu", arms=(30, 140, 92, 0), hands=("fist", "palm"), wrists=(0, -70), twist=25),
+         "hit", 84, {"fx": {"impact", "trail"}}),
+        (0.80, G, "guard", 90, {}),
+        (1.00, G, "guard", 78, {}),
+    ])
+    if p > 0.52:                                             # disarmed: the weapon spins away
+        u = min(1.0, (p - 0.52) / 0.48)
+        sc["ninjas"][0]["disarmed"] = True
+        sc["objects"].append(("staff", 70 + 90 * u, -110 - 50 * math.sin(u * math.pi) + 100 * u * u, 720 * u))
+    return sc
+
+
+MOVES.update({"exchange": _b_exchange, "hit_react": _b_trade_blows, "knocked_down": _b_swept,
+              "block_counter": _b_block_counter})
+MOVE_FOR_POSE["work"] = "exchange"
+KATA["chain_punch"] = ("focused", MOVES["chain_punch"])
+MOVE_FOR_POSE["chain_punch"] = "chain_punch"
+_MOVE_MOOD.update({"exchange": "work", "chain_punch": "work"})
+STYLE_OF.update({"exchange": "Sparring", "hit_react": "Hit lands", "knocked_down": "Leg sweep",
+                 "block_counter": "Age-uke counter"})

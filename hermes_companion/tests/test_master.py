@@ -143,3 +143,105 @@ def test_kata_are_decoration_not_signatures():
 def test_palettes_and_wide_stage():
     assert len({_sig("work", palette=n) for n in M.PALETTES}) == len(M.PALETTES)
     assert FrameRenderer("master", glow=False, squash=False).frame("leap", 0.5).size == M.FRAME
+
+
+# ── real stances, styles and the new joints ───────────────────────────────
+
+def test_stances_carry_their_real_weight():
+    S = M.STANCES
+    l0, k0, l1, k1 = S["ma_bu"]["legs"]
+    assert (l0, k0) == (l1, k1) and k0 > 45                      # horse: 50/50, deep knees
+    _b, back_k, _f, front_k = S["gong_bu"]["legs"]
+    assert front_k > 40 and back_k == 0                         # bow: front knee bent, back leg straight
+    _b, back_k, _f, front_k = S["kokutsu"]["legs"]
+    assert back_k > 40 and front_k == 0                         # back stance: the reverse
+    assert S["xu_bu"]["ankles"][1] > 40                         # empty stance: front toe only
+    assert S["pu_bu"]["legs"][1] > 120 and S["pu_bu"]["legs"][3] == 0
+    assert S["du_li"]["legs"][2] >= 90                          # crane: raised thigh at least level
+    assert S["yjkym"]["swivel"][0] > 0.5                        # Wing Chun: toes turned in
+
+
+def test_every_hand_form_draws_a_different_hand():
+    looks = set()
+    for form in M.HAND_FORMS:
+        cv = PILCanvas(*M.FRAME)
+        st = M._pose("ready", hands=(form, form), arms=(90, 0, 90, 0))
+        M._draw_fighter(cv, M._palette(None), 150, 180, st, "neutral")
+        looks.add(cv.img.tobytes())
+    assert len(looks) == len(M.HAND_FORMS) == 8
+
+
+def test_twist_turns_the_chest_on_the_hips():
+
+    def look(t):
+        cv = PILCanvas(*M.FRAME)
+        M._draw_fighter(cv, M._palette(None), 150, 180, M._pose("gong_bu", twist=t), "neutral")
+        return cv.img.tobytes()
+    assert look(0) != look(40) != look(-40)
+
+
+def test_styles_use_their_signature_hands_and_stances():
+    def hands_over(move):
+        return {h for i in range(12) for h in (M.MOVES[move](i / 12)["master"].get("hands") or ())}
+    assert {"tiger"} <= hands_over("tiger_claw_strike")
+    assert {"crane"} <= hands_over("du_li_crane")
+    assert {"leopard"} <= hands_over("leopard_fist")
+    assert {"snake"} <= hands_over("snake_spear")
+    assert {"dragon"} <= hands_over("dragon_claw")
+    assert {"knife"} <= hands_over("kokutsu_shuto")
+    assert M.move_for("work") == "exchange" and M.move_for("terminal_work") == "thai_roundhouse"
+    peak_twist = max(abs(M.MOVES["thai_roundhouse"](i / 20)["master"]["twist"]) for i in range(20))
+    assert peak_twist > 30                                     # the hip turns over on the kick
+
+
+def test_keyframed_techniques_chamber_strike_and_recover():
+    a, mid, end = (M.MOVES["teep"](t)["master"] for t in (0.0, 0.5, 0.999))
+    assert mid["legs"][2] > 80 and mid["legs"][3] < 20          # knee up, leg extended through
+    assert abs(end["legs"][2] - a["legs"][2]) < 5               # back to guard
+
+
+def test_every_style_chip_names_a_real_move():
+    assert set(M.STYLE_OF) <= set(M.MOVES)
+    for chip in M.STYLE_OF.values():
+        assert 20 + len(chip) * 7.4 < M.FRAME[0] - 12           # always fits the stage
+
+
+def test_trails_and_dust_add_detail():
+
+    def frame(pose, pr):
+        cv = PILCanvas(*M.FRAME)
+        M.draw_master(cv, pose, pr)
+        return cv.img
+    assert "trail" in M.MOVES["thai_roundhouse"](0.45)["fx"]
+    assert "dust" in M.MOVES["stop_object"](0.6)["fx"]
+    assert frame("terminal_work", 0.45).tobytes() != frame("terminal_work", 0.1).tobytes()
+
+
+# ── a real battle: the ninjas fight back ──────────────────────────────────
+
+def _acts(move, n=40):
+    return [(M.MOVES[move](i / n)["ninjas"][0].get("act"), M.MOVES[move](i / n)) for i in range(n)]
+
+
+def test_ninjas_strike_and_block_in_a_real_exchange():
+    acts = {a for a, _sc in _acts("exchange")}
+    assert {"jab", "kick"} <= acts                              # they attack him
+    assert acts & set(M.NINJA_BLOCKS)                           # and block some of his strikes
+    assert "hit" in acts                                        # but not all of them
+    assert any(sc.get("sparks") for _a, sc in _acts("exchange"))  # contact shows where blocks meet strikes
+    assert M.move_for("work") == "exchange"
+
+
+def test_a_failed_tool_is_a_hit_that_gets_through():
+    frames = _acts("hit_react")
+    assert any(a == "jab" and "hit" in sc["fx"] for a, sc in frames)   # their jab lands on him
+    assert any(a == "jab" and "block" in sc["fx"] for a, sc in frames)  # then he blocks the next one
+    swept = [sc["master"]["rot"] for a, sc in _acts("knocked_down")]
+    assert "sweep" in {a for a, _sc in _acts("knocked_down")} and min(swept) < -70
+
+
+def test_block_counter_disarms_the_weapon():
+    acts = {a for a, _sc in _acts("block_counter")}
+    assert {"overhead", "chop", "hit"} <= acts
+    late = M.MOVES["block_counter"](0.8)
+    assert late["ninjas"][0].get("disarmed") and any(o[0] == "staff" for o in late["objects"])

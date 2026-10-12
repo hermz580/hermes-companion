@@ -241,6 +241,51 @@ hops, box steps, back-to-back, Apple Jacks, running man, cabbage patch, the
 robot, Cuban motion, hip twists, ochos, ganchos, fallaways…). These play only around a signature move and
 never replace one.
 
+### Sensei, the master fighter
+
+```bash
+hermes-companion play --companion master                  # midnight (default)
+hermes-companion play --companion master --palette jade   # or dawn
+```
+
+![Sensei fighting a real Hermes session](docs/master-demo.gif)
+
+A master fighter whose fight *is* the status. **Every tool Hermes runs is a
+ninja coming at him**, and its weapon names the kind of work:
+
+| Tool category | Ninja |
+|---|---|
+| terminal | shuriken |
+| web | kunai and rope |
+| files | bo staff |
+| code | twin blades |
+| media | smoke bombs |
+| memory | shadow ninja |
+
+| Hermes is… | Sensei… |
+|---|---|
+| starting a task | bows, then drops into a horse stance |
+| launching a step | **runs up the wall** and along its side |
+| running a tool | fights that tool's ninja: jab-cross, roundhouse, spin and flying kicks |
+| working on code / files | a sweep that takes two at once / disarms the bo staff |
+| a long tool keeps going | **arrows fly in and he dodges every one** |
+| reading, searching, memory | **sneaks up** on a ninja and takes it from behind |
+| a step finished | a palm strike, then **throws the ninja far away** |
+| a step failed | takes a hit, goes down, kips back up; blocks and counters while fixing it |
+| needs your OK | **catches an arrow** / **stops a thrown boulder** in a gold freeze ring, and waits |
+| you approved / declined | flips up and goes / tosses it aside |
+| sending out helpers | **shadow clones** step out and fight beside him |
+| finished the task | a **long backflip**, then a **bicycle kick** |
+| quiet / asleep | **rests under the blossom tree** while petals fall |
+
+He runs on the same jointed rig as Ade & Rae, so kicks point the toe, sneaks
+crouch low with the spine bent, and dodges arch the back. Badges count the
+ninjas in play, the clones, the hits taken and the ninjas down. The plaque
+says what Hermes is doing in plain words ("Running a command · 2 ninjas
+(kunai rope, shuriken)"). He also has 10 kata of his own (crane stance, tiger
+claw, snake strike, axe kick, staff twirl, meditation…). These play only
+around a signature move and never replace one.
+
 ### Masque, the many behind the mask
 
 ```

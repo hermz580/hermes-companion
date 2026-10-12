@@ -20,6 +20,7 @@ ENERGIES = {
     "masque": ("eerie", "cute", "monster"),
     "nia": ("kente", "indigo", "ochre", "emerald", "royal"),
     "duet": ("classic", "evening", "carnival"),
+    "master": ("midnight", "jade", "dawn"),
     "herald": ("olympus", "midnight", "ember", "verdant", "nebula"),
 }
 

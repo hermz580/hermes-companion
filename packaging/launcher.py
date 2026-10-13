@@ -1,7 +1,8 @@
 """Entry point for the one-file HermesCompanion.exe.
 
-Double-click: the first time, opens Companion Home so you can choose and
-start a companion; after that, starts `play` with your saved settings (tray
+Double-click: the first time, installs itself (Desktop and Start menu
+icons, see `hermes_companion.core.install`) and opens Companion Home so you
+can choose and start a companion; after that, starts `play` with your saved settings (tray
 icon included, and Home is one click on it).
 With arguments it behaves exactly like the `hermes-companion` command, e.g.
 `HermesCompanion.exe live`, `HermesCompanion.exe doctor`.
@@ -22,12 +23,26 @@ def _log_file():
     return open(root / "last-run.log", "w", encoding="utf-8", buffering=1)
 
 
+def _first_run_install():
+    """Copy the exe to Programs and add Desktop + Start menu icons. Never fatal."""
+    try:
+        from hermes_companion.core.install import apply
+        for line in apply():
+            print(line)
+    except Exception as exc:
+        print(f"install skipped: {exc}")
+
+
 def run(argv):
     from hermes_companion.cli.emit import main
     args = list(argv)
     if not args:
         from hermes_companion.core.settings import settings_path
-        args = ["play"] if settings_path().exists() else ["home"]
+        if settings_path().exists():
+            args = ["play"]
+        else:                     # first double-click: install like a normal app
+            _first_run_install()
+            args = ["home"]
     elif args[0] == "live" and "--companion" not in args:
         args = ["live", "--companion", "nyamekra", "--follow"] + args[1:]
     return main(args)

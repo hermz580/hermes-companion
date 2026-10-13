@@ -52,6 +52,27 @@ jobs:
           if (-not $d.WaitForExit(60000)) { $d.Kill(); Write-Error "doctor hung"; exit 1 }
           if ($d.ExitCode -ne 0) { Write-Error "doctor reported problems"; exit 1 }
           Get-Item dist\HermesCompanion.exe | Format-List Name, Length
+      - name: Install test (exe copies itself, Desktop + Start menu icons)
+        shell: pwsh
+        run: |
+          $i = Start-Process -FilePath dist\HermesCompanion.exe -ArgumentList "install" -PassThru
+          if (-not $i.WaitForExit(60000)) { $i.Kill(); Write-Error "install hung"; exit 1 }
+          Get-Content (Join-Path $env:LOCALAPPDATA "hermes-companion\last-run.log") -ErrorAction SilentlyContinue
+          if ($i.ExitCode -ne 0) { Write-Error "install exit code $($i.ExitCode)"; exit 1 }
+          $exe = Join-Path $env:LOCALAPPDATA "Programs\Hermes Companion\HermesCompanion.exe"
+          if (-not (Test-Path $exe)) { Write-Error "exe not copied to $exe"; exit 1 }
+          $sh = New-Object -ComObject WScript.Shell
+          foreach ($f in "Desktop", "Programs") {
+            $lnk = Join-Path ([Environment]::GetFolderPath($f)) "Hermes Companion.lnk"
+            if (-not (Test-Path $lnk)) { Write-Error "missing $lnk"; exit 1 }
+            $l = $sh.CreateShortcut($lnk)
+            if ($l.TargetPath -ne $exe -or $l.Arguments -ne "home") { Write-Error "bad shortcut $lnk"; exit 1 }
+            Write-Output "ok $lnk -> $($l.TargetPath) $($l.Arguments)"
+          }
+          $u = Start-Process -FilePath $exe -ArgumentList "install","--uninstall" -PassThru
+          if (-not $u.WaitForExit(60000)) { $u.Kill(); Write-Error "uninstall hung"; exit 1 }
+          if (Test-Path (Join-Path ([Environment]::GetFolderPath("Desktop")) "Hermes Companion.lnk")) {
+            Write-Error "uninstall left the Desktop icon"; exit 1 }
       - uses: actions/upload-artifact@v4
         with:
           name: HermesCompanion-exe

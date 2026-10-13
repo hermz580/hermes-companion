@@ -41,6 +41,18 @@ you every setting. From a terminal the same file takes any command:
 `HermesCompanion.exe live`, `HermesCompanion.exe doctor`,
 `HermesCompanion.exe play --palette fire --size large`.
 
+### Update or add the icon
+
+The first double-click installs it like a normal app: the exe copies itself to
+`%LOCALAPPDATA%\Programs\Hermes Companion` and puts a **Hermes Companion**
+icon (Nyamekra's crow) on your Desktop and Start menu that opens Companion Home.
+
+To **update**, close the companion (tray icon → Quit), download the newest
+`HermesCompanion.exe` and run `HermesCompanion.exe install` (or press
+**Add icon** on Home's Help page). It replaces the installed copy and keeps
+your settings. `install --uninstall` removes the icons. Running from source?
+`Start-Companion.cmd install` or `hermes-companion install` (Linux: app menu).
+
 ## Try it in 30 seconds (Windows, no Hermes needed)
 
 Download the repo ([Code → Download ZIP](https://github.com/hermz580/hermes-companion/archive/refs/heads/main.zip)),

@@ -11,7 +11,7 @@ Hermes simply isn't connected yet.
 from __future__ import annotations
 
 import json
-import time
+import math
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
@@ -175,10 +175,12 @@ class HermesFeed:
             return False
         tool = str(rec.get("tool") or "")
         category = str(rec.get("category") or "") or classify_tool(tool)
-        try:
-            ts = float(rec.get("ts") or 0.0) or time.time()
-        except (TypeError, ValueError):
-            ts = time.time()
+        raw_ts = rec.get("ts")
+        if (isinstance(raw_ts, bool) or not isinstance(raw_ts, (int, float))
+                or not math.isfinite(float(raw_ts)) or raw_ts < 0):
+            self.rejected += 1
+            return False
+        ts = float(raw_ts)
         self.model.ingest(SemanticEvent(kind=kind, category=category,
                                         session_id=str(rec.get("session_id") or ""), ts=ts))
         said = describe(kind, category)

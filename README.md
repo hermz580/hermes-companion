@@ -41,6 +41,18 @@ you every setting. From a terminal the same file takes any command:
 `HermesCompanion.exe live`, `HermesCompanion.exe doctor`,
 `HermesCompanion.exe play --palette fire --size large`.
 
+### Update or add the icon
+
+The first double-click installs it like a normal app: the exe copies itself to
+`%LOCALAPPDATA%\Programs\Hermes Companion` and puts a **Hermes Companion**
+icon (Nyamekra's crow) on your Desktop and Start menu that opens Companion Home.
+
+To **update**, close the companion (tray icon → Quit), download the newest
+`HermesCompanion.exe` and run `HermesCompanion.exe install` (or press
+**Add icon** on Home's Help page). It replaces the installed copy and keeps
+your settings. `install --uninstall` removes the icons. Running from source?
+`Start-Companion.cmd install` or `hermes-companion install` (Linux: app menu).
+
 ## Try it in 30 seconds (Windows, no Hermes needed)
 
 Download the repo ([Code → Download ZIP](https://github.com/hermz580/hermes-companion/archive/refs/heads/main.zip)),
@@ -519,3 +531,31 @@ Inside the folder you can type `hermes-companion ...` (for example
 ## License
 
 See [LICENSE](LICENSE).
+
+
+### Repair an outdated local Hermes plugin
+
+Close all Hermes sessions, then run from this checkout:
+
+```powershell
+python -m hermes_companion.plugin.repair
+```
+
+Use `--home PATH` for a nondefault Hermes home. The command refuses while Hermes
+processes are running, stages and syntax-validates both complete plugin bundles,
+records file hashes, and preserves the old bundles under `plugin-backups/` outside
+the loader search directory. A failed second swap rolls back both bundles.
+Configuration, event logs, keys, and personality data are not edited. Restart
+Hermes after success. This updates the two hook bundles, not the Hermes application.
+
+To restore a printed backup after closing Hermes:
+
+```powershell
+python -m hermes_companion.plugin.install --hermes-home PATH --restore-backup BACKUP_PATH
+```
+
+Restore each bundle's backup to roll back the pair. A crash during repair can leave
+`.companion-repair.lock`; check the recorded process has exited and inspect the
+backup directories before removing that marker and retrying. Keep Hermes closed
+throughout repair. Backup folders can contain private configuration supplied by
+older plugins; keep them local.

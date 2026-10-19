@@ -110,6 +110,23 @@ def test_old_state_is_labelled_as_history(tmp_path):
     assert stale["headline"] == "Last known: Decision needed" and stale["mood"] == "calm"
 
 
+def test_future_dated_state_is_uncertain_not_current(tmp_path):
+    feed, events = _setup(tmp_path)
+    _write(events, {"event": "tool.started", "category": "terminal", "ts": 110.0})
+    feed.poll()
+    view = feed_view(feed, now=100.0)
+    assert view["headline"] == "Event time is ahead of this computer"
+    assert "can't confirm" in view["sub"]
+    assert view["mood"] == "calm"
+
+
+def test_invalid_signed_timestamp_is_rejected(tmp_path):
+    feed, events = _setup(tmp_path)
+    _write(events, {"event": "tool.started", "ts": -1.0})
+    assert not feed.poll()
+    assert feed.last_ts is None and feed.rejected == 1
+
+
 def test_feed_reads_where_live_mode_reads(monkeypatch, tmp_path):
     from hermes_companion.core.feed import default_paths
     from hermes_companion.renderer.live import hermes_home

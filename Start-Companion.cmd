@@ -13,6 +13,7 @@ REM   Start-Companion.cmd live nia                     any companion, live
 REM   Start-Companion.cmd --reduced-motion --high-contrast   accessibility
 REM   Start-Companion.cmd doctor                       check this PC can run it
 REM   Start-Companion.cmd home                         open Companion Home (all settings)
+REM   Start-Companion.cmd install                      add a crow icon to Desktop and Start menu
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
@@ -50,6 +51,11 @@ REM ---- what to run -----------------------------------------------------------
 set "FIRST=%~1"
 if /i "%FIRST%"=="doctor" (
     ".venv\Scripts\python.exe" -m hermes_companion doctor
+    pause
+    exit /b %ERRORLEVEL%
+)
+if /i "%FIRST%"=="install" (
+    ".venv\Scripts\python.exe" -m hermes_companion install
     pause
     exit /b %ERRORLEVEL%
 )

@@ -19,6 +19,7 @@ tested without a display.
 from __future__ import annotations
 
 import subprocess
+import sys
 import threading
 import time
 
@@ -118,6 +119,7 @@ COMMANDS = (
     ("hermes-companion play", "Start with saved settings, no Hermes needed"),
     ("hermes-companion live", "Connect to your real Hermes agent"),
     ("hermes-companion doctor", "Check this PC in a terminal"),
+    ("hermes-companion install", "Add the crow icon to Desktop and Start menu"),
 )
 
 
@@ -228,6 +230,7 @@ def fix_for(detail: str) -> tuple[str, str]:
 
 
 STALE_S = 10 * 60      # older than this, the headline is history, not "now"
+FUTURE_CLOCK_SKEW_S = 5
 MOOD_HEX = {key: color for key, color, _n, _m in MEANINGS}
 FEED_NOTICE = ("Only signed events from your Hermes count. Quiet doesn't prove nothing "
                "is running.")
@@ -246,6 +249,10 @@ def feed_view(feed, now: float | None = None) -> dict:
         return {"headline": "Waiting for Hermes", "mood": "rest",
                 "sub": "Connected. No events yet: start a task in Hermes.",
                 "items": []}
+    if feed.last_ts > now + FUTURE_CLOCK_SKEW_S:
+        return {"headline": "Event time is ahead of this computer", "mood": "calm",
+                "sub": "Clock mismatch: I can't confirm Hermes's current state yet.",
+                "items": [(i.text, i.mood, "time unavailable") for i in feed.items]}
     headline, mood = feed.headline()
     if now - feed.last_ts > STALE_S:
         headline, mood = f"Last known: {headline}", "calm"
@@ -293,6 +300,7 @@ class HomeWindow:
         self._stopper = stopper or P.request_stop
         self.running_companion = None
         self.notice = None
+        self.install_msg = None
         self._started_at = 0.0
         self.checks = None
         self._images: dict = {}
@@ -304,6 +312,7 @@ class HomeWindow:
         else:
             self.win = tk.Tk()
         self.win.title("Hermes Companion")
+        self._set_app_icon()
         self.win.configure(bg=THEME["bg"])
         self.win.geometry("920x660")
         self.win.minsize(820, 600)
@@ -344,6 +353,31 @@ class HomeWindow:
         self.win.bind("<Control-s>", lambda _e: self.apply())
         self.show(page if page in dict((k, 1) for k, _l, _s in NAV) else "home")
         self._tick()
+
+    def _set_app_icon(self) -> None:
+        """Nyamekra's head in the title bar and taskbar, not Tk's feather."""
+        try:
+            if sys.platform == "win32":     # own taskbar group, so the icon is ours
+                import ctypes
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Hermes.Companion")
+            from PIL import ImageTk
+            from hermes_companion.renderer.smooth import FrameRenderer
+            head = FrameRenderer("nyamekra").frame("idle_bob", 0.2).crop((40, 2, 160, 122))
+            self._images["app_icon"] = [ImageTk.PhotoImage(head.resize((n, n)))
+                                        for n in (64, 32, 16)]
+            self.win.iconphoto(True, *self._images["app_icon"])
+        except Exception:                   # cosmetic: never block Home over an icon
+            pass
+
+    def install_shortcuts(self) -> None:
+        from hermes_companion.core import install
+        try:
+            install.apply()
+            self.install_msg = ("ok", "Added. Look for Hermes Companion on your Desktop "
+                                        "and Start menu.")
+        except Exception as exc:
+            self.install_msg = ("bad", f"Couldn't add the icon: {exc}")
+        self._rerender()
 
     # ---- building blocks -------------------------------------------------------
     def _button(self, parent, text, command, primary=False, small=False):
@@ -693,6 +727,18 @@ class HomeWindow:
                 "Watch its glow: it runs to you when Hermes needs your OK."), start=1):
             self._label(card, f"{n}.  {step}", 10).pack(fill="x", padx=16, pady=2)
         tk.Frame(card, bg=THEME["card"], height=8).pack()
+
+        card = self._card(self.body)
+        row = tk.Frame(card, bg=THEME["card"])
+        row.pack(fill="x", padx=16, pady=12)
+        self._label(row, "Put Hermes Companion on your Desktop and Start menu, "
+                         "with its crow icon.", 10).pack(side="left", fill="x", expand=True)
+        self._button(row, "Add icon", self.install_shortcuts, primary=True,
+                     small=True).pack(side="right")
+        if self.install_msg:
+            color, text = self.install_msg
+            self._label(card, text, 9, color, wraplength=600).pack(fill="x", padx=16,
+                                                                   pady=(0, 10))
 
         card = self._card(self.body)
         self._label(card, "Privacy promises", 11, bold=True).pack(fill="x", padx=16, pady=(12, 4))

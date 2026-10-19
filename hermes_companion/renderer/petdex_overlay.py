@@ -424,10 +424,17 @@ class PetdexOverlay:
             self.canvas.bind("<ButtonRelease-1>", self._on_release)
 
         self._apply_click_through()
+        self.root.bind("<Map>", lambda event: self.root.after_idle(self._keep_above), add="+")
+        self._keep_above()
 
     # -- window plumbing ----------------------------------------------------
     def _hwnd(self) -> int:
-        return ctypes.windll.user32.GetParent(self.canvas.winfo_id())
+        from hermes_companion.renderer.overlay import TkOverlay
+        return TkOverlay._hwnd(self)
+
+    def _keep_above(self) -> None:
+        from hermes_companion.renderer.overlay import TkOverlay
+        TkOverlay._keep_above(self)
 
     def _set_transparent(self, on: bool) -> None:
         hwnd = self._hwnd()

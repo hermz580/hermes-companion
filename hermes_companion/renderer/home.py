@@ -226,6 +226,7 @@ def fix_for(detail: str) -> tuple[str, str]:
 
 
 STALE_S = 10 * 60      # older than this, the headline is history, not "now"
+FUTURE_CLOCK_SKEW_S = 5
 MOOD_HEX = {key: color for key, color, _n, _m in MEANINGS}
 FEED_NOTICE = ("Only signed events from your Hermes count. Quiet doesn't prove nothing "
                "is running.")
@@ -244,6 +245,10 @@ def feed_view(feed, now: float | None = None) -> dict:
         return {"headline": "Waiting for Hermes", "mood": "rest",
                 "sub": "Connected. No events yet: start a task in Hermes.",
                 "items": []}
+    if feed.last_ts > now + FUTURE_CLOCK_SKEW_S:
+        return {"headline": "Event time is ahead of this computer", "mood": "calm",
+                "sub": "Clock mismatch: I can't confirm Hermes's current state yet.",
+                "items": [(i.text, i.mood, "time unavailable") for i in feed.items]}
     headline, mood = feed.headline()
     if now - feed.last_ts > STALE_S:
         headline, mood = f"Last known: {headline}", "calm"

@@ -175,6 +175,165 @@ violet = delegating, rose = failure, amber = needs you, gold = success,
 cyan = curious, lavender = resting. "!" means it noticed something you did,
 and "?" means it's wondering about it.
 
+### Ade & Rae, the dancers
+
+```bash
+hermes-companion play --companion duet                     # classic (default)
+hermes-companion play --companion duet --palette evening   # or carnival
+```
+
+![Ade and Rae dancing a real Hermes session](docs/duet-demo.gif)
+
+Two partner dancers whose dance *is* the status. Ade leads: locs, a silver
+beard, round glasses, a sky-blue shirt and a gold chain. Rae follows: short
+golden hair, red round glasses, gold hoops and a white dress with blue flowers.
+Every move the engine can emit has its own partner figure (94 in all), and
+many of them are **real social and partner dances**: swing and Lindy hop,
+salsa, ballroom, tango and street. The same Hermes action always gets the
+same dance:
+
+| Hermes is… | Ade & Rae dance… |
+|---|---|
+| starting a task | a bow, then a tango corte when it's on |
+| launching a step | a Lindy **swingout** |
+| working | a **sugar push**; still working: back to the **salsa basic** |
+| running a terminal command | a **cha-cha** with Cuban hip motion |
+| on the web | a travelling promenade |
+| reading | a **promenade sway** |
+| organising files / using memory | an **underarm turn** / an **inside turn** |
+| working on code | switch sides: a **cross-body** crossover, trading places |
+| making media / design | a double spin / a cross-body lead |
+| a step finished | a **tuck turn**, then the **Charleston**, then a **moonwalk** home |
+| sending out helpers | they separate; Ade does a **Shorty George**, Rae a **Suzie Q** |
+| a helper is back | they come back together, a **copa**, a spin-out, a dip, then a **tandem Charleston** |
+| needing your OK | they freeze and both reach toward you |
+| you approved | a **kick-ball-change** and off they go |
+| a step failed | a missed catch, then an **oversway** as she recovers in his arms |
+| trying again | back to the **salsa basic** |
+| finished the task | **the lift** (it means nothing else), then a Lindy **frog jump** |
+| listening, glancing, wondering | lean in, glance back, tilt heads, think, peek |
+| quiet or tired | a slow sway, head on a shoulder, a yawn, sitting it out |
+
+**Jointed like dancers.** Each dancer has shoulders and elbows, hips and
+knees, plus:
+
+- a **spine** that bends the chest over the hips (sways, oversways, torso-led turns);
+- a **hip shift** for Cuban motion and shimmies;
+- a **neck** for promenade looks and the tango head snap;
+- **wrists** for flicks and the robot;
+- **ankles** that point or flex the foot (kicks, the moonwalk's heel lift);
+- **foot swivel** for the Charleston twist, Suzie Q and Apple Jacks;
+- **shoulders** that lift for shimmies.
+
+The moves follow the real technique: the Charleston swivels the feet, a salsa
+turn is led by the torso, an oversway softens the knee as she arches back.
+
+The stage follows live work too, from signed events only:
+
+- **Beat lights:** one per tool in flight. The floor takes that tool's colour, and more tools mean more bounce.
+- **Backup dancers:** one per helper Hermes sends out.
+- **Missteps:** each unrecovered failure adds falling petals and a sweat drop. Three clean steps heal one.
+- **Danger:** a red floor when a dangerous command waits for your OK.
+- **Thinking:** dots over their heads while Hermes thinks.
+- **Confetti:** when the task is done.
+
+**Easy to read at a glance.** Every part of both dancers has a clean dark
+edge. Faces carry brows, glasses, a nose and a smile; Ade has a textured beard
+and gold-cuffed locs, Rae has a fringe, lashes and gold hoops. Under the floor, a
+**status plaque** says what Hermes is doing in plain words ("Running a command ·
+terminal · 2 tools running", "Needs your OK · dangerous command", "Task
+complete!"), with an icon for each meaning: gear, raised hand, cross, star,
+helpers, moon, question mark. **Labelled badges** in the corner count tools,
+helpers and missteps, and flag a dangerous command. The words come only from
+the event kind, the tool category and counts, never from your prompts, files or
+commands.
+
+They also have 31 decorative moves of their own (jive kicks, shimmies, conga
+hops, box steps, back-to-back, Apple Jacks, running man, cabbage patch, the
+robot, Cuban motion, hip twists, ochos, ganchos, fallaways…). These play only around a signature move and
+never replace one.
+
+### Sensei, the master fighter
+
+```bash
+hermes-companion play --companion master                  # midnight (default)
+hermes-companion play --companion master --palette jade   # or dawn
+```
+
+![Sensei fighting a real Hermes session](docs/master-demo.gif)
+
+A master fighter whose fight *is* the status. **Every tool Hermes runs is a
+ninja coming at him**, and its weapon names the kind of work:
+
+| Tool category | Ninja |
+|---|---|
+| terminal | shuriken |
+| web | kunai and rope |
+| files | bo staff |
+| code | twin blades |
+| media | smoke bombs |
+| memory | shadow ninja |
+
+| Hermes is… | Sensei… |
+|---|---|
+| starting a task | bows, then drops into a horse stance |
+| launching a step | **runs up the wall** and along its side |
+| running a tool | **a real exchange** with that tool's ninja: he parries its jab (tan sau), it blocks his punch, he checks its kick with his shin, his roundhouse lands |
+| running a command | a Muay Thai roundhouse, pivoting on the ball of the foot with the hip turned over |
+| working on code / files | a sweep that takes two at once / disarms the bo staff |
+| a long tool keeps going | **arrows fly in and he dodges every one** |
+| reading, searching, memory | **sneaks up** on a ninja and takes it from behind |
+| a step finished | a palm strike, then **throws the ninja far away** |
+| a step failed | **the ninja's jab gets through**, he staggers, then shuts the next one down; a leg sweep takes him down; he kips back up; while fixing it he blocks an overhead weapon chop (age-uke) and **disarms** it |
+| needs your OK | **catches an arrow** / **stops a thrown boulder** in a gold freeze ring, and waits |
+| you approved / declined | flips up and goes / tosses it aside |
+| sending out helpers | **shadow clones** step out and fight beside him |
+| finished the task | a **long backflip**, then a **bicycle kick** |
+| quiet / asleep | **rests under the blossom tree** while petals fall |
+
+**It is a real fight, not a show.** The ninjas fight back: they jab, kick,
+sweep low and swing their weapons, and they block or parry some of his
+strikes (high block, low block, parry) while others land. A white spark marks
+each point where a block meets a strike. When a tool fails, a hit really gets
+through to him.
+
+**Real stances, with their real weight.**
+
+| Stance | Weight | Used for |
+|---|---|---|
+| Ma bu / kiba dachi (horse) | 50/50, deep knees | standing ready, rooting to stop a boulder |
+| Gong bu / zenkutsu (bow, front) | ~70% front, back leg straight | reverse punch, tiger claw, leopard fist |
+| Kokutsu dachi (back) | ~70% back | knife-hand block, arrow catch |
+| Xu bu / neko ashi (empty, cat) | nearly all on the back leg, front toe touching | snake hand, cat-stance block |
+| Pu bu (drop) | sits on one bent leg, the other straight out | the low sweep on code merges |
+| Xie bu (cross) | legs crossed, sitting back | resting, dragon claw wind-up |
+| Du li (crane) | one leg, raised thigh at least level | the crane |
+| Yee jee kim yeung (Wing Chun) | toes turned in, knees in | chain punch, tan sau / bong sau |
+| Muay Thai guard | upright, rear heel up | teep, elbow, knee, roundhouse |
+| Ginga (Capoeira) | the swaying triangle step | walking in, dodging arrows |
+
+**Real styles:** the Shaolin five animals (tiger claw, crane wings and beak,
+leopard fist, snake spear-hand, dragon claw), Wing Chun, karate, Muay Thai
+(teep, elbows, knee, roundhouse), Taekwondo (tornado kick, spinning hook),
+Capoeira (ginga, aú, meia lua de compasso) and judo (the o-goshi hip throw
+behind "throws the ninja far away"). A chip on the stage names the style or
+technique being shown.
+
+**Joints and detail.** He uses the same jointed rig as Ade & Rae. A new
+**torso twist** joint turns the shoulders against the hips, so punches and
+kicks drive from the hip. Each hand takes the shape its style uses: fist with
+knuckles, open palm, knife-hand, tiger claw, crane beak, leopard fist,
+snake spear-hand or dragon claw. Techniques are keyframed (chamber, strike,
+follow-through, recover) with easing. The drawing adds gi shading that deepens
+as he turns, cloth folds and creases, belt and headband tails that stream with
+his speed, ground shadows that shrink when he jumps, afterimage trails on fast
+strikes, and dust from the feet.
+
+Badges count the ninjas in play, the clones, the hits taken and the ninjas
+down. The plaque says what Hermes is doing in plain words ("Running a command
+· 2 ninjas (kunai rope, shuriken)"). He also has 24 kata of his own. These
+play only around a signature move and never replace one.
+
 ### Masque, the many behind the mask
 
 ```

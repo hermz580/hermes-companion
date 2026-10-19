@@ -184,6 +184,9 @@ class TkOverlay:
 
         if click_through:
             self._apply_click_through()
+        if not self.windowed:
+            self.root.bind("<Map>", lambda event: self.root.after_idle(self._keep_above), add="+")
+            self._keep_above()
 
     # -- window plumbing ----------------------------------------------------
     def _place(self, x: int, y: int) -> None:
@@ -197,7 +200,32 @@ class TkOverlay:
         self.root.geometry(f"{self.w}x{self.h}+{x}+{y}")
 
     def _hwnd(self) -> int:
-        return ctypes.windll.user32.GetParent(self.canvas.winfo_id())
+        # Canvas -> Tk client is not the top-level HWND used by the compositor.
+        self.root.update_idletasks()
+        user32 = ctypes.windll.user32
+        user32.GetWindowLongW.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        user32.SetWindowLongW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_long]
+        user32.GetAncestor.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+        user32.GetAncestor.restype = ctypes.c_void_p
+        return user32.GetAncestor(self.root.winfo_id(), 2) or self.root.winfo_id()
+
+    def _keep_above(self) -> None:
+        """Maintain desktop visibility without activating or moving the pet."""
+        try:
+            if not self.root.winfo_exists():
+                return
+            user32 = ctypes.windll.user32
+            user32.SetWindowPos.argtypes = [ctypes.c_void_p, ctypes.c_void_p,
+                                           ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                           ctypes.c_int, ctypes.c_uint]
+            # TOPMOST, NOMOVE | NOSIZE | NOACTIVATE. Never steal typing focus.
+            user32.SetWindowPos(self._hwnd(), ctypes.c_void_p(-1), 0, 0, 0, 0, 0x13)
+            pending = getattr(self, '_above_job', None)
+            if pending is not None:
+                self.root.after_cancel(pending)
+            self._above_job = self.root.after(1000, self._keep_above)
+        except (tk.TclError, OSError):
+            pass
 
     def _apply_click_through(self) -> None:
         """Add click-through WITHOUT touching WS_EX_LAYERED.
@@ -209,7 +237,7 @@ class TkOverlay:
         pass-through) and WS_EX_TOOLWINDOW (keeps it out of Alt-Tab)."""
         hwnd = self._hwnd()
         style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
-        style |= WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW
+        style |= WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | 0x08000000  # NOACTIVATE
         ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
         self.ex_style = style  # verified via GetWindowLongW in the self-check
 

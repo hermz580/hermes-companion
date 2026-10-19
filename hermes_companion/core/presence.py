@@ -22,6 +22,7 @@ import json
 import os
 import secrets
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 BEAT_S = 4.0          # how often a running companion refreshes its claim
@@ -32,6 +33,32 @@ WATCH_MS = 1000       # how often a running companion checks its claim
 def presence_path() -> Path:
     from hermes_companion.core.settings import settings_path
     return settings_path().parent / "running.json"
+
+
+@contextmanager
+def _ownership_lock(path: Path):
+    """Serialize claim replacement, heartbeat and release across processes."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.with_suffix('.lock').open('a+b') as handle:
+        handle.seek(0, 2)
+        if handle.tell() == 0:
+            handle.write(b'0')
+            handle.flush()
+        handle.seek(0)
+        if os.name == 'nt':
+            import msvcrt
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            handle.seek(0)
+            if os.name == 'nt':
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _read(path: Path) -> dict | None:
@@ -68,11 +95,12 @@ def current(path: Path | None = None, now: float | None = None) -> dict | None:
 def request_stop(path: Path | None = None) -> bool:
     """Ask whatever companion is running to close itself. True if one was asked."""
     path = path or presence_path()
-    data = current(path)
-    if data is None:
-        return False
-    _write(path, dict(data, stop=True))
-    return True
+    with _ownership_lock(path):
+        data = current(path)
+        if data is None:
+            return False
+        _write(path, dict(data, stop=True))
+        return True
 
 
 class Claim:
@@ -87,35 +115,38 @@ class Claim:
         self.data = {"token": self.token, "mode": mode, "companion": companion,
                      "since": now, "beat": now}
         self._last_beat = now
-        _write(self.path, self.data)
+        with _ownership_lock(self.path):
+            _write(self.path, self.data)
 
     def check(self) -> bool:
         """Refresh the heartbeat. False means: hand over and close."""
-        now = self.clock()
-        on_disk = _read(self.path)
-        if on_disk is not None and on_disk.get("token") != self.token:
-            try:
-                taken = now - float(on_disk.get("beat", 0)) <= STALE_S
-            except (TypeError, ValueError):
-                taken = False
-            if taken:
-                return False                   # a newer companion took over
-        if on_disk is not None and on_disk.get("token") == self.token and on_disk.get("stop"):
-            return False                       # Home asked us to stop
-        if on_disk is None or now - self._last_beat >= BEAT_S or \
-                on_disk.get("token") != self.token:
-            self.data["beat"] = self._last_beat = now
-            _write(self.path, self.data)
-        return True
+        with _ownership_lock(self.path):
+            now = self.clock()
+            on_disk = _read(self.path)
+            if on_disk is not None and on_disk.get("token") != self.token:
+                try:
+                    taken = now - float(on_disk.get("beat", 0)) <= STALE_S
+                except (TypeError, ValueError):
+                    taken = False
+                if taken:
+                    return False                   # a newer companion took over
+            if on_disk is not None and on_disk.get("token") == self.token and on_disk.get("stop"):
+                return False                       # Home asked us to stop
+            if on_disk is None or now - self._last_beat >= BEAT_S or \
+                    on_disk.get("token") != self.token:
+                self.data["beat"] = self._last_beat = now
+                _write(self.path, self.data)
+            return True
 
     def release(self) -> None:
         """Remove the claim if it is still ours."""
-        on_disk = _read(self.path)
-        if on_disk is not None and on_disk.get("token") == self.token:
-            try:
-                self.path.unlink()
-            except OSError:
-                pass
+        with _ownership_lock(self.path):
+            on_disk = _read(self.path)
+            if on_disk is not None and on_disk.get("token") == self.token:
+                try:
+                    self.path.unlink()
+                except OSError:
+                    pass
 
 
 def hold(root, mode: str, companion: str, on_stop) -> Claim | None:

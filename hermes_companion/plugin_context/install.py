@@ -43,7 +43,7 @@ def _insert_bootstrap(source: str) -> str:
     return "\n".join(lines[:future_idx + 1]) + "\n" + shim + "\n".join(lines[future_idx + 1:])
 
 
-def build(hermes_home: str) -> str:
+def _assemble(hermes_home: str) -> str:
     dest = os.path.join(hermes_home, "plugins", "hermes-companion-context")
     os.makedirs(dest, exist_ok=True)
     shutil.copy2(MANIFEST, os.path.join(dest, "plugin.yaml"))
@@ -62,12 +62,22 @@ def build(hermes_home: str) -> str:
     for name in ("core", "behavior", "movement", "animation", "renderer", "cli"):
         src = os.path.join(REPO_ROOT, name)
         if os.path.isdir(src):
-            shutil.copytree(src, os.path.join(package, name))
+            shutil.copytree(src, os.path.join(package, name), ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     shutil.copy2(os.path.join(REPO_ROOT, "__init__.py"), os.path.join(package, "__init__.py"))
     main_mod = os.path.join(REPO_ROOT, "__main__.py")
     if os.path.isfile(main_mod):
         shutil.copy2(main_mod, os.path.join(package, "__main__.py"))
     return dest
+
+
+def build(hermes_home: str) -> str:
+    # Load the shared installer by file path, including when run as a script.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        '_companion_staged_installer', os.path.join(REPO_ROOT, 'plugin', 'install.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.build(hermes_home, bundle_name='hermes-companion-context', assembler=_assemble)
 
 
 def main(argv: list[str] | None = None) -> int:

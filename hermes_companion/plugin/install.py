@@ -17,6 +17,12 @@ import os
 import re
 import shutil
 import sys
+import ast
+import hashlib
+import json
+import tempfile
+from pathlib import Path
+from uuid import uuid4
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # .../hermes_companion
 ADAPTER = os.path.join(REPO_ROOT, "plugin", "__init__.py")
@@ -39,7 +45,7 @@ def _bundled_subdirs() -> list[str]:
     return out
 
 
-def build(hermes_home: str) -> str:
+def _assemble(hermes_home: str) -> str:
     plugins_dir = os.path.join(hermes_home, "plugins")
     dest = os.path.join(plugins_dir, "hermes-companion")
     os.makedirs(dest, exist_ok=True)
@@ -78,13 +84,76 @@ def build(hermes_home: str) -> str:
         shutil.rmtree(pkg_dest)
     os.makedirs(pkg_dest)
     for name in _bundled_subdirs():
-        shutil.copytree(os.path.join(PKG_SRC, name), os.path.join(pkg_dest, name))
+        shutil.copytree(os.path.join(PKG_SRC, name), os.path.join(pkg_dest, name),
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     for fn in ("__init__.py", "__main__.py"):
         src = os.path.join(PKG_SRC, fn)
         if os.path.isfile(src):
             shutil.copy2(src, os.path.join(pkg_dest, fn))
 
     return dest
+
+
+def build(hermes_home: str, *, bundle_name="hermes-companion", assembler=None) -> str:
+    """Validate a staged bundle, then replace it with a recoverable backup.
+
+    Backups live outside plugins/ so Hermes cannot discover duplicate adapters.
+    This does not edit config, personality, events, credentials, or memory.
+    """
+    if bundle_name not in {'hermes-companion', 'hermes-companion-context'}:
+        raise ValueError('Unknown companion bundle')
+    home = Path(hermes_home).resolve()
+    home.mkdir(parents=True, exist_ok=True)
+    dest = home / 'plugins' / bundle_name
+    backup = home / 'plugin-backups' / (bundle_name + '-' + uuid4().hex)
+    with tempfile.TemporaryDirectory(prefix='.companion-stage-', dir=home) as staging:
+        staged = Path((assembler or _assemble)(staging))
+        files = {}
+        for path in staged.rglob('*'):
+            if path.is_file():
+                if path.suffix == '.py':
+                    ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+                files[path.relative_to(staged).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+        (staged / 'bundle-manifest.json').write_text(
+            json.dumps({'schema': 1, 'files': files}, indent=2), encoding='utf-8')
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if dest.is_symlink():
+            raise RuntimeError('Refusing to replace a symlinked plugin directory')
+        had_previous = dest.exists()
+        if had_previous:
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            dest.rename(backup)
+        try:
+            staged.rename(dest)
+        except BaseException:
+            if had_previous:
+                backup.rename(dest)
+            raise
+    if had_previous:
+        print(f'[ok] previous plugin preserved at {backup}')
+    return str(dest)
+
+
+def restore_backup(hermes_home: str, backup_path: str) -> str:
+    home = Path(hermes_home).resolve()
+    backup = Path(backup_path).resolve()
+    if backup.parent != home / 'plugin-backups' or not backup.name.startswith('hermes-companion-'):
+        raise ValueError('Backup must be a companion backup inside this Hermes home')
+    if not (backup / 'plugin.yaml').is_file() or not (backup / '__init__.py').is_file():
+        raise ValueError('Incomplete plugin backup')
+    bundle_name = 'hermes-companion-context' if backup.name.startswith('hermes-companion-context-') else 'hermes-companion'
+    dest = home / 'plugins' / bundle_name
+    displaced = home / 'plugin-backups' / (bundle_name + '-' + uuid4().hex)
+    had_previous = dest.exists()
+    if had_previous:
+        dest.rename(displaced)
+    try:
+        backup.rename(dest)
+    except BaseException:
+        if had_previous:
+            displaced.rename(dest)
+        raise
+    return str(dest)
 
 
 def enable(config_path: str, key: str = "hermes-companion") -> None:
@@ -110,12 +179,18 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--config", default=os.path.join(DEFAULT_HERMES_HOME, "config.yaml"))
     p.add_argument("--hermes-home", default=DEFAULT_HERMES_HOME)
+    p.add_argument("--repair-only", action="store_true", help="Replace bundle without editing config")
+    p.add_argument("--restore-backup", help="Restore a backup from this Hermes home")
     args = p.parse_args(argv)
+    if args.restore_backup:
+        print(restore_backup(args.hermes_home, args.restore_backup))
+        return 0
 
     dest = build(args.hermes_home)
     print(f"[ok] plugin assembled at {dest}")
     print(f"[ok] bundled subpackages: {', '.join(_bundled_subdirs())}")
-    enable(args.config)
+    if not args.repair_only:
+        enable(args.config)
     print("\nNext: hermes plugins list  (confirm loaded)")
     print("      hermes chat -q '...'   (real session emits events)")
     print("      tail ~/.hermes/companion/events.jsonl")

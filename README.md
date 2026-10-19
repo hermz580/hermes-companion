@@ -531,3 +531,31 @@ Inside the folder you can type `hermes-companion ...` (for example
 ## License
 
 See [LICENSE](LICENSE).
+
+
+### Repair an outdated local Hermes plugin
+
+Close all Hermes sessions, then run from this checkout:
+
+```powershell
+python -m hermes_companion.plugin.repair
+```
+
+Use `--home PATH` for a nondefault Hermes home. The command refuses while Hermes
+processes are running, stages and syntax-validates both complete plugin bundles,
+records file hashes, and preserves the old bundles under `plugin-backups/` outside
+the loader search directory. A failed second swap rolls back both bundles.
+Configuration, event logs, keys, and personality data are not edited. Restart
+Hermes after success. This updates the two hook bundles, not the Hermes application.
+
+To restore a printed backup after closing Hermes:
+
+```powershell
+python -m hermes_companion.plugin.install --hermes-home PATH --restore-backup BACKUP_PATH
+```
+
+Restore each bundle's backup to roll back the pair. A crash during repair can leave
+`.companion-repair.lock`; check the recorded process has exited and inspect the
+backup directories before removing that marker and retrying. Keep Hermes closed
+throughout repair. Backup folders can contain private configuration supplied by
+older plugins; keep them local.

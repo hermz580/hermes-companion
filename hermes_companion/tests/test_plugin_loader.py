@@ -47,7 +47,7 @@ def test_installed_plugins_pass_real_manifest_and_loader_validation(tmp_path, mo
         assert loaded.enabled is True, loaded.error
         assert expected_hook in loaded.hooks_registered
         assert set(loaded.manifest.provides_hooks) <= VALID_HOOKS
-        assert loaded.manifest.path.startswith(str(tmp_path / 'plugins'))
+        assert Path(loaded.manifest.path).resolve().is_relative_to((tmp_path / 'plugins').resolve())
 
     # Exercise the installed observer through its real loaded module. This is
     # a local hook call only: no agent loop and no model/provider call.

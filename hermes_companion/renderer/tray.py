@@ -14,15 +14,7 @@ import threading
 
 from hermes_companion.core import settings as S
 
-ENERGIES = {
-    "nyamekra": ("cosmic", "earth", "fire", "water", "air", "shadow", "light",
-                 "neon", "natural", "robotic"),
-    "masque": ("eerie", "cute", "monster"),
-    "nia": ("kente", "indigo", "ochre", "emerald", "royal"),
-    "duet": ("classic", "evening", "carnival"),
-    "master": ("midnight", "jade", "dawn"),
-    "herald": ("olympus", "midnight", "ember", "verdant", "nebula"),
-}
+ENERGIES = S.energies()
 
 
 def relaunch(values: dict, on_quit=None) -> None:
@@ -37,7 +29,7 @@ def menu_model(values: dict) -> list:
     """Pure description of the tray menu: [(label, kind, payload)], testable."""
     items: list = [("Open Home…", "action", "home"), ("", "separator", None)]
     items.append(("Character", "submenu",
-                  [(c.title(), "radio", ("companion", c)) for c in S.COMPANIONS]))
+                  [(S.display_name(c), "radio", ("companion", c)) for c in S.COMPANIONS]))
     energies = ENERGIES.get(values["companion"])
     if energies:
         items.append(("Energy" if values["companion"] == "nyamekra" else "Palette", "submenu",
@@ -50,7 +42,7 @@ def menu_model(values: dict) -> list:
                        ("Reduced motion", "reduced_motion"), ("High contrast", "high_contrast")):
         items.append((label, "toggle", key))
     items.append(("Companions on screen", "submenu",
-                  [(c.title(), "toggle_with", c) for c in S.COMPANIONS
+                  [(S.display_name(c), "toggle_with", c) for c in S.COMPANIONS
                    if c != values["companion"]]))
     items.append(("", "separator", None))
     items.append(("Quit", "action", "quit"))

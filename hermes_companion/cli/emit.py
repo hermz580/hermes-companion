@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 from hermes_companion.behavior.behavior_engine import BehaviorEngine
+from hermes_companion.core import settings as S
 from hermes_companion.core.events import EventKind, SemanticEvent
 from hermes_companion.core.intents import CompanionIntent, IntentKind, route_intent
 from hermes_companion.renderer.headless import HeadlessSurface
@@ -442,7 +443,7 @@ def resolve_play_settings(args: argparse.Namespace, saved: dict) -> dict:
             v[key] = value
     if args.with_ is not None:
         v["with"] = [c.strip() for c in args.with_.split(",") if c.strip()]
-    v["with"] = [c for c in v.get("with", []) if c != v["companion"]][:3]
+    v["with"] = [c for c in v.get("with", []) if c in S.COMPANIONS and c != v["companion"]][:3]
     return v
 
 
@@ -450,7 +451,6 @@ def cmd_play(args: argparse.Namespace) -> int:
     """Run a companion on the desktop with no Hermes install needed."""
     import atexit
     import subprocess
-    from hermes_companion.core import settings as S
     from hermes_companion.renderer.playground import run_playground
     v = resolve_play_settings(args, S.load())
 
@@ -898,7 +898,7 @@ def build_parser() -> argparse.ArgumentParser:
                     help="start the pet on monitor N (1 = first attached display)")
     pl.add_argument("--grab", action="store_true",
                     help="enable sprite hitbox + drag (opt-in pointer interaction, §25)")
-    pl.add_argument("--companion", choices=("pet", "samurai", "astro", "herald", "nia", "nyamekra", "masque"), default=None,
+    pl.add_argument("--companion", choices=("pet",) + S.COMPANIONS, default=None,
                     help="render a procedural companion instead of the configured Alpha atlas")
     pl.add_argument("--relay", default=None, metavar="HOST:PORT",
                     help="join a LAN relay; token comes only from HERMES_COMPANION_TOKEN")
@@ -923,17 +923,18 @@ def build_parser() -> argparse.ArgumentParser:
     pl.set_defaults(fn=cmd_live)
 
     pp = sub.add_parser("play", help="try a companion now - no Hermes needed")
-    pp.add_argument("--companion", choices=("nyamekra", "masque", "herald", "nia", "samurai", "astro"),
+    pp.add_argument("--companion", choices=S.COMPANIONS,
                     default=None, help="default: your saved setting (nyamekra)")
     pp.add_argument("--with", dest="with_", default=None, metavar="NAMES",
-                    help="extra companions on screen, e.g. --with nia,herald")
+                    help="extra companions on screen (up to three), e.g. --with nia,master")
     pp.add_argument("--no-tray", action="store_true", help="no system-tray icon")
     pp.add_argument("--sibling", action="store_true", help=argparse.SUPPRESS)
     pp.add_argument("--x-offset", type=int, default=0, help=argparse.SUPPRESS)
     pp.add_argument("--palette", default=None,
                     help="nyamekra energy: cosmic earth fire water air shadow light "
                          "neon natural robotic; herald: olympus midnight ember verdant nebula; "
-                         "nia: kente indigo ochre emerald royal")
+                         "nia: kente indigo ochre emerald royal; masque: eerie cute monster; "
+                         "duet: classic evening carnival; master: midnight jade dawn")
     pp.add_argument("--notice", choices=("off", "ambient", "full"), default=None,
                     help="what it may notice on the desktop (content-free)")
     pp.add_argument("--no-demo", action="store_true",

@@ -26,8 +26,21 @@ DEFAULTS: dict = {
     "with": [],
 }
 COMPANIONS = ("nyamekra", "masque", "nia", "herald", "samurai", "astro", "duet", "master")
+# What people call each companion (the registry key is an id, not a name).
+NAMES = {"nyamekra": "Nyamekra", "masque": "Masque", "nia": "Nia", "herald": "Herald",
+         "samurai": "Samurai", "astro": "Astro", "duet": "Ade & Rae", "master": "Sensei"}
 SIZES = ("tiny", "standard", "large")
 NOTICE = ("off", "ambient", "full")
+
+
+def display_name(companion: str) -> str:
+    return NAMES.get(companion, companion.title())
+
+
+def energies() -> dict[str, tuple[str, ...]]:
+    """Each companion's palettes, straight from the character registry."""
+    from hermes_companion.animation.characters import COMPANIONS as REGISTRY
+    return {c: tuple(REGISTRY[c]["palettes"]) for c in COMPANIONS if REGISTRY[c]["palettes"]}
 
 
 def settings_path() -> Path:

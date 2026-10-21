@@ -68,3 +68,29 @@ def test_real_pystray_menu_builds():
     menu = build_menu(pystray, dict(S.DEFAULTS), lambda: None, lambda: None)
     labels = [item.text for item in menu.items]
     assert "Character" in labels and "Quit" in labels
+
+
+def test_every_companion_can_be_started_from_play_and_live():
+    """Home, the tray and --with launch companions through these parsers."""
+    from hermes_companion.animation.characters import COMPANIONS
+    parser = build_parser()
+    for name in S.COMPANIONS:
+        assert name in COMPANIONS
+        assert parser.parse_args(["play", "--companion", name]).companion == name
+        assert parser.parse_args(["live", "--companion", name]).companion == name
+        assert parser.parse_args(S.play_command(dict(S.DEFAULTS, companion=name))[3:]).companion == name
+        assert parser.parse_args(S.live_command(dict(S.DEFAULTS, companion=name))[3:]).companion == name
+
+
+def test_unknown_guests_are_dropped():
+    args = build_parser().parse_args(["play", "--with", "master,nobody,duet"])
+    assert resolve_play_settings(args, S.DEFAULTS)["with"] == ["master", "duet"]
+
+
+def test_tray_and_home_offer_every_palette_by_name():
+    from hermes_companion.animation.characters import COMPANIONS
+    from hermes_companion.renderer import tray
+    for name in S.COMPANIONS:
+        assert tray.ENERGIES.get(name, ()) == tuple(COMPANIONS[name]["palettes"])
+    labels = [label for label, _, _ in dict((i[0], i) for i in tray.menu_model(S.DEFAULTS))["Character"][2]]
+    assert "Sensei" in labels and "Ade & Rae" in labels

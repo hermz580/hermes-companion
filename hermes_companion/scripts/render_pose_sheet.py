@@ -64,24 +64,31 @@ class RecordingCanvas:
         self.d = ImageDraw.Draw(self.img)
         self._shapes = 0
 
+    @staticmethod
+    def _pil_width(width) -> int:
+        """PIL requires an int stroke width; animators send floats (e.g.
+        masque's _veil passes width=1.2). Coerce so the harness reports dead
+        poses instead of crashing on the width."""
+        return int(round(width)) if width is not None else 1
+
     def create_oval(self, x1, y1, x2, y2, **kw):
         self._shapes += 1
         self.d.ellipse([x1, y1, x2, y2], fill=_pil_color(kw.get("fill")),
                        outline=_pil_color(kw.get("outline")),
-                       width=kw.get("width", 1))
+                       width=self._pil_width(kw.get("width")))
         return self._shapes
 
     def create_rectangle(self, x1, y1, x2, y2, **kw):
         self._shapes += 1
         self.d.rectangle([x1, y1, x2, y2], fill=_pil_color(kw.get("fill")),
                          outline=_pil_color(kw.get("outline")),
-                         width=kw.get("width", 1))
+                         width=self._pil_width(kw.get("width")))
         return self._shapes
 
     def create_line(self, *coords, **kw):
         self._shapes += 1
         self.d.line(list(coords), fill=_pil_color(kw.get("fill")),
-                    width=kw.get("width", 1))
+                    width=self._pil_width(kw.get("width")))
         return self._shapes
 
     def create_polygon(self, *coords, **kw):
@@ -101,7 +108,7 @@ class RecordingCanvas:
             self.d.arc([x1, y1, x2, y2], start=kw.get("start", 0),
                        end=kw.get("start", 0) + kw.get("extent", 360),
                        fill=_pil_color(kw.get("outline")),
-                       width=kw.get("width", 1))
+                       width=self._pil_width(kw.get("width")))
         else:
             self.d.pieslice([x1, y1, x2, y2], start=kw.get("start", 0),
                             end=kw.get("start", 0) + kw.get("extent", 360),

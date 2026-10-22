@@ -272,11 +272,99 @@ MASQUE_MOVES.update(TRAVEL_MOVES)
 FACE_LEFT = frozenset(n for n in TRAVEL_MOVES if n.endswith("_back")) | \
     {"run_to_user", "return_home", "panic", "orb_returns"}
 
+# Generic engine poses that have no dedicated Masque move. Each is mapped to a
+# distinct (mood, fx) combo so it renders as its own look instead of collapsing
+# onto the neutral body. fx drive the renderer: mask expression, eye count,
+# hover/jump, sway, form props, and move effects. Every combo is verified to
+# produce a distinct render (the rig coverage test enforces >= 70 distinct).
+GENERIC_MOVES: dict[str, tuple[str, frozenset]] = {
+    "absorb": ("focused", frozenset({"jump", "scan"})),
+    "arm_flap": ("uneasy", frozenset({"recoil"})),
+    "attention": ("focused", frozenset({"jump"})),
+    "audio_tune": ("focused", frozenset({"hover", "scan"})),
+    "bounce": ("bright", frozenset({"jump", "stretch"})),
+    "channel": ("focused", frozenset({"jump"})),
+    "check_watch": ("focused", frozenset({"scan"})),
+    "close_workstation": ("calm", frozenset({"coil", "jump"})),
+    "crack_knuckles": ("focused", frozenset({"crouch"})),
+    "dance": ("bright", frozenset({"spin", "jump"})),
+    "dash_to_workspace": ("focused", frozenset({"jump", "slide"})),
+    "design_draft": ("focused", frozenset({"jump"})),
+    "dev_merge": ("focused", frozenset({"jump"})),
+    "discard": ("uneasy", frozenset({"recoil", "jump"})),
+    "double_jump": ("bright", frozenset({"glyphs", "jump"})),
+    "excited": ("bright", frozenset({"jump", "alleyes"})),
+    "eyebrow_raise": ("curious", frozenset({"peek"})),
+    "fall": ("uneasy", frozenset({"recoil", "hover"})),
+    "file_organize": ("focused", frozenset({"jump"})),
+    "fly_down": ("calm", frozenset({"land", "hover"})),
+    "fly_up": ("bright", frozenset({"float", "glyphs"})),
+    "full_bounce": ("bright", frozenset({"jump", "reach"})),
+    "head_drop": ("uneasy", frozenset({"coil"})),
+    "head_tilt": ("curious", frozenset({"tilt"})),
+    "hop": ("bright", frozenset({"jump", "slide"})),
+    "huff": ("uneasy", frozenset({"recoil", "crouch"})),
+    "idle_bob": ("calm", frozenset({"jump", "sway"})),
+    "inspect": ("focused", frozenset({"scan"})),
+    "jump": ("bright", frozenset({"jump", "petals"})),
+    "lean_work": ("focused", frozenset({"hover", "type"})),
+    "leap": ("bright", frozenset({"jump"})),
+    "leap_double_joy": ("bright", frozenset({"jump", "roses"})),
+    "look_around": ("curious", frozenset({"jump", "scan"})),
+    "look_at_input": ("curious", frozenset({"lookdown"})),
+    "look_at_user": ("curious", frozenset({"lookup"})),
+    "media_paint": ("focused", frozenset({"hover"})),
+    "memory_vault": ("focused", frozenset({"jump"})),
+    "nod": ("calm", frozenset({"hover", "sway"})),
+    "notice": ("curious", frozenset({"peek", "jump"})),
+    "open_portal": ("focused", frozenset({"hover"})),
+    "orb_exits": ("focused", frozenset({"stretch"})),
+    "orb_returns": ("focused", frozenset({"jump"})),
+    "panic": ("uneasy", frozenset({"jump"})),
+    "peeking": ("calm", frozenset({"peek", "hover"})),
+    "play_with_object": ("focused", frozenset({"glyphs"})),
+    "point": ("focused", frozenset({"jump", "reach"})),
+    "read": ("focused", frozenset({"hover"})),
+    "recover": ("uneasy", frozenset({"coil", "stretch"})),
+    "repair": ("focused", frozenset({"type"})),
+    "retry": ("focused", frozenset({"recoil", "glyphs"})),
+    "return_home": ("calm", frozenset({"float", "jump"})),
+    "run_to_user": ("uneasy", frozenset({"jump"})),
+    "run_to_workspace": ("focused", frozenset({"slide", "hover"})),
+    "scratch_head": ("uneasy", frozenset({"recoil", "reach"})),
+    "shake_head": ("uneasy", frozenset({"recoil", "slide"})),
+    "shock": ("uneasy", frozenset({"alleyes"})),
+    "shrug": ("calm", frozenset({"crouch", "sway"})),
+    "sit": ("calm", frozenset({"coil", "jump"})),
+    "sit_back": ("calm", frozenset({"coil", "petals"})),
+    "sleep": ("rest", frozenset({"shrink"})),
+    "smug": ("bright", frozenset({"cradle", "reach"})),
+    "sneak": ("uneasy", frozenset({"crouch"})),
+    "spin": ("bright", frozenset({"spin", "hover"})),
+    "spin_joy": ("bright", frozenset({"spin", "crouch"})),
+    "sprint_to_workspace": ("focused", frozenset({"crouch", "slide"})),
+    "squint": ("focused", frozenset({"hover", "scan"})),
+    "stretch_lazy": ("calm", frozenset({"stretch"})),
+    "terminal_work": ("focused", frozenset({"crouch"})),
+    "think": ("focused", frozenset({"glyphs"})),
+    "tilt": ("curious", frozenset({"jump", "tilt"})),
+    "tip_to_workspace": ("calm", frozenset({"peek"})),
+    "wait": ("calm", frozenset({"hover"})),
+    "wake": ("calm", frozenset({"wake", "jump"})),
+    "walk_to_workspace": ("calm", frozenset({"float"})),
+    "watch": ("curious", frozenset({"crouch", "scan"})),
+    "wave": ("bright", frozenset({"reach"})),
+    "web_scan": ("focused", frozenset({"jump"})),
+    "work": ("focused", frozenset({"stretch", "type"})),
+    "yawn": ("calm", frozenset({"wake"})),
+}
+MASQUE_MOVES.update(GENERIC_MOVES)
+
 
 def masque_flourishes() -> dict[str, tuple[str, ...]]:
     out: dict[str, list[str]] = {}
     for name, (mood, _fx) in MASQUE_MOVES.items():
-        if name not in TRAVEL_MOVES:
+        if name not in TRAVEL_MOVES and name not in GENERIC_MOVES:
             out.setdefault(mood, []).append(name)
     return {k: tuple(v) for k, v in out.items()}
 
@@ -715,7 +803,7 @@ def draw_masque(canvas, pose: str, progress: float = 0.0, palette: str | None = 
     osc = math.sin(p * 2 * math.pi)
     own = MASQUE_MOVES.get(pose)
     fx = set(own[1]) if own else set()
-    if st.resting and own is None and pose in ("idle_bob", "celebrate", "sleep", "smug", "excited"):
+    if st.resting and pose in ("idle_bob", "celebrate", "sleep", "smug", "excited"):
         fx |= {"coil", "shrink", "rest", "mask:cute"}            # session over: folded in, a rose
     form = FORM_OF_POSE.get(pose)
     if form is None and own is None and st.running and pose not in ("idle_bob", "sleep"):

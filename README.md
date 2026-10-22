@@ -329,6 +329,46 @@ down. The plaque says what Hermes is doing in plain words ("Running a command
 · 2 ninjas (kunai rope, shuriken)"). He also has 24 kata of his own. These
 play only around a signature move and never replace one.
 
+### Kai, the street skater
+
+```bash
+hermes-companion play --companion kai                     # street (default)
+hermes-companion play --companion kai --palette neon      # or concrete
+```
+
+![Kai skating a real Hermes session](docs/kai-demo.gif)
+
+Designed movement-first: **every Hermes state is its own kind of motion**, so
+you can read what Hermes is doing from how Kai moves, even out of the corner
+of your eye.
+
+| Hermes is… | Kai… | kind of motion |
+|---|---|---|
+| starting a task | **drops in** off the ramp, then pushes off | descend, travel |
+| launching a step | **ollies up** onto the ledge | pop up |
+| running a tool | holds a **manual**, balanced on two wheels | balance |
+| running a command | **grinds the rail**, sparks in the work's colour | slide |
+| searching the web | carves big S-turns | sweep |
+| reading | nose manual, eyes down | balance (front) |
+| working with files / code | pop **shove-it** (the board spins flat) / boardslide across the rail | board turns / slide sideways |
+| a long tool keeps going | **pumps the halfpipe**, wall to wall | oscillate |
+| a step finished | **kickflip**, caught and landed | the board flips |
+| a step failed | the board shoots out, he **slams**, chases it, fixes a truck | fall |
+| needs your OK | **foot-brakes** to a dead stop, kicks the board up, leans on it and waits | sudden stop, then stillness |
+| you approved / declined | runs and jumps back on / kick-turns away | restart / turn |
+| sending out helpers | whistles in his **crew**, who skate behind him | others arrive |
+| finished the task | **big air** off the kicker with an indy grab, the highest he goes | soar |
+| quiet / asleep | sits on his board with his headphones, then lies back | rest low |
+
+**The board is the second character**: it flips in a kickflip, spins in a
+shove-it, rolls away when he slams, and stands on its tail beside him while
+he waits for you. The street shows live, content-free signals: a chalk mark
+per tool running (coloured by the kind of work), a crew skater per helper, a
+plaster on his knee per failure (three clean landings heal one), and a
+"landed" count per finished tool. Tests measure the motions: big air really
+goes highest, the manual keeps the nose up the whole time, the pump goes
+wall to wall, and while he waits for you his hips don't move at all.
+
 ### Masque, the many behind the mask
 
 ```

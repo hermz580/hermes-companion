@@ -33,7 +33,7 @@ def test_registered_everywhere_people_choose_a_companion():
     from hermes_companion.core import settings
     from hermes_companion.renderer import home
     assert COMPANIONS["master"]["frame"] == M.FRAME
-    assert settings.COMPANIONS[-1] == "master"            # appended: existing cards keep their place
+    assert settings.COMPANIONS.index("master") == settings.COMPANIONS.index("duet") + 1   # appended in order
     assert home.ENERGIES["master"] == tuple(M.PALETTES)
     assert traits("master")["greeting"] == M.GREETING
 

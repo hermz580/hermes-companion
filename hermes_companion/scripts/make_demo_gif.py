@@ -41,10 +41,11 @@ def build(out: Path, companion: str = "nyamekra", palette: str | None = "cosmic"
     observe = t.get("observe")
     live_state = None
     if observe is not None:                    # run the companion's live state on the GIF's clock
-        from hermes_companion.animation import duet, masque, master
+        from hermes_companion.animation import duet, kai, masque, master
         fresh = {masque.observe: (masque.STATE, masque.MasqueState),
                  duet.observe: (duet.STATE, duet.DuetState),
-                 master.observe: (master.STATE, master.MasterState)}.get(t["observe"])
+                 master.observe: (master.STATE, master.MasterState),
+                 kai.observe: (kai.STATE, kai.KaiState)}.get(t["observe"])
         if fresh is not None:
             live_state, cls = fresh
             saved = dict(live_state.__dict__)
@@ -89,7 +90,7 @@ if __name__ == "__main__":
     import sys
     if len(sys.argv) > 1:                       # e.g. masque docs/masque-demo.gif
         name = sys.argv[1]
-        dancers = name in ("duet", "master")    # partner work and fights need more frames
+        dancers = name in ("duet", "master", "kai")    # partner work, fights and tricks need more frames
         p = build(Path(sys.argv[2] if len(sys.argv) > 2 else f"docs/{name}-demo.gif"),
                   name, None, steps=6 if dancers else 3, frame_ms=110 if dancers else 140)
         print(p, p.stat().st_size // 1024, "KB")

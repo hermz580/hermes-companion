@@ -13,7 +13,7 @@ Adding a companion = one entry here + a draw function that honors
 """
 from __future__ import annotations
 
-from hermes_companion.animation import (animator, astro_boy, duet, herald, masque, master, nia,
+from hermes_companion.animation import (animator, astro_boy, duet, herald, kai, masque, master, nia,
                                         nyamekra, samurai)
 
 # name -> (draw_fn, default_palette, palette_names, description)
@@ -130,6 +130,25 @@ COMPANIONS: dict[str, dict] = {
                 f"rest under the blossom tree · {len(master.MOVES)} moves · "
                 "midnight | jade | dawn",
     },
+    "kai": {
+        "draw": kai.draw_kai,
+        "palettes": list(kai.PALETTES.keys()),
+        "default": kai.DEFAULT_PALETTE,
+        "frame": kai.FRAME,
+        "state_key": kai.state_key,
+        "observe": kai.observe,
+        "extra_flourishes": kai.trick_flourishes(),
+        "flourish_hints": kai.flourish_hints(),
+        "curious_moves": kai.CURIOUS_MOVES,
+        "voice": kai.VOICE,
+        "greeting": kai.GREETING,
+        "perch_poses": {"hop": "jump", "drop": "fly_down", "teleport": "spin"},
+        "desc": "Kai, the street skater · every Hermes state is its own kind of motion: drops in to "
+                "start, manuals while tools run, grinds for commands, pumps the halfpipe for long work, "
+                "kickflips a finished step, slams on a failure, foot-brakes and leans on his board for "
+                f"your OK, big air when the task is done · {len(kai.MOVES)} moves · "
+                "street | neon | concrete",
+    },
 }
 
 DEFAULT_COMPANION = "astro"
@@ -142,7 +161,7 @@ def list_companions() -> list[str]:
 def has_pose(pose: str) -> bool:
     """True when some companion draws this pose as its own move."""
     return (pose in nyamekra.NYAMEKRA_MOVES or pose in masque.MASQUE_MOVES
-            or pose in duet.DUET_MOVES or pose in master.KATA)
+            or pose in duet.DUET_MOVES or pose in master.KATA or pose in kai.TRICKS)
 
 
 def get_companion(name: str | None) -> dict:

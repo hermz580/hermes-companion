@@ -946,7 +946,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="nyamekra energy: cosmic earth fire water air shadow light "
                          "neon natural robotic; herald: olympus midnight ember verdant nebula; "
                          "nia: kente indigo ochre emerald royal; masque: eerie cute monster; "
-                         "duet: classic evening carnival; master: midnight jade dawn")
+                         "duet: classic evening carnival; master: midnight jade dawn; "
+                         "kai: street neon concrete")
     pp.add_argument("--notice", choices=("off", "ambient", "full"), default=None,
                     help="what it may notice on the desktop (content-free)")
     pp.add_argument("--no-demo", action="store_true",

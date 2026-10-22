@@ -59,6 +59,7 @@ COMPANION_INFO = {
     "masque": ("Masque", "The many behind the mask. Eyes and tendrils follow live work."),
     "nia": ("Nia", "The storyteller. Drum, dance and a heart that glows when it waits."),
     "master": ("Sensei", "A master fighter. Every tool is a ninja he takes on; he rests under the blossom tree."),
+    "kai": ("Kai", "A street skater. Manuals while tools run, kickflips a finished step, big air when it's done."),
     "duet": ("Ade & Rae", "Partner dancers. Spins, switches, a split for helpers, the lift when it's done."),
     "herald": ("Herald", "A winged messenger. Its staff orb shows what a move means."),
     "samurai": ("Samurai", "A rigged warrior with martial moves."),

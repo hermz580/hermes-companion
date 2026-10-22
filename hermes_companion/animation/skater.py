@@ -541,6 +541,15 @@ def draw_skater(canvas, pose: str, progress: float = 0.0,
         move_fn = MOVES.get(move, _cruise)
     sc = move_fn(p)
     st = sc["body"]
+    # Pose-specific micro-gestures keep the entire 70+ engine-pose vocabulary
+    # visibly distinct without changing what a signature skate trick means.
+    # Stable indices, never hash() (which is randomized between processes).
+    if pose in MOVE_FOR_POSE and pose not in FLOURISHES:
+        i = sorted(MOVE_FOR_POSE).index(pose)
+        st["head"] += (i % 13 - 6) * 1.7
+        st["twist"] += ((i // 13) % 11 - 5) * 2.8
+        st["wrists"] = (st["wrists"][0] + (i % 5 - 2) * 3,
+                        st["wrists"][1] + ((i // 5) % 5 - 2) * 3)
     prm = pose_params(pose, progress)
     if move is None and pose not in FLOURISHES:
         st["rot"] += prm["lean"] * 90

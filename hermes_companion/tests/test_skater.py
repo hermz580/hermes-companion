@@ -38,7 +38,7 @@ def test_registration_in_registry_settings_home_tray_and_traits():
     assert home.COMPANION_INFO["skater"][0] == "Kia Kai"
     assert tray.ENERGIES["skater"] == tuple(K.PALETTES)
     assert traits("skater")["greeting"] == K.GREETING
-    assert S.play_command(dict(S.DEFAULTS, companion="skater"))[3:5] == ["--companion", "skater"]
+    assert S.play_command(dict(S.DEFAULTS, companion="skater"))[4:6] == ["--companion", "skater"]
 
 
 def test_every_engine_pose_has_a_signature_and_a_visible_frame():

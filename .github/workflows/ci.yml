@@ -31,6 +31,19 @@ jobs:
       # .venv, forwards options, opens the desktop window, and exits cleanly.
       - name: Doctor
         run: hermes-companion doctor
+      - name: No-console run (what the desktop icon does)
+        shell: pwsh
+        run: |
+          $pyw = Join-Path (Split-Path (Get-Command python).Source) 'pythonw.exe'
+          $logs = Join-Path $env:LOCALAPPDATA 'hermes-companion\logs'
+          $h = Start-Process $pyw -ArgumentList '-m','hermes_companion','home','--seconds','6' -Wait -PassThru
+          Get-Content (Join-Path $logs 'home.log') -ErrorAction SilentlyContinue
+          if ($h.ExitCode -ne 0) { Write-Error "Home exited with $($h.ExitCode)"; exit 1 }
+          if (-not (Select-String -Path (Join-Path $logs 'home.log') -Pattern 'HOME OK' -Quiet)) { Write-Error "Home did not stay open"; exit 1 }
+          $k = Start-Process $pyw -ArgumentList '-m','hermes_companion','play','--companion','kai','--seconds','8' -Wait -PassThru
+          Get-Content (Join-Path $logs 'play.log') -ErrorAction SilentlyContinue
+          if ($k.ExitCode -ne 0) { Write-Error "Kai exited with $($k.ExitCode)"; exit 1 }
+          if (-not (Select-String -Path (Join-Path $logs 'play.log') -Pattern 'PLAY OK' -Quiet)) { Write-Error "Kai closed early"; exit 1 }
       - name: Desktop icon
         shell: pwsh
         run: |

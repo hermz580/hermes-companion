@@ -423,7 +423,8 @@ print(json.dumps(mons))
 def cmd_home(args: argparse.Namespace, page: str | None = None) -> int:
     """Open Companion Home, the one window for everything (also the no-argument default)."""
     from hermes_companion.renderer.home import open_home
-    open_home(page=page or getattr(args, "page", None) or "home")
+    open_home(page=page or getattr(args, "page", None) or "home",
+              seconds=getattr(args, "seconds", None))
     return 0
 
 
@@ -979,6 +980,7 @@ def build_parser() -> argparse.ArgumentParser:
     phome = sub.add_parser("home", help="open Companion Home: start, choose, tune, check")
     phome.add_argument("--page", default="home",
                        choices=("home", "companions", "look", "behavior", "check", "help"))
+    phome.add_argument("--seconds", type=float, default=None, help=argparse.SUPPRESS)  # smoke test
     phome.set_defaults(fn=cmd_home)
 
     pset = sub.add_parser("settings", help="open Companion Home on the Look page")
@@ -1034,6 +1036,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    from hermes_companion.core import runlog
+    if runlog.needs_log():                       # pythonw / desktop icon / .exe: no console
+        runlog.attach(getattr(args, "cmd", None) or "home")
     return args.fn(args)
 
 

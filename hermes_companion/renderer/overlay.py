@@ -53,9 +53,10 @@ def monitors() -> list[tuple[int, int, int, int]]:
     to the desktop; a pet that wanders onto one re-homes to a rect no
     physical screen occupies and becomes invisible forever. The attached
     flag alone does not separate them (the ghosts are still reported
-    attached), so we keep only monitors that intersect the primary with
-    positive area — a real secondary panel always shares the desktop with
-    the primary, while a stale ghost sits entirely off it.
+    attached), so we keep the primary and every monitor joined to it, edge
+    to edge or overlapping, directly or through another kept monitor. A real
+    second screen sits *beside* the primary (touching, zero overlap), so
+    requiring overlap would drop it; a stale ghost floats detached.
     """
     try:
         import ctypes.wintypes as wt
@@ -84,16 +85,29 @@ def monitors() -> list[tuple[int, int, int, int]]:
         if primary is None:
             return found  # no origin monitor; keep everything rather than guess
 
-        p_left, p_top, p_right, p_bottom = primary
-
-        def _intersects(r) -> bool:
-            left, top, right, bottom = r
-            return (min(right, p_right) - max(left, p_left) > 0
-                    and min(bottom, p_bottom) - max(top, p_top) > 0)
-
-        return [r for r in found if _intersects(r)]
+        return connected_to(primary, found)
     except Exception:
         return []
+
+
+def _joined(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+    """Overlapping, or sharing a stretch of edge (corners alone don't count)."""
+    ox = min(a[2], b[2]) - max(a[0], b[0])
+    oy = min(a[3], b[3]) - max(a[1], b[1])
+    return (ox >= 0 and oy > 0) or (oy >= 0 and ox > 0)
+
+
+def connected_to(primary, rects):
+    """The monitors reachable from the primary through joined edges, in order."""
+    keep = {primary}
+    grew = True
+    while grew:
+        grew = False
+        for r in rects:
+            if r not in keep and any(_joined(r, k) for k in keep):
+                keep.add(r)
+                grew = True
+    return [r for r in rects if r in keep]
 
 
 def primary_monitor(rects: list[tuple[int, int, int, int]] | None = None

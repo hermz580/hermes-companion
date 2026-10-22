@@ -526,3 +526,37 @@ Inside the folder you can type `hermes-companion ...` (for example
 ## License
 
 See [LICENSE](LICENSE).
+
+
+### Kia Kai, the skater
+
+```bash
+hermes-companion play --companion skater
+hermes-companion play --companion skater --palette midnight
+hermes-companion live --companion skater --follow
+python -m pytest -q hermes_companion/tests/test_skater.py hermes_companion/tests/test_rig_pose_coverage.py
+```
+
+Kia Kai is an articulated street skater with a cap, gold-cuffed locs, vivid
+hoodie, board and a small skatepark stage. He shares Sensei and Ade & Rae's
+jointed renderer (shoulders and elbows, hips and knees, torso twist, neck,
+wrists, ankles and foot swivels), not Sensei's fighter personality.
+The stage is driven by the **same authenticated, content-free Hermes observer**:
+
+| Verified Hermes event | Kia Kai's skate language |
+|---|---|
+| Task/step begins | Drops his board and pushes or rides a wall |
+| Tools run or progress | Pushes, carves and holds a manual; a deck mark shows tool category |
+| Code, files, media | Grinds the rail, balances, shuvits |
+| Tool finished | Kickflip landing; landed count increases |
+| Tool failed | Bails, board rolls away; recover and try again |
+| Approval required | Stops the board in a glowing ring; red for dangerous actions |
+| Helpers deployed or returned | Skate crew appears and comes back |
+| Task complete | A big aerial board flip with confetti |
+| Idle or sleep | Rests on the skatepark ledge |
+
+The UI exposes Kia Kai alongside the existing companions in Home, the tray,
+and `--companion skater`. Palettes: `street`, `midnight`, `sunrise`.
+A subtle deterministic gesture distinguishes each engine pose; no prompt
+text, command, file or result content is ever drawn. For visibility and
+safety, the renderer trusts only the existing signed semantic event feed.

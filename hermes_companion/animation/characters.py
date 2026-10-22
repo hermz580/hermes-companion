@@ -14,7 +14,7 @@ Adding a companion = one entry here + a draw function that honors
 from __future__ import annotations
 
 from hermes_companion.animation import (animator, astro_boy, duet, herald, masque, master, nia,
-                                        nyamekra, samurai)
+                                        nyamekra, samurai, skater)
 
 # name -> (draw_fn, default_palette, palette_names, description)
 COMPANIONS: dict[str, dict] = {
@@ -130,6 +130,24 @@ COMPANIONS: dict[str, dict] = {
                 f"rest under the blossom tree · {len(master.MOVES)} moves · "
                 "midnight | jade | dawn",
     },
+    "skater": {
+        "draw": skater.draw_skater,
+        "palettes": list(skater.PALETTES.keys()),
+        "default": skater.DEFAULT_PALETTE,
+        "frame": skater.FRAME,
+        "state_key": skater.state_key,
+        "observe": skater.observe,
+        "extra_flourishes": skater.skate_flourishes(),
+        "flourish_hints": skater.flourish_hints(),
+        "curious_moves": skater.CURIOUS_MOVES,
+        "voice": skater.VOICE,
+        "greeting": skater.GREETING,
+        "perch_poses": {"hop": "hop", "drop": "jump", "teleport": "spin"},
+        "desc": "Kia Kai, the skater · jointed street skater with a live skatepark "
+                "stage: tools are lines, failures are bails, helpers are the crew, "
+                "approval freezes the board, and task completion lands the big flip "
+                "· street | midnight | sunrise",
+    },
 }
 
 DEFAULT_COMPANION = "astro"
@@ -142,7 +160,8 @@ def list_companions() -> list[str]:
 def has_pose(pose: str) -> bool:
     """True when some companion draws this pose as its own move."""
     return (pose in nyamekra.NYAMEKRA_MOVES or pose in masque.MASQUE_MOVES
-            or pose in duet.DUET_MOVES or pose in master.KATA)
+            or pose in duet.DUET_MOVES or pose in master.KATA
+            or pose in skater.FLOURISHES)
 
 
 def get_companion(name: str | None) -> dict:

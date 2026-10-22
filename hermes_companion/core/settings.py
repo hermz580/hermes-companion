@@ -25,10 +25,11 @@ DEFAULTS: dict = {
     "high_contrast": False,
     "with": [],
 }
-COMPANIONS = ("nyamekra", "masque", "nia", "herald", "samurai", "astro", "duet", "master")
+COMPANIONS = ("nyamekra", "masque", "nia", "herald", "samurai", "astro", "duet", "master", "skater")
 # What people call each companion (the registry key is an id, not a name).
 NAMES = {"nyamekra": "Nyamekra", "masque": "Masque", "nia": "Nia", "herald": "Herald",
-         "samurai": "Samurai", "astro": "Astro", "duet": "Ade & Rae", "master": "Sensei"}
+         "samurai": "Samurai", "astro": "Astro", "duet": "Ade & Rae", "master": "Sensei",
+         "skater": "Kia Kai"}
 SIZES = ("tiny", "standard", "large")
 NOTICE = ("off", "ambient", "full")
 

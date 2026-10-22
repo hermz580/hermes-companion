@@ -13,7 +13,7 @@ from __future__ import annotations
 import time
 
 from hermes_companion.behavior.behavior_engine import BehaviorEngine, Chain
-from hermes_companion.behavior.perch import PerchDriver
+from hermes_companion.behavior.perch import PerchDriver, make_driver, start_roaming
 from hermes_companion.core.attention import AttentionModel
 from hermes_companion.core.curiosity import CuriosityModel, Reaction
 from hermes_companion.core.events import EventKind, SemanticEvent, classify_tool
@@ -82,8 +82,7 @@ class PlaygroundBrain:
     def bind(self, director) -> None:
         self.director = director
         if self.want_perch and self.sensors is not None and hasattr(self.surface, "set_y"):
-            self.perch = PerchDriver(self.surface, director, self.sensors, log=self.log,
-                                     poses=self.traits["perch_poses"])
+            self.perch = make_driver(self.surface, director, self.sensors, self.traits, log=self.log)
 
     def _hermes(self, now: float) -> None:
         if not self.demo:
@@ -171,7 +170,7 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
                             variety=variety, demo=demo, start=time.monotonic(),
                             perch=perch)
     overlay._director = Director(brain.engine, overlay)
-    overlay._director.wander_s = 40.0 if not reduced_motion else None
+    start_roaming(overlay._director, brain.traits, 40.0 if not reduced_motion else None)
     overlay._director.wander_blocked = lambda: bool(brain.perch and brain.perch.perched)
     if x_offset:
         overlay.home_x += x_offset
@@ -203,6 +202,9 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
         overlay.root.after(33, poll)    # 30 Hz so hops and drops look smooth
 
     def ready() -> None:
+        rect = getattr(overlay, "_home_rect", None)
+        if brain.perch is not None and brain.traits["entrance"] and rect is not None and not reduced_motion:
+            brain.perch.enter(time.monotonic(), rect[1])      # drops in from the top of the screen
         print(f"PLAY READY companion={companion} notice={notice} "
               f"demo={'on' if demo else 'off'}  (Ctrl+C here to quit)", flush=True)
         overlay.root.after(100, poll)

@@ -333,7 +333,7 @@ play only around a signature move and never replace one.
 
 ```bash
 hermes-companion play --companion kai                     # street (default)
-hermes-companion play --companion kai --palette neon      # or concrete
+hermes-companion play --companion kai --palette midnight  # or sunrise
 ```
 
 ![Kai skating a real Hermes session](docs/kai-demo.gif)
@@ -359,6 +359,21 @@ of your eye.
 | sending out helpers | whistles in his **crew**, who skate behind him | others arrive |
 | finished the task | **big air** off the kicker with an indy grab, the highest he goes | soar |
 | quiet / asleep | sits on his board with his headphones, then lies back | rest low |
+
+**He lives on your whole desktop, not in one spot.** Kai wears Kia Kai's look:
+a beanie with a gold band, gold-cuffed locs and a lightning-bolt hoodie.
+
+- He **drops in from the top of the screen** when he starts, board under his
+  feet, all the way down to the taskbar, so you see the whole fall.
+- He **roams across every screen**. He stays wherever he lands instead of
+  walking back to one spot, and wanders toward the open side of your desk.
+- When Hermes is quiet he hops up onto the window you're using and **grinds
+  its top edge like a rail**, back and forth with sparks. Then he **sits on the
+  edge** with his legs over the side.
+- When Hermes gets busy he **bomb-drops** off the window back to the floor,
+  because Hermes's work always plays on the floor.
+- On long trips he **sets down a little kicker and launches** across the
+  screen. Shorter hops are ollies, and the rest is rolling with a push.
 
 **The board is the second character**: it flips in a kickflip, spins in a
 shove-it, rolls away when he slams, and stands on its tail beside him while

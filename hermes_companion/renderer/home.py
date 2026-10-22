@@ -208,8 +208,11 @@ def home_heading(first_run: bool) -> tuple[str, str]:
     return "Welcome back", "Start your companion and see what it's telling you."
 
 
-def crash_notice(companion: str) -> str:
+def crash_notice(companion: str, error: str | None = None, log: str | None = None) -> str:
     title = COMPANION_INFO.get(companion, (companion.title(),))[0]
+    if error:
+        where = f" Full log: {log}" if log else ""
+        return f"{title} closed right after starting: {error}.{where}"
     return f"{title} closed right after starting. Run System check to see why."
 
 
@@ -847,7 +850,10 @@ class HomeWindow:
         if self.proc is not None and self.proc.poll() is not None:
             code, quick = self.proc.returncode, time.monotonic() - self._started_at < 20
             if code and quick:
-                self.notice = crash_notice(self.running_companion or self.saved["companion"])
+                from hermes_companion.core import runlog
+                mode = self.mode or "play"
+                self.notice = crash_notice(self.running_companion or self.saved["companion"],
+                                           runlog.last_error(mode), str(runlog.log_path(mode)))
             self.proc = None
         try:
             claim = self._presence()
@@ -880,10 +886,16 @@ def _open_feed():
         return None
 
 
-def open_home(overlay=None, values: dict | None = None, page: str = "home") -> HomeWindow:
+def open_home(overlay=None, values: dict | None = None, page: str = "home",
+              seconds: float | None = None) -> HomeWindow:
     """Open Home. Without an overlay it owns the Tk loop until closed."""
     first_run = values is None and not S.settings_path().exists()
     home = HomeWindow(values, overlay=overlay, page=page, first_run=first_run)
     if overlay is None:
+        if seconds:                                         # smoke test: prove it stays open
+            def finish():
+                print(f"HOME OK stayed open {seconds:g}s", flush=True)
+                home.close()
+            home.win.after(int(seconds * 1000), finish)
         home.run()
     return home

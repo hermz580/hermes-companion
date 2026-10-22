@@ -25,7 +25,8 @@ from hermes_companion.movement import easing
 # How high a travel step rises mid-flight (px). Flying travels arc through the
 # air; ground travels stay on the floor. Teleports jump, they never arc.
 ARC_BY_POSE = {"soar": 150, "swoop": 110, "wing_dash": 60, "feather_teleport": 0,
-               "hover": 150, "lunge": 110, "ink_slide": 50, "crack_portal": 0}
+               "hover": 150, "lunge": 110, "ink_slide": 50, "crack_portal": 0,
+               "kicker_air": 150, "ollie_gap": 70, "skate_roll": 0}
 ARC_BY_TYPE = {"fly": 120, "leap": 100, "pounce": 90, "hop": 60, "bounce": 50,
                "pop": 80, "drift": 40, "zigzag": 30}
 
@@ -62,6 +63,9 @@ class Director:
         # wanders across the screen (and onto the next monitor) and comes back.
         self.wander_s: float | None = None
         self.wander_blocked = lambda: False       # e.g. while perched on a window
+        # Roaming characters live wherever they end up instead of walking back
+        # to one spot, and wander toward the open side of the desktop.
+        self.roam = False
         self._quiet_since = self.clock()
         self._wander_rng = __import__("random").Random(5)
         # Return-to-anchor phase. A chain ends wherever its last move stopped,
@@ -145,6 +149,8 @@ class Director:
                 self.engine.end_chain()
                 self.idle_pose = "idle_bob"
                 self.surface.set_state(State.IDLE.value)
+                if self.roam and self._home_x() is not None:
+                    self.surface.home_x = int(self._x)      # this is home now
                 if not self._begin_return():
                     self.surface.set_pose("idle_bob", 0.0)
 
@@ -171,6 +177,14 @@ class Director:
     def _wander_chain(self) -> Chain:
         rng = self._wander_rng
         dx = rng.choice((380, 520, 680, 820)) * rng.choice((-1, 1))
+        room = getattr(self.surface, "room", None)
+        if self.roam and room is not None:
+            left, right = room()
+            side = 1 if right >= left else -1
+            if rng.random() < 0.25:
+                side = -side                                # now and then, the other way
+            space = right if side > 0 else left
+            dx = side * max(200, min(rng.choice((520, 760, 1000, 1300)), int(space * 0.85)))
         kind = rng.choice(("drift", "run", "hop", "dash"))
         steps = [{"pose": "walk_to_workspace" if dx > 0 else "return_home", "duration_ms": 1500,
                   "move": {"type": kind, "dx": dx, "dy": 0, "easing": "easeInOutCubic"}},

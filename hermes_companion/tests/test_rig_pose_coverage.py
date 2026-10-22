@@ -22,7 +22,13 @@ _spec = importlib.util.spec_from_file_location("render_pose_sheet", _SCRIPT)
 _sheet = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_sheet)
 
-COMPANIONS = ("pet", "samurai", "astro", "herald", "nia", "nyamekra", "duet", "master")
+# Every rigged companion the registry knows, so the coverage can't drift from
+# the real set. (The registry has nine: the eight rigs plus the original round
+# "pet".) A hardcoded tuple here once shipped "pet" and silently dropped
+# "masque", so the class-kill never ran on one of the eight rigs.
+from hermes_companion.animation.characters import list_companions  # noqa: E402
+
+COMPANIONS = tuple(list_companions())
 
 
 class RigVocabularyTests(unittest.TestCase):

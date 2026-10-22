@@ -63,6 +63,16 @@ def monitors() -> list[tuple[int, int, int, int]]:
     Enumerated rather than derived from the virtual-screen metrics: on a
     multi-monitor desk the panels can sit at vertical offsets, and the virtual
     bounding box then covers regions no monitor occupies.
+
+    Phantom displays are filtered out. Windows can report stale monitor
+    entries (e.g. a docked GPU whose displays were unplugged) as attached
+    to the desktop; a pet that wanders onto one re-homes to a rect no
+    physical screen occupies and becomes invisible forever. The attached
+    flag alone does not separate them (the ghosts are still reported
+    attached), so we keep the primary and every monitor joined to it, edge
+    to edge or overlapping, directly or through another kept monitor. A real
+    second screen sits *beside* the primary (touching, zero overlap), so
+    requiring overlap would drop it; a stale ghost floats detached.
     """
     try:
         import ctypes.wintypes as wt
@@ -78,9 +88,42 @@ def monitors() -> list[tuple[int, int, int, int]]:
             return 1
 
         user32.EnumDisplayMonitors(0, 0, proc_type(_cb), 0)
-        return found
+        if not found:
+            return []
+
+        # The primary is the monitor containing the origin.
+        primary = None
+        for r in found:
+            left, top, right, bottom = r
+            if left <= 0 < right and top <= 0 < bottom:
+                primary = r
+                break
+        if primary is None:
+            return found  # no origin monitor; keep everything rather than guess
+
+        return connected_to(primary, found)
     except Exception:
         return []
+
+
+def _joined(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+    """Overlapping, or sharing a stretch of edge (corners alone don't count)."""
+    ox = min(a[2], b[2]) - max(a[0], b[0])
+    oy = min(a[3], b[3]) - max(a[1], b[1])
+    return (ox >= 0 and oy > 0) or (oy >= 0 and ox > 0)
+
+
+def connected_to(primary, rects):
+    """The monitors reachable from the primary through joined edges, in order."""
+    keep = {primary}
+    grew = True
+    while grew:
+        grew = False
+        for r in rects:
+            if r not in keep and any(_joined(r, k) for k in keep):
+                keep.add(r)
+                grew = True
+    return [r for r in rects if r in keep]
 
 
 def primary_monitor(rects: list[tuple[int, int, int, int]] | None = None

@@ -427,7 +427,8 @@ class PetdexOverlay:
 
     # -- window plumbing ----------------------------------------------------
     def _hwnd(self) -> int:
-        return ctypes.windll.user32.GetParent(self.canvas.winfo_id())
+        from hermes_companion.renderer.overlay import top_level_hwnd
+        return top_level_hwnd(self.canvas)
 
     def _set_transparent(self, on: bool) -> None:
         hwnd = self._hwnd()

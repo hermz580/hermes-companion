@@ -57,7 +57,8 @@ def test_linux_launcher(monkeypatch, tmp_path):
     path = shortcut._linux(tmp_path / "Desktop")
     text = path.read_text()
     assert "Name=Hermes Companion" in text and "hermes_companion home" in text
-    assert path.stat().st_mode & 0o111
+    if sys.platform != "win32":                               # no execute bit on Windows
+        assert path.stat().st_mode & 0o111
 
 
 def test_cli_has_shortcut_command():

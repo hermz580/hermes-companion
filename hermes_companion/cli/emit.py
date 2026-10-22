@@ -426,6 +426,18 @@ def cmd_home(args: argparse.Namespace, page: str | None = None) -> int:
     return 0
 
 
+def cmd_shortcut(args: argparse.Namespace) -> int:
+    """Put an icon on the desktop that opens Companion Home."""
+    from hermes_companion.core import shortcut
+    try:
+        path = shortcut.create()
+    except OSError as exc:
+        print(f"Couldn't make the desktop icon: {exc}", file=sys.stderr)
+        return 1
+    print(f"SHORTCUT OK {path}")
+    return 0
+
+
 def resolve_play_settings(args: argparse.Namespace, saved: dict) -> dict:
     """Saved settings, overridden by anything given on the command line."""
     v = dict(saved)
@@ -974,6 +986,9 @@ def build_parser() -> argparse.ArgumentParser:
     pdoc.add_argument("--no-window", action="store_true", help="skip opening a test window")
     pdoc.set_defaults(fn=lambda a: __import__(
         "hermes_companion.cli.doctor", fromlist=["run_doctor"]).run_doctor(not a.no_window))
+
+    psc = sub.add_parser("shortcut", help="put a Hermes Companion icon on your desktop")
+    psc.set_defaults(fn=cmd_shortcut)
 
     pr = sub.add_parser("relay", help="run the LAN event relay (one per fleet)")
     pr.add_argument("--host", default="0.0.0.0", help="bind address (default 0.0.0.0)")

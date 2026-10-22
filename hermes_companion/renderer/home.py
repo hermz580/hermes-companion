@@ -110,6 +110,7 @@ COMMANDS = (
     ("hermes-companion play", "Start with saved settings, no Hermes needed"),
     ("hermes-companion live", "Connect to your real Hermes agent"),
     ("hermes-companion doctor", "Check this PC in a terminal"),
+    ("hermes-companion shortcut", "Put an icon on your desktop"),
 )
 
 
@@ -285,6 +286,7 @@ class HomeWindow:
         self._stopper = stopper or P.request_stop
         self.running_companion = None
         self.notice = None
+        self.icon_notice = None
         self._started_at = 0.0
         self.checks = None
         self._images: dict = {}
@@ -700,8 +702,25 @@ class HomeWindow:
                      font=("Consolas", 10), anchor="w").grid(row=i, column=0, sticky="w", padx=16)
             self._label(card, what, 10, "muted").grid(row=i, column=1, sticky="w", padx=8)
         tk.Frame(card, bg=THEME["card"], height=8).grid(row=99, column=0)
+        card = self._card(self.body)
+        self._label(card, "Desktop icon", 11, bold=True).pack(fill="x", padx=16, pady=(12, 4))
+        self._label(card, "One double-click opens this window, no terminal needed.",
+                    10, "muted").pack(fill="x", padx=16)
+        row = tk.Frame(card, bg=THEME["card"])
+        row.pack(fill="x", padx=16, pady=(8, 12))
+        self._button(row, "Put an icon on my desktop", self.add_desktop_icon).pack(side="left")
+        if self.icon_notice:
+            self._label(row, self.icon_notice, 10, "muted").pack(side="left", padx=12)
         self._label(self.body, "Shortcuts: Ctrl+1–6 switch pages, Ctrl+S applies changes.",
                     9, "muted", bg="bg").pack(fill="x")
+
+    def add_desktop_icon(self) -> None:
+        from hermes_companion.core import shortcut
+        try:
+            self.icon_notice = f"Done: {shortcut.create().name} is on your desktop."
+        except OSError as exc:
+            self.icon_notice = f"Couldn't add it: {exc}"
+        self._rerender()
 
     # ---- state -----------------------------------------------------------------
     def _set(self, new: dict, rerender: bool = True) -> None:

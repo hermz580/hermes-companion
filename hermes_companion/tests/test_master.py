@@ -33,7 +33,7 @@ def test_registered_everywhere_people_choose_a_companion():
     from hermes_companion.core import settings
     from hermes_companion.renderer import home
     assert COMPANIONS["master"]["frame"] == M.FRAME
-    assert settings.COMPANIONS[-1] == "master"            # appended: existing cards keep their place
+    assert settings.COMPANIONS[-2] == "master"            # Sensei retains his position; Kia Kai is appended
     assert home.ENERGIES["master"] == tuple(M.PALETTES)
     assert traits("master")["greeting"] == M.GREETING
 

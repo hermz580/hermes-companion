@@ -47,6 +47,15 @@ def monitors() -> list[tuple[int, int, int, int]]:
     Enumerated rather than derived from the virtual-screen metrics: on a
     multi-monitor desk the panels can sit at vertical offsets, and the virtual
     bounding box then covers regions no monitor occupies.
+
+    Phantom displays are filtered out. Windows can report stale monitor
+    entries (e.g. a docked GPU whose displays were unplugged) as attached
+    to the desktop; a pet that wanders onto one re-homes to a rect no
+    physical screen occupies and becomes invisible forever. The attached
+    flag alone does not separate them (the ghosts are still reported
+    attached), so we keep only monitors that intersect the primary with
+    positive area — a real secondary panel always shares the desktop with
+    the primary, while a stale ghost sits entirely off it.
     """
     try:
         import ctypes.wintypes as wt
@@ -62,7 +71,27 @@ def monitors() -> list[tuple[int, int, int, int]]:
             return 1
 
         user32.EnumDisplayMonitors(0, 0, proc_type(_cb), 0)
-        return found
+        if not found:
+            return []
+
+        # The primary is the monitor containing the origin.
+        primary = None
+        for r in found:
+            left, top, right, bottom = r
+            if left <= 0 < right and top <= 0 < bottom:
+                primary = r
+                break
+        if primary is None:
+            return found  # no origin monitor; keep everything rather than guess
+
+        p_left, p_top, p_right, p_bottom = primary
+
+        def _intersects(r) -> bool:
+            left, top, right, bottom = r
+            return (min(right, p_right) - max(left, p_left) > 0
+                    and min(bottom, p_bottom) - max(top, p_top) > 0)
+
+        return [r for r in found if _intersects(r)]
     except Exception:
         return []
 

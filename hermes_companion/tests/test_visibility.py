@@ -31,7 +31,8 @@ def test_unknown_without_a_screenshot():
 def test_frames_go_to_the_top_level_window_not_a_child():
     import ctypes
     from hermes_companion.renderer.layered import SmoothLiveOverlay
-    overlay = SmoothLiveOverlay(companion="nyamekra")
+    from conftest import shared_tk_root
+    overlay = SmoothLiveOverlay(companion="nyamekra", master=shared_tk_root())
     try:
         overlay.root.update()
         style = ctypes.windll.user32.GetWindowLongW(overlay._hwnd(), -16) & 0xFFFFFFFF

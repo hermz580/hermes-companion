@@ -50,7 +50,8 @@ def test_chroma_fallback_has_hard_alpha_and_no_green_fringe():
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 layered windows only")
 def test_smooth_overlay_opens_and_draws_on_windows():
     from hermes_companion.renderer.layered import SmoothLiveOverlay
-    overlay = SmoothLiveOverlay(companion="herald")
+    from conftest import shared_tk_root
+    overlay = SmoothLiveOverlay(companion="herald", master=shared_tk_root())
     try:
         assert overlay.mode in ("layered", "chroma")
         overlay.set_pose("celebrate", 0.5)

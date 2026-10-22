@@ -123,9 +123,9 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
     def __init__(self, *, companion: str, home_x: int | None = None,
                  home_y: int | None = None, palette: str | None = None,
                  glow: bool = True, scale: float = 1.0, reduced_motion: bool = False,
-                 high_contrast: bool = False, artpack: str | None = None) -> None:
+                 high_contrast: bool = False, artpack: str | None = None, master=None) -> None:
         super().__init__(companion=companion, home_x=home_x, home_y=home_y,
-                         palette=palette)
+                         palette=palette, master=master)
         self.renderer = FrameRenderer(companion, palette, glow=glow, scale=scale,
                                       reduced_motion=reduced_motion,
                                       high_contrast=high_contrast, artpack=artpack)

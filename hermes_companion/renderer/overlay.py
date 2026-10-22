@@ -143,10 +143,11 @@ class TkOverlay:
 
     def __init__(self, w: int = 200, h: int = 220, home_x: int | None = None,
                  home_y: int | None = None, click_through: bool = True,
-                 companion: str | None = None, palette: str | None = None) -> None:
+                 companion: str | None = None, palette: str | None = None, master=None) -> None:
         self.companion = companion
         self.palette = palette
-        self.root = tk.Tk()
+        # Its own interpreter in normal use; tests pass one shared root (see tests/conftest.py).
+        self.root = tk.Tk() if master is None else tk.Toplevel(master)
         # Windows: a borderless, transparent, click-through desktop pet.
         # Elsewhere (macOS/Linux) Tk has no colour-key transparency, so the
         # companion lives in a small normal window instead of failing.
@@ -313,12 +314,12 @@ class ProceduralLiveOverlay(TkOverlay):
     """Adapt a procedural companion to the live EventTail surface contract."""
 
     def __init__(self, *, companion: str, home_x: int | None = None,
-                 home_y: int | None = None, palette: str | None = None) -> None:
+                 home_y: int | None = None, palette: str | None = None, master=None) -> None:
         # Resolve before opening a window so unknown names fail without GUI side effects.
         from hermes_companion.animation.characters import get_companion
         get_companion(companion)
         super().__init__(home_x=home_x, home_y=home_y, click_through=True,
-                         companion=companion, palette=palette)
+                         companion=companion, palette=palette, master=master)
         self.on_ready = None
         self._director = None
 

@@ -32,6 +32,13 @@ One companion is on your desktop at a time. Starting another (from Home, the
 tray, the app or a terminal) hands over smoothly: the old one closes itself.
 Home sees and can stop a companion even if something else started it.
 
+### A desktop icon
+
+Double-click **`Add-Desktop-Icon.cmd`** once (or run `hermes-companion shortcut`,
+or press **Put an icon on my desktop** on Home's Help page). A **Hermes Companion**
+icon, Nyamekra's crowned head, appears on your desktop and opens Companion Home
+with no terminal window. On Linux it adds a `.desktop` launcher instead.
+
 ## Easiest: download the app (Windows, no Python needed)
 
 Grab **`HermesCompanion.exe`** from the

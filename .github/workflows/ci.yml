@@ -29,6 +29,17 @@ jobs:
       # .venv, forwards options, opens the desktop window, and exits cleanly.
       - name: Doctor
         run: hermes-companion doctor
+      - name: Desktop icon
+        shell: pwsh
+        run: |
+          $out = hermes-companion shortcut 2>&1 | Out-String
+          Write-Output $out
+          $lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Hermes Companion.lnk'
+          if (-not (Test-Path $lnk)) { Write-Error "no desktop icon at $lnk"; exit 1 }
+          $l = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
+          Write-Output "$($l.TargetPath) $($l.Arguments) icon=$($l.IconLocation)"
+          if ($l.Arguments -notmatch 'hermes_companion home') { Write-Error "icon does not open Home"; exit 1 }
+          if (-not (Test-Path ($l.IconLocation -replace ',\d+$',''))) { Write-Error "icon image missing"; exit 1 }
       - name: Launcher smoke test (real window)
         shell: pwsh
         run: |

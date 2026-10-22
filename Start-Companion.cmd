@@ -13,6 +13,7 @@ REM   Start-Companion.cmd live nia                     any companion, live
 REM   Start-Companion.cmd --reduced-motion --high-contrast   accessibility
 REM   Start-Companion.cmd doctor                       check this PC can run it
 REM   Start-Companion.cmd home                         open Companion Home (all settings)
+REM   Start-Companion.cmd shortcut                     put a Hermes Companion icon on your desktop
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
@@ -52,6 +53,15 @@ if /i "%FIRST%"=="doctor" (
     ".venv\Scripts\python.exe" -m hermes_companion doctor
     pause
     exit /b %ERRORLEVEL%
+)
+if /i "%FIRST%"=="shortcut" (
+    ".venv\Scripts\python.exe" -m hermes_companion shortcut
+    if errorlevel 1 (
+        pause
+        exit /b 1
+    )
+    echo Double-click "Hermes Companion" on your desktop to open it.
+    exit /b 0
 )
 if /i "%FIRST%"=="home" (
     start "" ".venv\Scripts\pythonw.exe" -m hermes_companion home

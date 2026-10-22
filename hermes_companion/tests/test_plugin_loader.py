@@ -47,7 +47,11 @@ def test_installed_plugins_pass_real_manifest_and_loader_validation(tmp_path, mo
         assert loaded.enabled is True, loaded.error
         assert expected_hook in loaded.hooks_registered
         assert set(loaded.manifest.provides_hooks) <= VALID_HOOKS
-        assert loaded.manifest.path.startswith(str(tmp_path / 'plugins'))
+        # The loader may normalize the manifest path's case (Windows lowercases
+        # it), so compare case-insensitively via normcase rather than a raw
+        # startswith, which would fail on Windows only.
+        assert os.path.normcase(loaded.manifest.path).startswith(
+            os.path.normcase(str(tmp_path / 'plugins')))
 
     # Exercise the installed observer through its real loaded module. This is
     # a local hook call only: no agent loop and no model/provider call.

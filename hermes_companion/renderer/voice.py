@@ -288,7 +288,11 @@ class Chimes:
         self.played.append(name)
         if not self.enabled:
             return
+        threading.Thread(target=self._play, args=(self._cache[name],), daemon=True).start()
+
+    def _play(self, data: bytes) -> None:
         import winsound
-        data = self._cache[name]
-        threading.Thread(target=winsound.PlaySound,
-                         args=(data, winsound.SND_MEMORY), daemon=True).start()
+        try:
+            winsound.PlaySound(data, winsound.SND_MEMORY)
+        except RuntimeError:              # no audio device: stay quiet from now on
+            self.enabled = False

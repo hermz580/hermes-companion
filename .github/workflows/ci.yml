@@ -29,6 +29,8 @@ jobs:
       # .venv, forwards options, opens the desktop window, and exits cleanly.
       - name: Doctor
         run: hermes-companion doctor
+      - name: Visibility probe (is the companion really on screen?)
+        run: python -m hermes_companion.scripts.visibility_probe
       - name: Desktop icon
         shell: pwsh
         run: |

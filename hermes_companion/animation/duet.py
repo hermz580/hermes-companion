@@ -928,9 +928,9 @@ class _Draw:
         flat = [v for xy in pts for v in self.pt(*xy)]
         kw = self._w(kw)
         if edge:
-            self.c.create_line(*flat, capstyle="round", joint="round", fill=self.edge,
+            self.c.create_line(*flat, capstyle="round", fill=self.edge,
                                width=kw.get("width", 1) + 2)
-        self.c.create_line(*flat, capstyle="round", joint="round", **kw)
+        self.c.create_line(*flat, capstyle="round", **kw)
 
     def poly(self, pts, edge=False, **kw):
         flat = [v for xy in pts for v in self.pt(*xy)]

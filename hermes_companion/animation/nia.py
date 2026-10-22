@@ -117,7 +117,7 @@ def _limb(canvas, x, y, ang1, ang2, l1, l2, side, width, color, flip_up=False):
     hx = ex + side * math.sin(a2) * l2 * (0.6 if ang2 > 90 else 1)
     hy = ey + math.cos(a2) * l2
     canvas.create_line(x, y, ex, ey, hx, hy, width=width, fill=color,
-                       capstyle="round", joint="round", smooth=False)
+                       capstyle="round", smooth=False)
     return ex, ey, hx, hy
 
 

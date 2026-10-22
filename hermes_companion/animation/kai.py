@@ -53,19 +53,21 @@ HIP_Y = FLOOR - 46           # hips when standing on the ground
 DECK = 12                    # deck top above the floor when the board is down
 LEG = 22                     # thigh = shin
 
+# Kia Kai's look: beanie with a gold band, gold-cuffed locs, a lightning-bolt
+# hoodie and a teal "K" deck.
 PALETTES: dict[str, dict[str, str]] = {
-    "street": {"skin": "#8d5524", "hoodie": "#f97316", "hoodie_hi": "#fdba74", "pants": "#334155",
-               "cap": "#1e293b", "shoes": "#f8fafc", "accent": "#22d3ee", "deck": "#facc15",
-               "deck_art": "#ef4444", "wheels": "#fef3c7", "sky": "#fde68a", "city": "#cbd5e1",
-               "ground": "#a8a29e", "hair": "#1c1917"},
-    "neon": {"skin": "#6b3e1f", "hoodie": "#7c3aed", "hoodie_hi": "#c4b5fd", "pants": "#111827",
-             "cap": "#ec4899", "shoes": "#e0f2fe", "accent": "#22d3ee", "deck": "#22d3ee",
-             "deck_art": "#ec4899", "wheels": "#a3e635", "sky": "#312e81", "city": "#4c1d95",
-             "ground": "#57534e", "hair": "#0c0a09"},
-    "concrete": {"skin": "#c68642", "hoodie": "#0f766e", "hoodie_hi": "#5eead4", "pants": "#78716c",
-                 "cap": "#f8fafc", "shoes": "#1f2937", "accent": "#f59e0b", "deck": "#e7e5e4",
-                 "deck_art": "#0f766e", "wheels": "#fafaf9", "sky": "#e2e8f0", "city": "#94a3b8",
-                 "ground": "#d6d3d1", "hair": "#292524"},
+    "street": {"skin": "#835036", "hoodie": "#ec8a3b", "hoodie_hi": "#ffd19a", "pants": "#253d4b",
+               "cap": "#253d4b", "shoes": "#f8f1dd", "accent": "#e8bf52", "deck": "#18b6a1",
+               "deck_art": "#e8bf52", "wheels": "#f8f1dd", "sky": "#fde68a", "city": "#cbd5e1",
+               "ground": "#74838a", "hair": "#18151a", "edge": "#10151b"},
+    "midnight": {"skin": "#69412e", "hoodie": "#6043ad", "hoodie_hi": "#b7a9ed", "pants": "#191d37",
+                 "cap": "#191d37", "shoes": "#e3ddf7", "accent": "#f9c74f", "deck": "#bc79f2",
+                 "deck_art": "#f9c74f", "wheels": "#e3ddf7", "sky": "#312e81", "city": "#4f536d",
+                 "ground": "#4f536d", "hair": "#18121b", "edge": "#0b0d18"},
+    "sunrise": {"skin": "#a66b47", "hoodie": "#c0494f", "hoodie_hi": "#ffb4a5", "pants": "#384e61",
+                "cap": "#384e61", "shoes": "#fff1d6", "accent": "#20a799", "deck": "#ffba4a",
+                "deck_art": "#20a799", "wheels": "#fff1d6", "sky": "#e2a089", "city": "#c4a59a",
+                "ground": "#978889", "hair": "#26141b", "edge": "#26141b"},
 }
 DEFAULT_PALETTE = "street"
 
@@ -830,6 +832,68 @@ def _m_double_ollie(p):
     return _scene(kai, board)
 
 
+# --- out on the desktop: travel, drops and riding window edges -------------------------------
+# These draw only Kai and his board ("bare"): the real desktop is the street,
+# window title bars are his rails, and the taskbar is the ground he lands on.
+def _m_skate_roll(p):
+    """Rolling across the desktop, a push every so often."""
+    push = max(0.0, _sw(p, 1.5)) ** 2
+    kai, board = _ride(0, 0, arms=(30 + 20 * push, 30, 20 + 30 * push, 40), torso=8 + 4 * push)
+    kai["legs"] = (20, -4, 26 + 34 * push, 8 - 34 * push)
+    return _scene(kai, board, fx={"bare", "speed"})
+
+
+def _m_ollie_gap(p):
+    """An ollie over a gap while travelling; the window carries the height."""
+    _lift, crouch = _pop(p, 0, 0.15, 0.85)
+    air = 0.15 < p < 0.85
+    legs = TUCK if air else _legs_mix(STANCE, CROUCH, crouch)
+    kai, board = _ride(0, 0, legs=legs, arms=(95, 20, 70, 30) if air else (50, 40, 50, 40))
+    board["rot"] = -20 if 0.1 < p < 0.2 else (6 if air else 0)
+    return _scene(kai, board, fx={"bare"})
+
+
+def _m_kicker_air(p):
+    """Sets down a little kicker, rolls up it and launches across the screen."""
+    if p < 0.18:                                             # on the kicker
+        u = p / 0.18
+        kai, board = _ride(-30 + 30 * u, 22 * u, rot=-24 * u, legs=_legs_mix(STANCE, CROUCH, u))
+        return _scene(kai, board, fx={"bare", "kicker_here", "speed"})
+    if p > 0.86:                                             # landing
+        u = (p - 0.86) / 0.14
+        kai, board = _ride(0, 0, legs=_legs_mix(CROUCH, STANCE, u), arms=(60, 30, 60, 30))
+        return _scene(kai, board, fx={"bare", "dust"})
+    kai, board = _ride(0, 0, rot=-10 * _sw(p), legs=TUCK, arms=(150, 10, 30, 140))
+    kai["wrists"] = (0, 40)
+    return _scene(kai, board, fx={"bare", "grab"})
+
+
+def _m_bomb_drop(p):
+    """Off the edge with the board under his feet, all the way down to the taskbar."""
+    if p < 0.86:
+        wobble = _sw(p, 3) * 4
+        kai, board = _ride(0, 0, rot=wobble, legs=_legs_mix(STANCE, TUCK, 0.5), arms=(150, 20, 140, 30))
+        board["rot"] = -6
+        return _scene(kai, board, fx={"bare", "perch", "falling"})
+    u = (p - 0.86) / 0.14
+    kai, board = _ride(0, 0, legs=_legs_mix(CROUCH, STANCE, u), arms=(60, 30, 60, 30))
+    return _scene(kai, board, fx={"bare", "perch", "dust"})
+
+
+def _m_edge_grind(p):
+    """Grinding the top edge of the window like a rail, sparks off the trucks."""
+    kai, board = _ride(0, 0, legs=_legs_mix(STANCE, CROUCH, 0.45), arms=BALANCE, torso=6 + 2 * _sw(p, 3))
+    return _scene(kai, board, fx={"bare", "perch", "sparks"})
+
+
+def _m_edge_sit(p):
+    """Sat on the edge of the window, legs hanging over, board beside him."""
+    swing = _sw(p, 1.5)
+    kai = _d(0, y=-DECK - 30, arms=(28, 10, 28, 10), legs=(58, -70 + 14 * swing, 58, -70 - 14 * swing),
+             torso=-4, head=4 * _sw(p))                      # knees over the edge, shins swinging
+    return _scene(kai, _board(40, 0, 0, mode="free"), fx={"bare", "perch", "headphones"})
+
+
 # --- his own tricks: decoration around a signature -------------------------------------------
 def _t_heelflip(p):
     sc = _m_kickflip(p)
@@ -903,7 +967,10 @@ MOVES = {
     "bounce_knees": _m_bounce_knees, "check_phone": _m_check_phone, "look_down": _m_look_down,
     "look_up": _m_look_up, "arms_crossed": _m_arms_crossed, "dance_board": _m_dance_board,
     "double_ollie": _m_double_ollie,
+    "skate_roll": _m_skate_roll, "ollie_gap": _m_ollie_gap, "kicker_air": _m_kicker_air,
+    "bomb_drop": _m_bomb_drop, "edge_grind": _m_edge_grind, "edge_sit": _m_edge_sit,
 }
+DESKTOP_MOVES = ("skate_roll", "ollie_gap", "kicker_air", "bomb_drop", "edge_grind", "edge_sit")
 
 # His own tricks: decoration around a signature, sorted by mood.
 TRICKS: dict[str, tuple] = {
@@ -946,6 +1013,7 @@ MOVE_FOR_POSE: dict[str, str] = {
     "leap_double_joy": "double_ollie",
 }
 MOVE_FOR_POSE.update({name: name for name in TRICKS})
+MOVE_FOR_POSE.update({name: name for name in DESKTOP_MOVES})
 
 # What kind of motion each Hermes state's signature move is. No two states
 # share one, so the state reads from the movement itself (tested).
@@ -976,8 +1044,35 @@ _MOVE_MOOD = {
     "shove_it": "work", "spin_180": "work", "tic_tac": "work", "rock_to_fakie": "work",
     "tail_stall": "work", "pump": "work", "fix_truck": "work", "line_up": "work",
 }
+_MOVE_MOOD.update({"bomb_drop": "calm", "edge_grind": "calm", "edge_sit": "rest", "kicker_air": "calm",
+                   "skate_roll": "calm", "ollie_gap": "calm"})
 _MOVE_MOOD.update({name: {"bright": "joy", "focused": "work", "uneasy": "fail"}.get(m, "calm")
                    for name, (m, _f) in TRICKS.items()})
+
+
+TOWARD_USER = ("run_to_user", "to_user", "panic")
+ROAM = 1.6                    # travel further than a plain walk: real crossings of the screen
+
+
+def travel(step: dict, rng) -> dict:
+    """Swap a moving step for Kai's way of getting there: rolling, ollies, a kicker launch.
+
+    Distance, direction and timing keep what the Hermes event asked for (only
+    further), so the chain still goes where it was sent.
+    """
+    move = step.get("move")
+    if not move or not move.get("dx"):
+        return step
+    dx, kind, pose = move["dx"], move.get("type", ""), step.get("pose", "")
+    if any(k in pose for k in TOWARD_USER):
+        name = "skate_roll"
+    elif kind in ("hop", "leap", "pounce", "fly", "bounce", "pop"):
+        name = "ollie_gap"
+    elif abs(dx) >= 300 and rng.random() < 0.5:
+        name = "kicker_air"
+    else:
+        name = "skate_roll"
+    return dict(step, pose=name, move=dict(move, dx=int(dx * ROAM)))
 
 
 def move_for(pose: str) -> str | None:
@@ -1033,9 +1128,12 @@ def _draw_board(canvas, P, cx, cy, ang, flip, shove, p, spin_wheels):
     kick = 5 * max(0.2, abs(math.cos(f)))
     top = [(-half, -kick), (-half * 0.78, 0), (half * 0.78, 0), (half, -kick)]
     bottom = [(half, -kick + thick), (half * 0.78, thick), (-half * 0.78, thick), (-half, -kick + thick)]
-    face = P["deck_art"] if math.sin(f) > 0.25 else (P["deck"] if not up or math.sin(f) < -0.25 else "#1f2937")
+    face = P["deck_art"] if math.sin(f) > 0.25 else P["deck"]
     flat = [c for uv in top + bottom for c in pt(*uv)]
-    canvas.create_polygon(*flat, fill=face, outline="#0f172a", width=2)
+    canvas.create_polygon(*flat, fill=face, outline=P["edge"], width=2)
+    if thick < 6 and half > 20:                              # his mark on the side of the deck
+        kx, ky = pt(0, thick / 2)
+        canvas.create_text(kx, ky - 1, text="K", fill=P["edge"], font=("Segoe UI", 7, "bold"))
     if thick > 6:                                            # the graphic: a stripe across the deck
         canvas.create_line(*pt(-half * 0.4, thick / 2), *pt(half * 0.4, thick / 2),
                            fill=P["deck"] if face != P["deck"] else P["deck_art"], width=2)
@@ -1053,7 +1151,7 @@ def _draw_board(canvas, P, cx, cy, ang, flip, shove, p, spin_wheels):
 
 def _draw_kai(canvas, P, hx, hy, st, eyes, fx):
     """Kai on the shared rig: baggy cargo pants, chunky sneakers, hoodie, cap backwards."""
-    skin, edge = P["skin"], _mix(P["skin"], "#000000", 0.62)
+    skin, edge = P["skin"], P["edge"]
     shade = _mix(skin, "#000000", 0.22)
     body = _Body(canvas, hx, hy, st["spin"], st["rot"], edge)
     back = st["spin"] < 0
@@ -1071,6 +1169,7 @@ def _draw_kai(canvas, P, hx, hy, st, eyes, fx):
         if i < STATE.scrapes or (i == 0 and STATE.scrapes >= 3):
             body.line([(k[0] - 3, k[1]), (k[0] + 3, k[1])], width=3, fill="#fef3c7")    # plaster
             body.line([(k[0], k[1] - 2.5), (k[0], k[1] + 2.5)], width=1, fill="#f87171")
+        body.dot(k[0], k[1], 2.1, fill=P["hoodie_hi"], outline="")                     # knee
         _foot(body, f, side, ankles[i], swivel[i], P["shoes"], P["accent"])
         body.dot(f[0], f[1] + 2, 3.2, fill=P["shoes"], outline=_mix(P["shoes"], "#000000", 0.45))  # chunky toe
 
@@ -1087,10 +1186,12 @@ def _draw_kai(canvas, P, hx, hy, st, eyes, fx):
     if not hood_up:
         chest.poly([(-11, -50), (11, -50), (8, -42), (-8, -42)], fill=_mix(P["hoodie"], "#000000", 0.2),
                    outline="")                                                         # hood down
-    if True:                                                  # headphones live round his neck
-        chest.line([(-9, -47), (0, -42), (9, -47)], width=2, fill="#0f172a")            # headphones on the neck
+    # the lightning bolt: his mark, readable without words
+    chest.poly([(-2, -36), (5, -36), (0, -27), (5, -27), (-4, -16), (-1, -28)], fill=P["accent"], outline="")
+    if "headphones" in fx:                                    # music when he's chilling
+        chest.line([(-9, -47), (0, -42), (9, -47)], width=2, fill=P["edge"])
         for sx in (-9, 9):
-            chest.dot(sx, -46, 3.2, fill=P["accent"], outline="#0f172a", width=1)
+            chest.dot(sx, -46, 3.2, fill=P["accent"], outline=P["edge"], width=1)
 
     # arms
     for i, (side, (shd, elb)) in enumerate(((-1, st["arms"][0:2]), (1, st["arms"][2:4]))):
@@ -1109,23 +1210,23 @@ def _draw_kai(canvas, P, hx, hy, st, eyes, fx):
     head_y = -62
     chest.line([(0, -48), (0, head_y + 10)], edge=True, width=6, fill=skin)
     hb = _Joint(chest, (0, -52), st.get("head", 0.0))
+    if not hood_up:                                           # locs with gold cuffs
+        for j in range(-3, 4):
+            hb.line([(j * 3, head_y - 10), (j * 4.1, head_y + 13 + abs(j))], edge=True, width=3,
+                    fill=P["hair"])
+            if j % 2 == 0:
+                hb.dot(j * 4, head_y + 7, 1.6, fill=P["accent"], outline="")
     hb.dot(0, head_y, 12.5, edge=True, fill=skin, outline="", squash=True)
     if hood_up:
         hb.dot(0, head_y - 2, 14, edge=True, fill=P["hoodie"], outline="", squash=True)
         hb.dot(0, head_y + 1, 10, fill=skin, outline="", squash=True)
+    else:                                                     # beanie, worn sideways, gold band
+        hb.poly([(-13, head_y - 5), (12, head_y - 7), (14, head_y - 14), (-12, head_y - 18)], edge=True,
+                fill=P["cap"])
+        hb.line([(-12, head_y - 8), (14, head_y - 10)], width=3, fill=P["accent"])
     if back:
-        hb.dot(0, head_y - 1, 12.6, edge=True, fill=P["hair"], outline="", squash=True)
-        hb.poly([(-12, head_y - 6), (12, head_y - 6), (10, head_y - 13), (-10, head_y - 13)], fill=P["cap"],
-                outline="")
-        hb.poly([(-6, head_y - 8), (6, head_y - 8), (5, head_y - 1), (-5, head_y - 1)], fill=P["cap"],
-                outline="")
+        hb.dot(0, head_y - 1, 11, fill=P["hair"], outline="", squash=True)
         return hands
-    if not hood_up:                                           # cap on backwards: the brim behind
-        hb.poly([(-12, head_y - 5), (12, head_y - 5), (11, head_y - 13), (-11, head_y - 13)], fill=P["cap"],
-                outline=_mix(P["cap"], "#000000", 0.4))
-        hb.poly([(-7, head_y - 12), (7, head_y - 12), (4, head_y - 16), (-4, head_y - 16)], fill=P["cap"],
-                outline="")
-        hb.dot(0, head_y - 9, 1.6, fill=P["accent"], outline="")
     for side in (-1, 1):
         hb.dot(side * 12, head_y, 2.4, fill=shade, outline="", squash=True)
     gx = {"left": -2.5, "right": 2.5}.get(eyes, 0.0)
@@ -1299,10 +1400,14 @@ STYLE_OF.update({"tre_flip": "360 flip", "spin_180": "frontside 180", "big_air":
                  "drop_in": "drop in", "rock_to_fakie": "rock to fakie"})
 
 
+TRAVEL_STATUS = {"skate_roll": "On the move", "ollie_gap": "On the move", "kicker_air": "On the move",
+                 "bomb_drop": "Dropping in"}
+
+
 def status_text(pose: str, mood: str) -> tuple[str, str]:
     """(headline, detail): what Hermes is doing, from event kinds, categories and counts only."""
     st = STATE
-    headline = POSE_STATUS.get(pose) or {"work": "Working", "delegate": "Delegating", "fail": "Problem",
+    headline = POSE_STATUS.get(pose) or TRAVEL_STATUS.get(pose) or {"work": "Working", "delegate": "Delegating", "fail": "Problem",
                                          "approve": "Needs you", "joy": "Done", "rest": "Resting"}.get(mood, "Ready")
     detail = []
     if st.running and mood in ("work", "fail", "calm", "curious"):
@@ -1378,12 +1483,19 @@ def draw_kai(canvas, pose: str, progress: float = 0.0, palette: str | None = Non
         glow = _color(STATE.tools[-1])
     kai, board, fx = sc["kai"], sc["board"], sc["fx"]
 
-    _stage(canvas, P, fx, p, glow, kai["x"])
-    _draw_crew(canvas, sc["crew"], p, glow)
+    bare = "bare" in fx                    # out on the real desktop: no street scenery
+    if not bare:
+        _stage(canvas, P, fx, p, glow, kai["x"])
+        _draw_crew(canvas, sc["crew"], p, glow)
     hx, hy = MX + kai["x"], HIP_Y - kai["y"]
-    lift = max(0.0, kai["y"])                                   # ground shadow shrinks as he rises
-    w = 28 * max(0.35, 1 - lift / 150)
-    canvas.create_oval(hx - w, FLOOR - 3, hx + w, FLOOR + 3, fill=_mix(P["ground"], "#000000", 0.3), outline="")
+    if not bare:
+        lift = max(0.0, kai["y"])                               # ground shadow shrinks as he rises
+        w = 28 * max(0.35, 1 - lift / 150)
+        canvas.create_oval(hx - w, FLOOR - 3, hx + w, FLOOR + 3, fill=_mix(P["ground"], "#000000", 0.3),
+                           outline="")
+    if "kicker_here" in fx:                                     # the little ramp he sets down
+        canvas.create_polygon(MX - 36, FLOOR, MX + 16, FLOOR, MX + 16, FLOOR - 24, fill="#a16207",
+                              outline=P["edge"], width=2)
 
     board_pt = None
     hands_first = board is not None and board["mode"] in ("hand", "sit")
@@ -1411,8 +1523,14 @@ def draw_kai(canvas, pose: str, progress: float = 0.0, palette: str | None = Non
             cy = 30 + ((k * 31 + p * 120) % 150)
             canvas.create_rectangle(cx, cy, cx + 4, cy + 7,
                                     fill=("#facc15", "#22d3ee", "#f472b6", "#a3e635")[k % 4], outline="")
+    if "falling" in fx:                                         # wind past him on the way down
+        for k in range(4):
+            x = hx - 30 + k * 20
+            canvas.create_line(x, hy - 110 - (p * 60 + k * 17) % 40, x, hy - 80 - (p * 60 + k * 17) % 40,
+                               fill="#94a3b8", width=2)
     if pose in EXCLAIM:
         _bubble(canvas, hx, 40, "!", glow)
     elif pose in WONDER or STATE.thinking:
         _bubble(canvas, hx, 40, "?", glow)
-    _indicators(canvas, pose, mood, glow)
+    if "perch" not in fx:                                       # on a window Hermes is quiet: no plaque
+        _indicators(canvas, pose, mood, glow)

@@ -509,9 +509,11 @@ class EventTail:
     def _poll_curiosity_director(self, director) -> None:
         from hermes_companion.renderer.playground import reaction_chain
         if self._want_perch and self.perch is None and hasattr(self.overlay, "set_y"):
-            from hermes_companion.behavior.perch import PerchDriver
-            self.perch = PerchDriver(self.overlay, director, self.sensors,
-                                     poses=self.traits["perch_poses"])
+            from hermes_companion.behavior.perch import make_driver
+            self.perch = make_driver(self.overlay, director, self.sensors, self.traits)
+            rect = getattr(self.overlay, "_home_rect", None)
+            if self.traits["entrance"] and rect is not None:
+                self.perch.enter(time.monotonic(), rect[1])    # drops in from the top of the screen
         try:
             observations = self.sensors.sample()
         except Exception:

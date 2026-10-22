@@ -43,6 +43,7 @@ class PerchPlanner:
         self.screen_top = screen_top
         self.settle_s = settle_s
         self.anchor: Anchor | None = None
+        self.span = 1                            # usable length of the current title bar
         self._offset_frac: float | None = None   # where along the title bar
         self._quiet_since: float | None = None
 
@@ -75,6 +76,7 @@ class PerchPlanner:
             return self._floor(current_x, why)
         left, top, right, _bottom = snap.fg_rect
         span = max(1, (right - left) - self.pet_w - 2 * EDGE_MARGIN)
+        self.span = span
         same = self.anchor is not None and self.anchor.handle == snap.fg_handle
         if not same or self._offset_frac is None:
             # Land near where the pet already is, kept inside the title bar.
@@ -152,16 +154,59 @@ class PerchDriver:
     TELEPORT_PX = 700          # farther than this, a character that can teleports
 
     def __init__(self, surface, director, sensors, *, log=print,
-                 poses: dict | None = None) -> None:
+                 poses: dict | None = None, feet_y: int | None = None,
+                 ride: dict | None = None) -> None:
         self.surface, self.director, self.sensors = surface, director, sensors
         # A character's own way of getting between windows, e.g. Nyamekra:
         # {"hop": "soar", "drop": "landing", "teleport": "feather_teleport"}
         self.poses = dict(self.DEFAULT_POSES, **(poses or {}))
-        self.planner = PerchPlanner(surface.w, surface.h, floor_y=surface.home_y,
-                                    feet_y=int(FEET_Y * surface.h / 220))
+        # Where its feet are in its frame; bigger stages put them lower than the
+        # round pet's 192/220, and guessing made them sink into title bars.
+        feet = int(feet_y) if feet_y else int(FEET_Y * surface.h / 220)
+        self.planner = PerchPlanner(surface.w, surface.h, floor_y=surface.home_y, feet_y=feet)
         self.applied: Anchor | None = None
         self.motion: PerchMotion | None = None
         self.log = log
+        # Riding the title bar: {"ride": pose, "rest": pose, "speed": px/s,
+        # "ride_s": s, "rest_s": s}. The character rides the edge of the window
+        # it's perched on, then sits a while, instead of standing still.
+        self.ride = ride
+        self._ride_dir = 1.0
+        self._ride_since: float | None = None
+        self._last_tick: float | None = None
+        self._ride_pose: str | None = None
+
+    def enter(self, now: float, top_y: int) -> None:
+        """Drop in from the top of the screen down to the floor, in view the whole way."""
+        x = int(self.surface.x)
+        floor = Anchor(x, int(self.planner.floor_y), "floor", 0, "entrance")
+        self.planner.anchor = self.applied = floor
+        self.motion = PerchMotion(x, top_y, x, floor.y, now, "drop")
+        self.log("PERCH drop -> floor (entrance)")
+
+    def _ride_tick(self, now: float) -> None:
+        """Ride along the title bar, bounce at its ends, then rest on the edge."""
+        dt = 0.0 if self._last_tick is None else min(0.2, max(0.0, now - self._last_tick))
+        if not (self.ride and self.perched and self.motion is None):
+            self._ride_since = None
+            if self._ride_pose is not None and self.motion is None:
+                self.director.idle_pose, self.director.idle_progress = "idle_bob", None
+            self._ride_pose = None
+            return
+        if self._ride_since is None:
+            self._ride_since = now
+        cycle = self.ride.get("ride_s", 7.0) + self.ride.get("rest_s", 6.0)
+        riding = (now - self._ride_since) % cycle < self.ride.get("ride_s", 7.0)
+        if riding and self.planner._offset_frac is not None:
+            step = self._ride_dir * self.ride.get("speed", 70.0) * dt / max(1, self.planner.span)
+            frac = self.planner._offset_frac + step
+            if not 0.0 <= frac <= 1.0:
+                self._ride_dir = -self._ride_dir
+                frac = min(1.0, max(0.0, frac))
+            self.planner._offset_frac = frac
+        self._ride_pose = self.ride["ride"] if riding else self.ride["rest"]
+        self.director.idle_pose = self._ride_pose
+        self.director.idle_progress = (now * 0.7) % 1.0
 
     @property
     def perched(self) -> bool:
@@ -179,6 +224,8 @@ class PerchDriver:
             self.surface.set_y(y)     # a chain owns x; only lift/lower it
 
     def tick(self, now: float, hermes_state: str) -> None:
+        self._ride_tick(now)
+        self._last_tick = now
         snap = getattr(self.sensors, "prev", None)
         anchor = self.planner.plan(snap, hermes_quiet=hermes_state in QUIET_STATES,
                                    current_x=int(self.surface.x), now=now)
@@ -210,3 +257,21 @@ class PerchDriver:
 
     def _pose_for(self, motion: "PerchMotion") -> str:
         return _faced(self.poses.get(motion.style, "leap"), motion.x1 < motion.x0)
+
+
+def make_driver(surface, director, sensors, traits: dict, *, log=print) -> "PerchDriver":
+    """A PerchDriver set up from a character's traits (play and live share this)."""
+    feet = traits.get("feet_y")
+    frame_h = getattr(getattr(surface, "renderer", None), "fh", None) or surface.h
+    scaled = int(feet * surface.h / frame_h) if feet else None   # sizes keep the same feet line
+    return PerchDriver(surface, director, sensors, log=log, poses=traits.get("perch_poses"),
+                       feet_y=scaled, ride=traits.get("perch_ride"))
+
+
+def start_roaming(director, traits: dict, wander_s: float | None) -> None:
+    """Characters that roam keep wherever they end up and wander more often."""
+    if traits.get("roam") and wander_s is not None:
+        director.roam = True
+        director.wander_s = min(wander_s, 18.0)
+    else:
+        director.wander_s = wander_s

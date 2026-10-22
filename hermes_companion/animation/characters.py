@@ -142,7 +142,12 @@ COMPANIONS: dict[str, dict] = {
         "curious_moves": kai.CURIOUS_MOVES,
         "voice": kai.VOICE,
         "greeting": kai.GREETING,
-        "perch_poses": {"hop": "jump", "drop": "fly_down", "teleport": "spin"},
+        "travel": kai.travel,
+        "perch_poses": {"hop": "ollie_gap", "drop": "bomb_drop"},     # no teleport: every fall is seen
+        "perch_ride": {"ride": "edge_grind", "rest": "edge_sit", "speed": 80.0, "ride_s": 8.0, "rest_s": 6.0},
+        "feet_y": kai.FLOOR,
+        "roam": True,
+        "entrance": True,
         "desc": "Kai, the street skater · every Hermes state is its own kind of motion: drops in to "
                 "start, manuals while tools run, grinds for commands, pumps the halfpipe for long work, "
                 "kickflips a finished step, slams on a failure, foot-brakes and leans on his board for "
@@ -190,7 +195,11 @@ def traits(name: str | None) -> dict:
             "greeting": spec.get("greeting"),
             "travel": spec.get("travel"),
             "perch_poses": dict(spec.get("perch_poses", {})),
-            "observe": spec.get("observe")}
+            "observe": spec.get("observe"),
+            "roam": bool(spec.get("roam")),
+            "perch_ride": spec.get("perch_ride"),
+            "feet_y": spec.get("feet_y"),
+            "entrance": bool(spec.get("entrance"))}
 
 
 def draw_companion(canvas, companion: str | None, pose: str,

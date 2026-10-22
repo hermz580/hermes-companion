@@ -388,7 +388,8 @@ print(json.dumps(mons))
                      perch=not args.no_perch)
     if args.companion is not None:
         overlay.bind_engine(tail.engine)
-        overlay._director.wander_s = 40.0                 # quiet-time strolls between Hermes work
+        from hermes_companion.behavior.perch import start_roaming
+        start_roaming(overlay._director, tail.traits, 40.0)   # quiet-time strolls between Hermes work
         overlay._director.wander_blocked = lambda: bool(tail.perch and tail.perch.perched)
         if hasattr(overlay, "attach_voice"):
             overlay.attach_voice(bubbles=not args.no_bubbles, sound=args.sound,
@@ -947,7 +948,7 @@ def build_parser() -> argparse.ArgumentParser:
                          "neon natural robotic; herald: olympus midnight ember verdant nebula; "
                          "nia: kente indigo ochre emerald royal; masque: eerie cute monster; "
                          "duet: classic evening carnival; master: midnight jade dawn; "
-                         "kai: street neon concrete")
+                         "kai: street midnight sunrise")
     pp.add_argument("--notice", choices=("off", "ambient", "full"), default=None,
                     help="what it may notice on the desktop (content-free)")
     pp.add_argument("--no-demo", action="store_true",

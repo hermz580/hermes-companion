@@ -314,6 +314,15 @@ class TkOverlay:
                 return other, self.home_y
         return None
 
+    def room(self) -> tuple[int, int]:
+        """Space to the left and right across every screen joined to this one."""
+        rects = monitors() or ([getattr(self, "_home_rect")] if getattr(self, "_home_rect", None) else [])
+        if not rects:
+            return 0, 0
+        left = min(r[0] for r in rects)
+        right = max(r[2] for r in rects)
+        return max(0, int(self.x) - left), max(0, right - (int(self.x) + self.w))
+
     def set_pose(self, pose: str, progress: float = 0.0) -> None:
         draw_companion(self.canvas, self.companion, pose, progress,
                        palette=self.palette)

@@ -55,25 +55,29 @@ def check(overlay, before) -> bool | None:
     return changed_pixels(before, after, rect, desktop_origin()) >= MIN_CHANGED
 
 
-def main() -> int:
+def main(companions=("nyamekra", "kai")) -> int:
     if sys.platform != "win32":
         print("visibility probe: Windows only")
         return 0
     from hermes_companion.renderer.layered import SmoothLiveOverlay
     from hermes_companion.renderer.overlay import top_level_hwnd
-    before = snapshot()
-    overlay = SmoothLiveOverlay(companion="nyamekra")
-    try:
-        seen = check(overlay, before)
-        print(f"mode={overlay.mode} window={overlay._hwnd():#x} "
-              f"top-level={top_level_hwnd(overlay.canvas):#x} "
-              f"at=({overlay.x},{overlay._y}) visible={seen}")
-    finally:
-        overlay.close()
-    if seen is False:
-        print("INVISIBLE: the companion window drew nothing on screen")
+    failed = False
+    for name in companions:
+        before = snapshot()
+        overlay = SmoothLiveOverlay(companion=name)
+        try:
+            seen = check(overlay, before)
+            print(f"{name}: mode={overlay.mode} window={overlay._hwnd():#x} "
+                  f"top-level={top_level_hwnd(overlay.canvas):#x} "
+                  f"at=({overlay.x},{overlay._y}) visible={seen}")
+        finally:
+            overlay.close()
+        if seen is False:
+            print(f"INVISIBLE: {name} drew nothing on screen")
+            failed = True
+    if failed:
         return 1
-    print("VISIBLE" if seen else "visibility unknown (no screenshot)")
+    print("VISIBLE")
     return 0
 
 

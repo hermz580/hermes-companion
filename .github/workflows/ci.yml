@@ -54,6 +54,10 @@ jobs:
           $out4 = cmd /c "hermes-companion.cmd play --with nia,herald --seconds 5" 2>&1 | Out-String
           Write-Output $out4
           if (([regex]::Matches($out4, "PLAY READY")).Count -lt 3) { Write-Error "companions on screen did not all start"; exit 1 }
+          $out5 = cmd /c "hermes-companion.cmd play --companion kai --seconds 6" 2>&1 | Out-String
+          Write-Output $out5
+          if ($out5 -notmatch "PERCH drop -> floor \(entrance\)") { Write-Error "Kai did not drop in from the top of the screen"; exit 1 }
+          if ($out5 -notmatch "PLAY OK") { Write-Error "Kai did not run"; exit 1 }
           $out3 = cmd /c "echo.| Start-Companion.cmd herald --seconds 3" 2>&1 | Out-String
           Write-Output $out3
           if ($out3 -notmatch "PLAY OK") { Write-Error "named companion did not run"; exit 1 }

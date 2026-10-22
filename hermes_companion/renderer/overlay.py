@@ -27,6 +27,22 @@ SM_CXVIRTUALSCREEN = 78
 SM_CYVIRTUALSCREEN = 79
 
 
+GA_ROOT = 2
+
+
+def top_level_hwnd(widget) -> int:
+    """The real desktop window (Tk's TkTopLevel wrapper) holding ``widget``.
+
+    Not ``GetParent``: that is Tk's inner *child* window. Pushing frames into
+    the child with UpdateLayeredWindow moved it by its own screen position,
+    outside its 200x220 parent, so Windows clipped every pixel away and the
+    companion ran invisible; style flags set there (click-through) never
+    reached the window either. Verified on Windows by
+    ``renderer/visibility``.
+    """
+    return ctypes.windll.user32.GetAncestor(widget.winfo_id(), GA_ROOT)
+
+
 def _virtual_screen_bounds() -> tuple[int, int, int, int]:
     try:
         user32 = ctypes.windll.user32
@@ -197,7 +213,7 @@ class TkOverlay:
         self.root.geometry(f"{self.w}x{self.h}+{x}+{y}")
 
     def _hwnd(self) -> int:
-        return ctypes.windll.user32.GetParent(self.canvas.winfo_id())
+        return top_level_hwnd(self.canvas)
 
     def _apply_click_through(self) -> None:
         """Add click-through WITHOUT touching WS_EX_LAYERED.

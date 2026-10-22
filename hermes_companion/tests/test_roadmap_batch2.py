@@ -90,3 +90,19 @@ def test_stretch_reminder_after_a_longer_than_usual_session(tmp_path):
     said = [p.activity(1_000_000.0 + m * 60) for m in range(1, 60)]
     assert "Longer than usual today - time for a stretch?" in said
     assert said.count("Longer than usual today - time for a stretch?") == 1
+
+
+def test_chimes_go_quiet_without_an_audio_device(monkeypatch):
+    import sys
+    import types
+    fake = types.SimpleNamespace(SND_MEMORY=4)
+
+    def fail(*_a):
+        raise RuntimeError("Failed to play sound")
+
+    fake.PlaySound = fail
+    monkeypatch.setitem(sys.modules, "winsound", fake)
+    c = Chimes()
+    c.enabled = True
+    c._play(b"RIFF")                      # must not raise
+    assert c.enabled is False

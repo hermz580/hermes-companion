@@ -17,6 +17,8 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: pip install -e ".[test]" pystray
+      - name: Visibility probe (is the companion really on screen?)
+        run: python -m hermes_companion.renderer.visibility
       - name: Headless self-check
         run: hermes-companion --seed 42 selfcheck
       # Tests that inspect a locally installed Hermes agent are skipped in CI.

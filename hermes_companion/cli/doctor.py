@@ -96,16 +96,25 @@ def _collect(open_window: bool) -> list[tuple[str, str, str]]:
     if open_window:
         try:
             from hermes_companion.renderer.layered import SmoothLiveOverlay
+            from hermes_companion.renderer import visibility as probe
+            before = probe.snapshot() if sys.platform == "win32" else None
             overlay = SmoothLiveOverlay(companion="nyamekra")
             try:
                 overlay.set_pose("wave", 0.5)
                 overlay.root.update()
+                seen = probe.check(overlay, before)
                 mode = overlay.mode
             finally:
                 overlay.close()
-            _check(results, PASS if mode == "layered" else WARN, "Desktop window",
-                   "true transparency" if mode == "layered" else
-                   "colour-key fallback (works, edges less smooth)")
+            if seen is False:
+                _check(results, FAIL, "Desktop window",
+                       "opened but nothing appeared on screen - update Hermes Companion; "
+                       "if it stays invisible, start it with --render classic")
+            else:
+                _check(results, PASS if mode == "layered" else WARN, "Desktop window",
+                       ("true transparency" if mode == "layered" else
+                        "colour-key fallback (works, edges less smooth)")
+                       + (", seen on screen" if seen else ""))
         except Exception as exc:
             _check(results, FAIL, "Desktop window", f"{exc}")
 

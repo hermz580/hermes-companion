@@ -75,6 +75,36 @@ jobs:
           Write-Output $out3
           if ($out3 -notmatch "PLAY OK") { Write-Error "named companion did not run"; exit 1 }
 
+  newer-python:
+    # Start-Companion.cmd uses the newest Python on the PC, which can bring a
+    # newer Tk. Prove the companion is really visible there, both drawings.
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.13", "3.14", "3.15"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          allow-prereleases: true
+      - run: pip install -e .
+      - name: Visibility probe (smooth and simple drawing)
+        run: python -m hermes_companion.renderer.visibility
+      - name: Doctor
+        run: hermes-companion doctor
+      - name: No-console Kai, simple drawing
+        shell: pwsh
+        run: |
+          $pyw = Join-Path (Split-Path (Get-Command python).Source) 'pythonw.exe'
+          $log = Join-Path $env:LOCALAPPDATA 'hermes-companion\logs\play.log'
+          $k = Start-Process $pyw -ArgumentList '-m','hermes_companion','play','--companion','kai','--render','simple','--seconds','6' -Wait -PassThru
+          Get-Content $log -ErrorAction SilentlyContinue
+          if ($k.ExitCode -ne 0) { Write-Error "Kai exited with $($k.ExitCode)"; exit 1 }
+          if (-not (Select-String -Path $log -Pattern 'render: simple \(chroma\)' -Quiet)) { Write-Error "simple drawing not used"; exit 1 }
+          if (-not (Select-String -Path $log -Pattern 'PLAY OK' -Quiet)) { Write-Error "Kai closed early"; exit 1 }
+
   linux-window:
     # macOS/Linux fallback: the companion must run in a normal window.
     runs-on: ubuntu-latest

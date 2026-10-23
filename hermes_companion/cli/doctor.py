@@ -95,26 +95,22 @@ def _collect(open_window: bool) -> list[tuple[str, str, str]]:
 
     if open_window:
         try:
-            from hermes_companion.renderer.layered import SmoothLiveOverlay
-            from hermes_companion.renderer import visibility as probe
-            before = probe.snapshot() if sys.platform == "win32" else None
-            overlay = SmoothLiveOverlay(companion="nyamekra")
-            try:
-                overlay.set_pose("wave", 0.5)
-                overlay.root.update()
-                seen = probe.check(overlay, before)
-                mode = overlay.mode
-            finally:
-                overlay.close()
-            if seen is False:
+            from hermes_companion.renderer import visibility
+            seen, mode = visibility.probe("nyamekra", "smooth")
+            if seen in ("invisible", "black"):
+                simple, _m = visibility.probe("nyamekra", "simple")
+                what = ("showed a black square" if seen == "black"
+                        else "opened but nothing appeared on screen")
+                fix = ("open Home > Look > Drawing and pick Simple"
+                       if simple == "visible" else
+                       "update Hermes Companion and send logs/doctor output")
                 _check(results, FAIL, "Desktop window",
-                       "opened but nothing appeared on screen - update Hermes Companion; "
-                       "if it stays invisible, start it with --render classic")
+                       f"smooth drawing {what} (simple drawing: {simple}) - {fix}")
             else:
                 _check(results, PASS if mode == "layered" else WARN, "Desktop window",
                        ("true transparency" if mode == "layered" else
                         "colour-key fallback (works, edges less smooth)")
-                       + (", seen on screen" if seen else ""))
+                       + (", seen on screen" if seen == "visible" else ""))
         except Exception as exc:
             _check(results, FAIL, "Desktop window", f"{exc}")
 

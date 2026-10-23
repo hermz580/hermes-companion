@@ -152,13 +152,14 @@ def run_playground(companion: str = "nyamekra", notice: str = "full",
     from hermes_companion.renderer.desktop_sensors import DesktopSensors
     from hermes_companion.renderer.overlay import ProceduralLiveOverlay
 
-    if render == "smooth":
+    if render in ("smooth", "simple"):
         from hermes_companion.renderer.layered import SmoothLiveOverlay
         overlay = SmoothLiveOverlay(companion=companion, palette=palette, home_x=None,
                                     scale=SIZES.get(size, 1.0),
                                     reduced_motion=reduced_motion,
-                                    high_contrast=high_contrast, artpack=artpack)
-        print(f"render: smooth ({overlay.mode})", flush=True)
+                                    high_contrast=high_contrast, artpack=artpack,
+                                    layered=render == "smooth")
+        print(f"render: {render} ({overlay.mode})", flush=True)
     else:
         overlay = ProceduralLiveOverlay(companion=companion, palette=palette)
     sensors = DesktopSensors.for_platform(

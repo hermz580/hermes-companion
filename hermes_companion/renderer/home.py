@@ -67,6 +67,7 @@ COMPANION_INFO = {
 }
 
 SIZE_HELP = {"tiny": "Out of the way", "standard": "Balanced", "large": "Easy to see"}
+RENDER_HELP = {"smooth": "Soft edges and glow", "simple": "Works on every PC"}
 NOTICE_HELP = {
     "off": "Only reacts to Hermes. Ignores your desktop.",
     "ambient": "Also notices your cursor, windows and when you step away.",
@@ -165,7 +166,7 @@ def _show(key: str, value) -> str:
 
 
 LABELS = {"companion": "Companion", "palette": "Energy", "size": "Size",
-          "notice": "Curiosity", "with": "Also on screen"}
+          "notice": "Curiosity", "with": "Also on screen", "render": "Drawing"}
 LABELS.update({key: label for _g, items in BEHAVIOR_GROUPS for key, label, _h in items})
 
 
@@ -628,6 +629,12 @@ class HomeWindow:
         card = self._card(col)
         self._label(card, "Size", 11, bold=True).pack(fill="x", padx=16, pady=(12, 8))
         self._segmented(card, "size", S.SIZES, SIZE_HELP)
+
+        card = self._card(col)
+        self._label(card, "Drawing", 11, bold=True).pack(fill="x", padx=16, pady=(12, 2))
+        self._label(card, "If your companion shows as a black square or doesn't appear, pick Simple.",
+                    9, "muted").pack(fill="x", padx=16, pady=(0, 8))
+        self._segmented(card, "render", S.RENDERS, RENDER_HELP)
 
     def _page_behavior(self):
         tk = self.tk

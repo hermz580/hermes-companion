@@ -24,6 +24,7 @@ DEFAULTS: dict = {
     "reduced_motion": False,
     "high_contrast": False,
     "with": [],
+    "render": "smooth",
 }
 COMPANIONS = ("nyamekra", "masque", "nia", "herald", "samurai", "astro", "duet", "master", "kai")
 # What people call each companion (the registry key is an id, not a name).
@@ -31,6 +32,9 @@ NAMES = {"nyamekra": "Nyamekra", "masque": "Masque", "nia": "Nia", "herald": "He
          "samurai": "Samurai", "astro": "Astro", "duet": "Ade & Rae", "master": "Sensei",
          "kai": "Kai"}
 SIZES = ("tiny", "standard", "large")
+# smooth: true per-pixel transparency. simple: the colour-key window the speech
+# bubble uses - for PCs where smooth shows a black square or nothing at all.
+RENDERS = ("smooth", "simple")
 NOTICE = ("off", "ambient", "full")
 
 
@@ -65,6 +69,8 @@ def load(path: Path | None = None) -> dict:
         out["size"] = DEFAULTS["size"]
     if out["notice"] not in NOTICE:
         out["notice"] = DEFAULTS["notice"]
+    if out["render"] not in RENDERS:
+        out["render"] = DEFAULTS["render"]
     out["with"] = [c for c in out["with"] if c in COMPANIONS and c != out["companion"]][:3]
     return out
 
@@ -84,7 +90,7 @@ def play_command(values: dict, extra: list[str] | None = None) -> list[str]:
     base = [sys.executable] if getattr(sys, "frozen", False) else \
         [sys.executable, "-m", "hermes_companion"]
     cmd = base + ["play", "--companion", values["companion"], "--size", values["size"],
-                  "--notice", values["notice"]]
+                  "--notice", values["notice"], "--render", values.get("render") or "smooth"]
     if values.get("palette"):
         cmd += ["--palette", values["palette"]]
     for flag, key, want in (("--sound", "sound", True), ("--no-bubbles", "bubbles", False),
@@ -104,7 +110,7 @@ def live_command(values: dict) -> list[str]:
     base = [sys.executable] if getattr(sys, "frozen", False) else \
         [sys.executable, "-m", "hermes_companion"]
     cmd = base + ["live", "--companion", values["companion"], "--follow",
-                  "--notice", values["notice"]]
+                  "--notice", values["notice"], "--render", values.get("render") or "smooth"]
     if values.get("palette"):
         cmd += ["--palette", values["palette"]]
     for flag, key, want in (("--sound", "sound", True), ("--no-bubbles", "bubbles", False),

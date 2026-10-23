@@ -34,6 +34,14 @@ def needs_log() -> bool:
     return sys.stdout is None or sys.stderr is None
 
 
+def _tk_version() -> str:
+    try:
+        import tkinter
+        return str(tkinter.TkVersion)
+    except Exception:
+        return "missing"
+
+
 def attach(command: str):
     """Send stdout, stderr and crashes to this command's log. Returns the file or None."""
     path = log_path(command)
@@ -44,7 +52,8 @@ def attach(command: str):
         out = open(path, "a", encoding="utf-8", buffering=1)
     except OSError:
         return None
-    out.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')} {command} {' '.join(sys.argv[1:])}\n")
+    out.write(f"\n=== {time.strftime('%Y-%m-%d %H:%M:%S')} {command} {' '.join(sys.argv[1:])}"
+              f" | python {sys.version.split()[0]}, tk {_tk_version()}\n")
     sys.stdout = sys.stdout or out
     sys.stderr = sys.stderr or out
 

@@ -365,11 +365,11 @@ print(json.dumps(mons))
             if relay is not None:
                 relay.close()
             return 2
-        if args.render == "smooth":
+        if args.render in ("smooth", "simple"):
             from hermes_companion.renderer.layered import SmoothLiveOverlay
             overlay = SmoothLiveOverlay(
                 companion=args.companion, home_x=home_x, home_y=home_y,
-                palette=args.palette)
+                palette=args.palette, layered=args.render == "smooth")
         else:
             from hermes_companion.renderer.overlay import ProceduralLiveOverlay
             overlay = ProceduralLiveOverlay(
@@ -443,7 +443,7 @@ def cmd_shortcut(args: argparse.Namespace) -> int:
 def resolve_play_settings(args: argparse.Namespace, saved: dict) -> dict:
     """Saved settings, overridden by anything given on the command line."""
     v = dict(saved)
-    for key in ("companion", "palette", "size", "notice"):
+    for key in ("companion", "palette", "size", "notice", "render"):
         if getattr(args, key, None) is not None:
             v[key] = getattr(args, key)
     if args.companion is not None and args.companion != saved.get("companion"):
@@ -483,7 +483,7 @@ def cmd_play(args: argparse.Namespace) -> int:
         atexit.register(lambda: [p.terminate() for p in siblings if p.poll() is None])
 
     return run_playground(companion=v["companion"], notice=v["notice"],
-                          palette=v["palette"], render=args.render,
+                          palette=v["palette"], render=v.get("render") or "smooth",
                           perch=v["perch"], size=v["size"],
                           seconds=args.seconds, reduced_motion=v["reduced_motion"],
                           high_contrast=v["high_contrast"], artpack=args.artpack,
@@ -928,7 +928,7 @@ def build_parser() -> argparse.ArgumentParser:
     pl.add_argument("--follow", action="store_true",
                     help="show whichever Hermes session is active (explicit consent)")
     pl.add_argument("--palette", default=None, help="energy style / palette")
-    pl.add_argument("--render", choices=("smooth", "classic"), default="smooth",
+    pl.add_argument("--render", choices=("smooth", "simple", "classic"), default="smooth",
                     help="procedural companions: smooth anti-aliased or classic")
     pl.add_argument("--no-perch", action="store_true",
                     help="procedural companions: don't perch on windows")
@@ -955,7 +955,7 @@ def build_parser() -> argparse.ArgumentParser:
     pp.add_argument("--no-demo", action="store_true",
                     help="don't loop a simulated Hermes session")
     pp.add_argument("--no-variety", action="store_true")
-    pp.add_argument("--render", choices=("smooth", "classic"), default="smooth",
+    pp.add_argument("--render", choices=("smooth", "simple", "classic"), default=None,
                     help="smooth = anti-aliased, glowing, true transparency (default)")
     pp.add_argument("--sound", action="store_true", help="soft chimes for start, done, needs-you, problems")
     pp.add_argument("--no-bubbles", action="store_true", help="no speech bubbles")

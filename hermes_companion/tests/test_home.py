@@ -10,7 +10,7 @@ from hermes_companion.renderer import home as H
 
 def test_every_setting_has_a_home():
     """Each saved setting is reachable from a Home page, so nothing is CLI-only."""
-    covered = {"companion", "with", "palette", "size", "notice"}
+    covered = {"companion", "with", "palette", "size", "notice", "render"}
     covered |= {key for _g, items in H.BEHAVIOR_GROUPS for key, _l, _h in items}
     assert covered == set(S.DEFAULTS)
 

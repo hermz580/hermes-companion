@@ -123,7 +123,8 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
     def __init__(self, *, companion: str, home_x: int | None = None,
                  home_y: int | None = None, palette: str | None = None,
                  glow: bool = True, scale: float = 1.0, reduced_motion: bool = False,
-                 high_contrast: bool = False, artpack: str | None = None, master=None) -> None:
+                 high_contrast: bool = False, artpack: str | None = None, master=None,
+                 layered: bool = True) -> None:
         super().__init__(companion=companion, home_x=home_x, home_y=home_y,
                          palette=palette, master=master)
         self.renderer = FrameRenderer(companion, palette, glow=glow, scale=scale,
@@ -144,6 +145,8 @@ class SmoothLiveOverlay(ProceduralLiveOverlay):
         try:
             if self.mode == "windowed":
                 raise OSError("no per-pixel alpha outside Windows")
+            if not layered:                      # "simple" drawing: the colour-key window
+                raise OSError("simple drawing chosen")
             self.root.update_idletasks()
             self.root.wm_attributes("-transparentcolor", "")
             self.blitter = LayeredBlitter(self._hwnd(), self.w, self.h)

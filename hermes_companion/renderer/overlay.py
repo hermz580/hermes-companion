@@ -126,6 +126,52 @@ def connected_to(primary, rects):
     return [r for r in rects if r in keep]
 
 
+def shared_band(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
+    """True when two panels overlap by a positive stretch of VERTICAL screen.
+
+    Side-by-side panels share a band even though their rectangles only touch
+    (zero-area overlap), so this is the test for "can the pet walk from one to
+    the other without changing height". A panel that sits entirely above or
+    below another shares a full edge but no band: walking sideways onto it
+    would teleport the pet to a height no screen occupies.
+    """
+    return min(a[3], b[3]) - max(a[1], b[1]) > 0
+
+
+def horizontal_neighbour(rect: tuple[int, int, int, int], cx: int,
+                         rects: list[tuple[int, int, int, int]]
+                         ) -> tuple[int, int, int, int] | None:
+    """The panel the pet lands on when its centre ``cx`` carries it off ``rect``.
+
+    Only a panel that SHARES A VERTICAL BAND is eligible. x-range alone is not
+    enough: on a desk whose extra displays are reported above the primary, a
+    phantom row can span the primary's right edge, so a pet walking right past
+    x=1600 adopted the panel above and re-homed to y=-364 — alive, on top, and
+    invisible on every real screen.
+    """
+    for other in rects:
+        if other == rect:
+            continue
+        o_left, o_top, o_right, o_bottom = other
+        if o_left <= cx < o_right and shared_band(rect, other):
+            return other
+    return None
+
+
+def walk_span(rect: tuple[int, int, int, int],
+              rects: list[tuple[int, int, int, int]]) -> tuple[int, int]:
+    """Left and right extent the pet can walk from ``rect`` without leaving its band."""
+    keep = {rect}
+    grew = True
+    while grew:
+        grew = False
+        for r in rects:
+            if r not in keep and any(shared_band(r, k) and _joined(r, k) for k in keep):
+                keep.add(r)
+                grew = True
+    return min(r[0] for r in keep), max(r[2] for r in keep)
+
+
 def primary_monitor(rects: list[tuple[int, int, int, int]] | None = None
                     ) -> tuple[int, int, int, int] | None:
     """The monitor containing the origin, else the first one."""
@@ -305,22 +351,28 @@ class TkOverlay:
         now = time.monotonic()
         if now - getattr(self, "_mon_at", -1e9) > 3.0:     # enumerate monitors at most every 3 s
             self._mon_cache, self._mon_at = monitors(), now
-        for other in getattr(self, "_mon_cache", []):
-            o_left, o_top, o_right, o_bottom = other
-            if other != rect and o_left <= cx < o_right:
-                lift_off_floor = bottom - (self.home_y + self.h)
-                self._home_rect = other
-                self.home_y = o_bottom - self.h - max(0, lift_off_floor)
-                return other, self.home_y
-        return None
+        other = horizontal_neighbour(rect, cx, getattr(self, "_mon_cache", []))
+        if other is None:
+            return None
+        o_left, o_top, o_right, o_bottom = other
+        lift_off_floor = bottom - (self.home_y + self.h)
+        self._home_rect = other
+        self.home_y = o_bottom - self.h - max(0, lift_off_floor)
+        return other, self.home_y
 
     def room(self) -> tuple[int, int]:
         """Space to the left and right across every screen joined to this one."""
-        rects = monitors() or ([getattr(self, "_home_rect")] if getattr(self, "_home_rect", None) else [])
-        if not rects:
+        rects = monitors()
+        home = getattr(self, "_home_rect", None)
+        if rects and home is not None:
+            left, right = walk_span(home, rects)
+        elif rects:
+            left = min(r[0] for r in rects)
+            right = max(r[2] for r in rects)
+        elif home is not None:
+            left, right = home[0], home[2]
+        else:
             return 0, 0
-        left = min(r[0] for r in rects)
-        right = max(r[2] for r in rects)
         return max(0, int(self.x) - left), max(0, right - (int(self.x) + self.w))
 
     def set_pose(self, pose: str, progress: float = 0.0) -> None:
